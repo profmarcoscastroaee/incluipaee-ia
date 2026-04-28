@@ -282,6 +282,88 @@ def gerar_paee_sem_ia(estudante, avaliacao):
     data_registro, barreiras, potencialidades, comunicacao, interacao, autonomia, aprendizagem, resumo_laudo = avaliacao
 
     return f"""
+
+def gerar_relatorio_evolucao(estudante, avaliacao):
+    api_key = obter_api_key()
+
+    if OpenAI is None or not api_key:
+        return "IA não configurada."
+
+    historico_txt = listar_atendimentos_texto(estudante[0])
+
+    estudante_txt = f"""
+Código interno: {estudante[1]}
+Ano/Série: {estudante[2]}
+Turma: {estudante[3]}
+Perfil educacional: {estudante[4]}
+"""
+
+    prompt = f"""
+Você é um especialista em Educação Inclusiva e AEE.
+
+Analise o histórico de atendimentos e produza um RELATÓRIO PEDAGÓGICO ANALÍTICO.
+
+DADOS DO ESTUDANTE:
+{estudante_txt}
+
+HISTÓRICO DE ATENDIMENTOS:
+{historico_txt}
+
+REGRAS IMPORTANTES:
+- NÃO inventar informações.
+- Usar somente dados reais.
+- Se os dados forem fracos, dizer claramente.
+
+ESTRUTURA DO RELATÓRIO:
+
+1. Síntese da evolução do estudante
+- Descrever evolução real com base nos atendimentos
+- Se não houver evolução clara, justificar
+
+2. Análise dos avanços
+- Citar exatamente o que aparece no campo "Avanços"
+- Avaliar qualidade dos avanços
+
+3. Análise das dificuldades
+- Identificar padrões de dificuldade
+- Ver se são recorrentes
+
+4. Qualidade dos registros pedagógicos
+Classificar como:
+- Alta
+- Média
+- Baixa
+
+Justificar considerando:
+- Clareza
+- Detalhamento
+- Coerência pedagógica
+
+5. Principais problemas identificados nos registros
+- Ex: termos genéricos, falta de descrição, ausência de evidência
+
+6. Recomendações para melhoria dos registros
+- O que o professor deve melhorar ao registrar
+
+7. Recomendações pedagógicas para o AEE
+- Ajustes no atendimento com base nos dados reais
+
+8. Conclusão técnica
+- Síntese profissional do caso
+
+IMPORTANTE:
+Se os registros forem fracos, dizer explicitamente isso.
+"""
+
+    client = OpenAI(api_key=api_key)
+
+    resposta = client.responses.create(
+        model="gpt-4.1-mini",
+        input=prompt,
+    )
+
+    return resposta.output_text
+
 # PLANO DE ATENDIMENTO EDUCACIONAL ESPECIALIZADO - PAEE
 
 ## 1. Identificação do estudante
