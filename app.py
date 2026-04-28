@@ -520,32 +520,39 @@ def gerar_pdf_paee(conteudo, codigo):
         titulo_style
     ))
 
-   for linha in conteudo.split("\n"):
-       linha = linha.strip()
+for linha in conteudo.split("\n"):
+        linha = linha.strip()
 
-       # 🔥 remove título duplicado da IA
-       if "plano de atendimento educacional especializado" in linha.lower():
-           continue
+        # 🔥 remove título duplicado da IA
+        if "plano de atendimento educacional especializado" in linha.lower():
+            continue
 
-       if linha in ["--", "• --", "---"]:
-           continue
+        # 🔥 remove lixo
+        if linha in ["--", "• --", "---"]:
+            continue
 
-       if not linha:
-           elementos.append(Spacer(1, 6))
+        if not linha:
+            elementos.append(Spacer(1, 6))
 
-       elif linha.startswith("#"):
-           elementos.append(Paragraph(
-               f"<b>{linha.replace('#','').strip()}</b>",
-               secao_style
-           ))
+        elif linha.startswith("#"):
+            elementos.append(Paragraph(
+                f"<b>{linha.replace('#','').strip()}</b>",
+                secao_style
+            ))
 
-       elif linha.startswith("-"):
-           elementos.append(Paragraph(
+        elif linha.startswith("**") and linha.endswith("**"):
+            elementos.append(Paragraph(
+                f"<b>{linha.replace('**','')}</b>",
+                normal_style
+            ))
+
+        elif linha.startswith("-"):
+            elementos.append(Paragraph(
                 f"• {linha[1:].strip()}",
                 normal_style
-           ))
+            ))
 
-       else:
+        else:
             elementos.append(Paragraph(linha, normal_style))
 
     elementos.append(Spacer(1, 20))
