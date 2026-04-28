@@ -625,7 +625,16 @@ tab1, tab2, tab3, tab4 = st.tabs([
 ])
 
 with tab1:
-    st.header("Cadastro do estudante")
+    st.markdown("### 👤 Cadastro do estudante")
+    st.markdown("""
+    <div style="
+    background-color:#F8F9FA;
+    padding:20px;
+    border-radius:12px;
+    border:1px solid #DDD;
+    ">
+    """, unsafe_allow_html=True)
+    
     with st.form("form_cadastro"):
         codigo = st.text_input("Código interno do estudante", placeholder="Ex.: AEE-001")
         ano_serie = st.text_input("Ano/Série", placeholder="Ex.: 4º ano")
