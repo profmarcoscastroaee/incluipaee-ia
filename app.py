@@ -757,11 +757,13 @@ if estudantes:
                    "Ano/Série": e[2],
                    "Turma": e[3],
                    "Perfil": e[4],
+                   "Observações": e[5],
                 }
                 for e in estudantes
            ],
            use_container_width=True,
         )
+
     else:
         st.info("Nenhum estudante cadastrado ainda.")
 
