@@ -13,7 +13,7 @@ except Exception:
 DB_PATH = Path("inclui_paee.db")
 
 ======================================================
-CONFIGURAÇÃO DA API KEY
+# CONFIGURAÇÃO DA API KEY
 ======================================================
 def obter_api_key():
 """Busca a chave da OpenAI no ambiente local ou nos Secrets do Streamlit Cloud."""
