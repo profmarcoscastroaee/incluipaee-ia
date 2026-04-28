@@ -607,7 +607,13 @@ def gerar_pdf_documento(conteudo, codigo, tipo="paee"):
     from reportlab.lib.enums import TA_CENTER
     from reportlab.lib.pagesizes import A4
     from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
-    from reportlab.platypus import HRFlowable, Paragraph, SimpleDocTemplate, Spacer
+    from reportlab.platypus import (
+        HRFlowable,
+        Paragraph,
+        SimpleDocTemplate,
+        Spacer,
+        Image,
+    )
 
     if tipo == "relatorio":
         nome_arquivo = f"Relatorio_{codigo}.pdf"
@@ -664,30 +670,35 @@ def gerar_pdf_documento(conteudo, codigo, tipo="paee"):
         spaceBefore=20,
     )
 
-# LOGO
-try:
-    logo = Image("logo.png", width=140, height=70)
-    logo.hAlign = 'CENTER'
-    elementos.append(logo)
-    elementos.append(Spacer(1, 8))
-except Exception:
-    pass
+    elementos = []
 
-# NOME INSTITUCIONAL
-elementos.append(
-    Paragraph(
-        "<b>Universidade Federal Rural de Pernambuco<br/>"
-        "LabTec3DI – Laboratório de Tecnologias 3D e Inclusivas</b>",
-        normal_style,
+    # LOGO
+    try:
+        logo = Image("logo.png", width=140, height=70)
+        logo.hAlign = "CENTER"
+        elementos.append(logo)
+        elementos.append(Spacer(1, 8))
+    except Exception:
+        pass
+
+    # NOME INSTITUCIONAL
+    elementos.append(
+        Paragraph(
+            "<b>Universidade Federal Rural de Pernambuco<br/>"
+            "LabTec3DI – Laboratório de Tecnologias 3D e Inclusivas</b>",
+            normal_style,
+        )
     )
-)
 
-# LINHAS E ESPAÇAMENTOS (SEM INDENTAÇÃO)
-elementos.append(Spacer(1, 8))
-elementos.append(HRFlowable(width="100%", thickness=1, color=colors.grey))
-elementos.append(Spacer(1, 12))
-elementos.append(Paragraph(titulo_doc, titulo_style))
+    elementos.append(Spacer(1, 8))
+    elementos.append(HRFlowable(width="100%", thickness=1, color=colors.grey))
+    elementos.append(Spacer(1, 12))
 
+    # TÍTULO
+    elementos.append(Paragraph(titulo_doc, titulo_style))
+    elementos.append(Spacer(1, 12))
+
+    # CONTEÚDO
     for linha in conteudo.split("\n"):
         linha = linha.strip()
 
@@ -696,6 +707,7 @@ elementos.append(Paragraph(titulo_doc, titulo_style))
             continue
 
         linha_lower = linha.lower()
+
         if "plano de atendimento educacional especializado" in linha_lower:
             continue
         if "relatório de evolução e qualidade do atendimento" in linha_lower:
@@ -708,22 +720,30 @@ elementos.append(Paragraph(titulo_doc, titulo_style))
         if linha.startswith("#"):
             texto = escape(linha.replace("#", "").strip())
             elementos.append(Paragraph(f"<b>{texto}</b>", secao_style))
+
         elif linha.startswith("**") and linha.endswith("**"):
             texto = escape(linha.replace("**", "").strip())
             elementos.append(Paragraph(f"<b>{texto}</b>", secao_style))
+
         elif linha[:2].isdigit() and "." in linha[:4]:
             elementos.append(Paragraph(f"<b>{linha_html}</b>", secao_style))
+
         elif linha.startswith("-"):
             elementos.append(Paragraph(f"• {escape(linha[1:].strip())}", normal_style))
+
         else:
             elementos.append(Paragraph(linha_html, normal_style))
 
     elementos.append(Spacer(1, 20))
-    elementos.append(Paragraph("Elaborado com apoio do LabTec3DI – UFRPE", rodape_style))
+    elementos.append(
+        Paragraph(
+            "Elaborado com apoio do LabTec3DI – UFRPE",
+            rodape_style,
+        )
+    )
 
     doc.build(elementos)
     return nome_arquivo
-
 
 def gerar_pdf_paee(conteudo, codigo):
     return gerar_pdf_documento(conteudo, codigo, tipo="paee")
