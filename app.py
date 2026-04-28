@@ -292,11 +292,11 @@ def gerar_relatorio_evolucao(estudante, avaliacao):
     historico_txt = listar_atendimentos_texto(estudante[0])
 
     estudante_txt = f"""
-Código interno: {estudante[1]}
-Ano/Série: {estudante[2]}
-Turma: {estudante[3]}
-Perfil educacional: {estudante[4]}
-"""
+    Código interno: {estudante[1]}
+    Ano/Série: {estudante[2]}
+    Turma: {estudante[3]}
+    Perfil educacional: {estudante[4]}
+    """
 
     prompt = f"""
 Você é um especialista em Educação Inclusiva e AEE.
