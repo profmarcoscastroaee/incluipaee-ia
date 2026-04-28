@@ -340,6 +340,12 @@ def link_busca_printables(termo):
     return f"https://www.printables.com/search/models?q={termo_formatado}"
 
 
+def link_busca_makerworld(termo):
+    """Gera link de busca no MakerWorld sem depender de API."""
+    termo_formatado = termo.replace(" ", "%20")
+    return f"https://makerworld.com/pt/search/models?keyword={termo_formatado}"
+
+
 def gerar_termos_3d_com_ia(conteudo_paee):
     """Gera termos curtos para busca de modelos 3D a partir do PAEE."""
     api_key = obter_api_key()
@@ -357,7 +363,7 @@ def gerar_termos_3d_com_ia(conteudo_paee):
 
     prompt = f"""
 Analise o PAEE abaixo e gere exatamente 5 termos curtos para busca de modelos 3D pedagógicos
-em sites como Thingiverse e Printables.
+em sites como Thingiverse, Printables e MakerWorld.
 
 Use termos preferencialmente em inglês, pois retornam mais modelos.
 Priorize recursos inclusivos, táteis, manipuláveis, visuais, sensoriais ou de comunicação alternativa.
@@ -1115,7 +1121,7 @@ with tab3:
                 # ==================================================
                 # BUSCA SEMIAUTOMÁTICA DE MODELOS 3D
                 # IA SUGERE TERMOS + PROFESSOR ESCOLHE
-                # Thingiverse e Printables abrem por link externo
+                # Thingiverse, Printables e MakerWorld abrem por link externo
                 # ==================================================
                 st.markdown("---")
                 st.subheader("🔎 Modelos 3D sugeridos para apoio pedagógico")
@@ -1136,21 +1142,29 @@ with tab3:
                     st.markdown("### Sugestões geradas a partir do PAEE")
 
                     for i, termo in enumerate(st.session_state["termos_3d_sugeridos"]):
-                        col_termo, col_thingiverse, col_printables = st.columns([2.5, 1.5, 1.5])
+                        col_termo, col_thingiverse, col_printables, col_makerworld = st.columns(
+                            [2.5, 1.4, 1.4, 1.4]
+                        )
 
                         with col_termo:
                             st.markdown(f"**{termo}**")
 
                         with col_thingiverse:
                             st.link_button(
-                                "Ver no Thingiverse",
+                                "Thingiverse",
                                 link_busca_thingiverse(termo),
                             )
 
                         with col_printables:
                             st.link_button(
-                                "Ver no Printables",
+                                "Printables",
                                 link_busca_printables(termo),
+                            )
+
+                        with col_makerworld:
+                            st.link_button(
+                                "MakerWorld",
+                                link_busca_makerworld(termo),
                             )
 
                 st.markdown("### Busca manual")
@@ -1160,12 +1174,12 @@ with tab3:
                     key="termo_3d_paee",
                 )
 
-                col_thingiverse_manual, col_printables_manual = st.columns(2)
+                col_thingiverse_manual, col_printables_manual, col_makerworld_manual = st.columns(3)
 
                 with col_thingiverse_manual:
                     if termo_3d.strip():
                         st.link_button(
-                            "Ver termo manual no Thingiverse",
+                            "Thingiverse",
                             link_busca_thingiverse(termo_3d.strip()),
                         )
                     else:
@@ -1174,11 +1188,20 @@ with tab3:
                 with col_printables_manual:
                     if termo_3d.strip():
                         st.link_button(
-                            "Ver termo manual no Printables",
+                            "Printables",
                             link_busca_printables(termo_3d.strip()),
                         )
                     else:
                         st.caption("Digite um termo para buscar no Printables.")
+
+                with col_makerworld_manual:
+                    if termo_3d.strip():
+                        st.link_button(
+                            "MakerWorld",
+                            link_busca_makerworld(termo_3d.strip()),
+                        )
+                    else:
+                        st.caption("Digite um termo para buscar no MakerWorld.")
 
 with tab4:
     st.header("Registro dos atendimentos")
