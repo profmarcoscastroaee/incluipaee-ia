@@ -887,7 +887,7 @@ with tab1:
 
         with st.form("form_editar_estudante"):
     col1, col2 = st.columns(2)
-
+        )
     with col1:
         codigo_edit = st.text_input("Código interno")
             value=estudante_editar[1],
