@@ -746,50 +746,6 @@ st.markdown("</div>", unsafe_allow_html=True)
 criar_tabelas()
 
 # ======================================================
-# ESTILO VISUAL
-# ======================================================
-st.markdown(
-    """
-    <style>
-    .info-card {
-        background-color: #F8FAFC;
-        border: 1px solid #E5E7EB;
-        border-radius: 12px;
-        padding: 16px;
-        margin-bottom: 16px;
-    }
-
-    .metric-card {
-        background: linear-gradient(135deg, #F8FAFC 0%, #EFF6FF 100%);
-        border: 1px solid #DBEAFE;
-        border-radius: 16px;
-        padding: 18px;
-        text-align: center;
-        box-shadow: 0px 4px 14px rgba(15, 23, 42, 0.06);
-    }
-
-    .metric-number {
-        font-size: 30px;
-        font-weight: 800;
-        color: #0F766E;
-        margin-bottom: 0;
-    }
-
-    .metric-label {
-        font-size: 14px;
-        color: #475569;
-        margin-top: 0;
-    }
-
-    h1, h2, h3 {
-        color: #16324F;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
-
-# ======================================================
 # LOGO PRINCIPAL
 # ======================================================
 col1, col2, col3 = st.columns([1, 3, 1])
