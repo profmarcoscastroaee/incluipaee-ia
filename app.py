@@ -85,7 +85,7 @@ def criar_tabelas():
         """
     )
 
-     cursor.execute(
+    cursor.execute(
          """
         CREATE TABLE IF NOT EXISTS atendimentos (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
