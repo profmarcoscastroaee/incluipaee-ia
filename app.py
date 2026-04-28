@@ -633,7 +633,7 @@ elementos.append(Spacer(1, 8))
 elementos.append(HRFlowable(width="100%", thickness=1, color=colors.grey))
 elementos.append(Spacer(1, 12))
 elementos.append(Paragraph("PLANO DE ATENDIMENTO EDUCACIONAL ESPECIALIZADO (PAEE)", titulo_style))
-🔥 título dinâmico
+#🔥 título dinâmico
     if "Relatorio" in codigo or "relatorio" in codigo:
     titulo_doc = "RELATÓRIO DE EVOLUÇÃO E QUALIDADE DO ATENDIMENTO"
 else:
