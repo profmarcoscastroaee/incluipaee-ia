@@ -12,10 +12,9 @@ except Exception:
 
 DB_PATH = Path("inclui_paee.db")
 
-# ======================================================
-# 🔐 API KEY (CORREÇÃO PRINCIPAL)
-# ======================================================
-
+# =========================
+# API KEY
+# =========================
 def obter_api_key():
     try:
         return os.getenv("OPENAI_API_KEY") or st.secrets.get("OPENAI_API_KEY")
@@ -23,10 +22,9 @@ def obter_api_key():
         return os.getenv("OPENAI_API_KEY")
 
 
-# ======================================================
-# BANCO DE DADOS
-# ======================================================
-
+# =========================
+# BANCO
+# =========================
 def conectar():
     return sqlite3.connect(DB_PATH)
 
@@ -49,6 +47,7 @@ def criar_tabelas():
     CREATE TABLE IF NOT EXISTS avaliacoes (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         estudante_id INTEGER,
+        data_registro TEXT,
         barreiras TEXT,
         potencialidades TEXT,
         comunicacao TEXT,
@@ -63,6 +62,7 @@ def criar_tabelas():
     CREATE TABLE IF NOT EXISTS paees (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         estudante_id INTEGER,
+        data_geracao TEXT,
         conteudo TEXT
     )
     """)
@@ -70,13 +70,16 @@ def criar_tabelas():
     conn.commit()
     conn.close()
 
-def cadastrar_estudante(codigo, ano_serie, turma, perfil, observacoes):
+
+# =========================
+# CRUD
+# =========================
+def cadastrar_estudante(codigo, ano, turma, perfil, obs):
     conn = conectar()
     cursor = conn.cursor()
     cursor.execute("""
-    INSERT INTO estudantes (codigo, ano_serie, turma, perfil, observacoes)
-    VALUES (?, ?, ?, ?, ?)
-    """, (codigo, ano_serie, turma, perfil, observacoes))
+    INSERT INTO estudantes VALUES (NULL, ?, ?, ?, ?, ?)
+    """, (codigo, ano, turma, perfil, obs))
     conn.commit()
     conn.close()
 
@@ -88,63 +91,71 @@ def listar_estudantes():
     conn.close()
     return dados
 
-def buscar_estudante(estudante_id):
+def buscar_estudante(id_est):
     conn = conectar()
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM estudantes WHERE id=?", (estudante_id,))
+    cursor.execute("SELECT * FROM estudantes WHERE id=?", (id_est,))
     dado = cursor.fetchone()
     conn.close()
     return dado
 
-def salvar_avaliacao(estudante_id, barreiras, potencialidades, comunicacao, interacao, autonomia, aprendizagem, resumo_laudo):
+def salvar_avaliacao(id_est, barreiras, pot, com, inter, auto, apr, resumo):
     conn = conectar()
     cursor = conn.cursor()
     cursor.execute("""
-    INSERT INTO avaliacoes VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, (estudante_id, barreiras, potencialidades, comunicacao, interacao, autonomia, aprendizagem, resumo_laudo))
+    INSERT INTO avaliacoes (
+        estudante_id, data_registro, barreiras, potencialidades,
+        comunicacao, interacao, autonomia, aprendizagem, resumo_laudo
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (
+        id_est,
+        datetime.now().strftime("%d/%m/%Y %H:%M"),
+        barreiras, pot, com, inter, auto, apr, resumo
+    ))
     conn.commit()
     conn.close()
 
-def ultima_avaliacao(estudante_id):
+def ultima_avaliacao(id_est):
     conn = conectar()
     cursor = conn.cursor()
     cursor.execute("""
     SELECT * FROM avaliacoes WHERE estudante_id=? ORDER BY id DESC LIMIT 1
-    """, (estudante_id,))
+    """, (id_est,))
     dado = cursor.fetchone()
     conn.close()
     return dado
 
-def salvar_paee(estudante_id, conteudo):
+def salvar_paee(id_est, conteudo):
     conn = conectar()
     cursor = conn.cursor()
-    cursor.execute("INSERT INTO paees VALUES (NULL, ?, ?)", (estudante_id, conteudo))
+    cursor.execute("""
+    INSERT INTO paees VALUES (NULL, ?, ?, ?)
+    """, (id_est, datetime.now().strftime("%d/%m/%Y %H:%M"), conteudo))
     conn.commit()
     conn.close()
 
 
-# ======================================================
-# 🤖 IA
-# ======================================================
-
-def gerar_paee_sem_ia(estudante, avaliacao):
-    return "PAEE básico gerado (sem IA)."
-
+# =========================
+# IA
+# =========================
 def gerar_paee_com_ia(estudante, avaliacao):
     api_key = obter_api_key()
 
     if OpenAI is None or not api_key:
-        return gerar_paee_sem_ia(estudante, avaliacao)
+        return "IA não configurada."
 
     prompt = f"""
-Crie um PAEE profissional com base nesses dados:
+Você é especialista em AEE. Gere um PAEE profissional.
 
-Estudante: {estudante}
-Avaliação: {avaliacao}
+Dados do estudante:
+{estudante}
+
+Avaliação:
+{avaliacao}
 
 Estruture com:
 - objetivos
-- estratégias pedagógicas
+- estratégias
 - acessibilidade
 - acompanhamento
 """
@@ -159,11 +170,11 @@ Estruture com:
     return resposta.output_text
 
 
-# ======================================================
+# =========================
 # INTERFACE
-# ======================================================
-
+# =========================
 st.set_page_config(page_title="IncluiPAEE IA")
+
 criar_tabelas()
 
 st.title("IncluiPAEE IA")
@@ -180,40 +191,38 @@ with tab1:
 
     if st.button("Cadastrar"):
         cadastrar_estudante(codigo, ano, turma, perfil, obs)
-        st.success("Cadastrado!")
+        st.success("Cadastrado")
 
 # AVALIAÇÃO
 with tab2:
     estudantes = listar_estudantes()
     if estudantes:
-        opcoes = {e[1]: e[0] for e in estudantes}
-        selecionado = st.selectbox("Aluno", list(opcoes.keys()))
-        id_est = opcoes[selecionado]
+        op = {e[1]: e[0] for e in estudantes}
+        sel = st.selectbox("Aluno", list(op.keys()))
+        id_est = op[sel]
 
         barreiras = st.text_area("Barreiras")
         pot = st.text_area("Potencialidades")
 
         if st.button("Salvar avaliação"):
             salvar_avaliacao(id_est, barreiras, pot, "", "", "", "", "")
-            st.success("Salvo!")
+            st.success("Salvo")
 
-# GERAR PAEE
+# PAEE
 with tab3:
     estudantes = listar_estudantes()
     if estudantes:
-        opcoes = {e[1]: e[0] for e in estudantes}
-        selecionado = st.selectbox("Aluno", list(opcoes.keys()), key="paee")
+        op = {e[1]: e[0] for e in estudantes}
+        sel = st.selectbox("Aluno", list(op.keys()), key="paee")
 
-        estudante = buscar_estudante(opcoes[selecionado])
-        avaliacao = ultima_avaliacao(opcoes[selecionado])
+        est = buscar_estudante(op[sel])
+        av = ultima_avaliacao(op[sel])
 
-        usar_ia = OpenAI is not None and bool(obter_api_key())
-
-        if usar_ia:
+        if OpenAI is not None and obter_api_key():
             st.success("IA ativada")
         else:
             st.warning("IA não configurada")
 
         if st.button("Gerar PAEE"):
-            paee = gerar_paee_com_ia(estudante, avaliacao)
-            st.write(paee)
+            texto = gerar_paee_com_ia(est, av)
+            st.write(texto)
