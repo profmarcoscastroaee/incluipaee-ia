@@ -935,33 +935,35 @@ with tab1:
 
             atualizar = st.form_submit_button("💾 Atualizar cadastro")
 
-            if atualizar:
-                try:
-                    atualizar_estudante(
-                        estudante_id_editar,
-                        codigo_edit.strip(),
-                        ano_edit,
-                        turma_edit,
-                        perfil_edit,
-                        observacoes_edit
-                    )
-                    st.success("Cadastro atualizado com sucesso.")
-                    st.rerun()
-                except sqlite3.IntegrityError:
-                    st.error("Este código interno já está sendo usado por outro estudante.")
-      
-    st.markdown("---")
-    st.markdown("### 🗑️ Excluir estudante")
+if atualizar:
+    try:
+        atualizar_estudante(
+            estudante_id_editar,
+            codigo_edit.strip(),
+            ano_edit,
+            turma_edit,
+            perfil_edit,
+            observacoes_edit
+        )
+        st.success("Cadastro atualizado com sucesso.")
+        st.rerun()
+    except sqlite3.IntegrityError:
+        st.error("Este código interno já está sendo usado por outro estudante.")
 
-        confirmar = st.checkbox("Confirmar exclusão do estudante")
 
-      if st.button("Excluir estudante"):
-      if confirmar:
-         excluir_estudante(estudante_id_editar)
-         st.success("Estudante excluído com sucesso")
-         st.rerun()
-      else:
-         st.warning("Marque a confirmação antes de excluir")   
+# 🔥 EXCLUIR (CORRETO)
+st.markdown("---")
+st.markdown("### 🗑️ Excluir estudante")
+
+confirmar = st.checkbox("Confirmar exclusão do estudante")
+
+if st.button("Excluir estudante"):
+    if confirmar:
+        excluir_estudante(estudante_id_editar)
+        st.success("Estudante excluído com sucesso")
+        st.rerun()
+    else:
+        st.warning("Marque a confirmação antes de excluir") 
     
     st.markdown("### 📋 Estudantes cadastrados")
     estudantes = listar_estudantes()
