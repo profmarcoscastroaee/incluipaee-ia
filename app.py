@@ -953,7 +953,7 @@ with tab1:
     st.markdown("---")
     st.markdown("### 🗑️ Excluir estudante")
 
-           confirmar = st.checkbox("Confirmar exclusão do estudante")
+        confirmar = st.checkbox("Confirmar exclusão do estudante")
 
       if st.button("Excluir estudante"):
       if confirmar:
