@@ -495,35 +495,35 @@ def gerar_pdf_paee(conteudo, codigo):
     ))
 
     for linha in conteudo.split("\n"):
-    linha = linha.strip()
+        linha = linha.strip()
 
-    # 🔥 remover lixo visual
-    if linha in ["--", "• --", "---"]:
-        continue
+        # 🔥 remover lixo visual
+        if linha in ["--", "• --", "---"]:
+            continue
 
-    if not linha:
-        elementos.append(Spacer(1, 6))
+        if not linha:
+            elementos.append(Spacer(1, 6))
 
-    elif linha.startswith("#"):
-        elementos.append(Paragraph(
-            f"<b>{linha.replace('#','').strip()}</b>",
-            secao_style
-        ))
+        elif linha.startswith("#"):
+            elementos.append(Paragraph(
+                f"<b>{linha.replace('#','').strip()}</b>",
+                secao_style
+            ))
 
-    elif linha.startswith("**") and linha.endswith("**"):
-        elementos.append(Paragraph(
-            f"<b>{linha.replace('**','')}</b>",
-            normal_style
-        ))
+        elif linha.startswith("**") and linha.endswith("**"):
+            elementos.append(Paragraph(
+                f"<b>{linha.replace('**','')}</b>",
+                normal_style
+            ))
 
-    elif linha.startswith("-"):
-        elementos.append(Paragraph(
-            f"• {linha[1:].strip()}",
-            normal_style
-        ))
+        elif linha.startswith("-"):
+            elementos.append(Paragraph(
+                f"• {linha[1:].strip()}",
+                normal_style
+            ))
 
-    else:
-        elementos.append(Paragraph(linha, normal_style))
+        else:
+            elementos.append(Paragraph(linha, normal_style))
 
     elementos.append(Spacer(1, 20))
     elementos.append(Paragraph(
