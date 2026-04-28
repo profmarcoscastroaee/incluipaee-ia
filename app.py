@@ -424,7 +424,7 @@ Na seção de tecnologias educacionais inclusivas, analise o perfil do estudante
 
 
 def gerar_pdf_paee(conteudo, codigo):
-    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, HRFlowable
     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
     from reportlab.lib.pagesizes import A4
     from reportlab.lib.enums import TA_CENTER
@@ -432,54 +432,22 @@ def gerar_pdf_paee(conteudo, codigo):
 
     caminho = f"PAEE_{codigo}.pdf"
 
-    doc = SimpleDocTemplate(
-        caminho,
-        pagesize=A4,
-        rightMargin=40,
-        leftMargin=40,
-        topMargin=40,
-        bottomMargin=40
-    )
-
+    doc = SimpleDocTemplate(caminho, pagesize=A4)
     styles = getSampleStyleSheet()
 
-    # 🎯 Estilos personalizados
-    titulo_style = ParagraphStyle(
-        name="Titulo",
-        parent=styles["Title"],
-        alignment=TA_CENTER,
-        fontSize=16,
-        spaceAfter=16,
-        textColor=colors.black
-    )
-
-    secao_style = ParagraphStyle(
-        name="Secao",
-        parent=styles["Heading2"],
-        fontSize=13,
-        spaceBefore=10,
-        spaceAfter=6,
-        textColor=colors.darkblue
-    )
-
-    normal_style = ParagraphStyle(
-        name="NormalCustom",
-        parent=styles["Normal"],
-        fontSize=10,
-        leading=14,
-        spaceAfter=6
-    )
-
-    rodape_style = ParagraphStyle(
-        name="Rodape",
-        parent=styles["Normal"],
-        fontSize=9,
-        alignment=TA_CENTER,
-        textColor=colors.grey,
-        spaceBefore=20
-    )
+    normal_style = styles["Normal"]
 
     elementos = []
+
+    # 🔥 Cabeçalho (AGORA CORRETO)
+    elementos.append(Paragraph(
+        "<b>Universidade Federal Rural de Pernambuco<br/>"
+        "LabTec3DI – Laboratório de Tecnologias 3D e Inclusivas</b>",
+        normal_style
+    ))
+    elementos.append(Spacer(1, 8))
+    elementos.append(HRFlowable(width="100%", thickness=1, color=colors.grey))
+    elementos.append(Spacer(1, 12))
 
     # 🔥 Título principal
     elementos.append(Paragraph(
