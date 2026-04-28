@@ -726,18 +726,27 @@ def gerar_pdf_relatorio(conteudo, codigo):
 # ======================================================
 # INTERFACE STREAMLIT
 # ======================================================
-col1, col2 = st.columns([1, 5])
+st.markdown("""
+<style>
+.logo-topo {
+    display: flex;
+    justify-content: center;
+    margin-top: 10px;
+    margin-bottom: 30px;
+}
 
-with col1:
-    st.image("logo.png", width=100)
+.logo-topo img {
+    width: 450px;
+    border-radius: 12px;
+}
+</style>
+""", unsafe_allow_html=True)
 
-with col2:
-    st.markdown("""
-    <h2 style='margin-bottom:0;'>IncluiPAEE IA</h2>
-    <p style='color: gray; margin-top:0;'>
-    Sistema de apoio à elaboração do PAEE, registro de atendimentos e relatório de evolução do AEE.
-    </p>
-    """, unsafe_allow_html=True)
+st.markdown("""
+<div class="logo-topo">
+    <img src="logo.png">
+</div>
+""", unsafe_allow_html=True)
 
 criar_tabelas()
 
