@@ -664,15 +664,27 @@ def gerar_pdf_documento(conteudo, codigo, tipo="paee"):
         spaceBefore=20,
     )
 
-    elementos = []
+    # LOGO
+try:
+    logo = Image("logo.png", width=140, height=70)
+    logo.hAlign = 'CENTER'
+    elementos.append(logo)
+    elementos.append(Spacer(1, 8))
+except:
+    pass
 
-    elementos.append(
-        Paragraph(
-            "<b>Universidade Federal Rural de Pernambuco<br/>"
-            "LabTec3DI – Laboratório de Tecnologias 3D e Inclusivas</b>",
-            normal_style,
-        )
+# NOME INSTITUCIONAL
+elementos.append(
+    Paragraph(
+        "<b>Universidade Federal Rural de Pernambuco<br/>"
+        "LabTec3DI – Laboratório de Tecnologias 3D e Inclusivas</b>",
+        normal_style,
     )
+)
+
+elementos.append(Spacer(1, 8))
+elementos.append(HRFlowable(width="100%", thickness=1, color=colors.grey))
+elementos.append(Spacer(1, 12))
     elementos.append(Spacer(1, 8))
     elementos.append(HRFlowable(width="100%", thickness=1, color=colors.grey))
     elementos.append(Spacer(1, 12))
