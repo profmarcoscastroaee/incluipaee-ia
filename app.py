@@ -324,12 +324,14 @@ Quando houver mais de um perfil ou dúvidas no perfil informado, a IA deve indic
 Data da avaliação utilizada: {data_registro}
 """
 
-
 def gerar_paee_com_ia(estudante, avaliacao):
     api_key = obter_api_key()
 
     if OpenAI is None or not api_key:
         return gerar_paee_sem_ia(estudante, avaliacao)
+
+    # resto da IA...
+    # prompt, chamada API, return resposta
 
     estudante_txt = f"""
 Código interno: {estudante[1]}
@@ -392,6 +394,18 @@ Estruture o documento com:
 12. Articulação com família e professores
 13. Avaliação e acompanhamento
 14. Recomendações para revisão do plano
+15. Adaptação automática conforme o perfil educacional
+
+Evite respostas genéricas. Todas as recomendações devem estar diretamente relacionadas aos dados do estudante.
+
+Quando o nível de suporte do TEA não estiver informado, indicar que está sendo adotada uma abordagem pedagógica intermediária, equivalente ao nível II, de forma provisória, justificando essa escolha com base nas barreiras e necessidades observadas.
+
+A IA deve analisar o perfil educacional informado e elaborar um texto descritivo explicando como o plano foi adaptado especificamente para esse estudante.
+
+- Para TEA (nível I, II ou III), descrever o nível de suporte necessário e como isso impacta as estratégias, organização do ambiente, comunicação e uso de tecnologias.
+- Para Altas habilidades/superdotação, descrever como o plano promove enriquecimento curricular, desafios cognitivos, criatividade e autonomia.
+- Para deficiência visual, descrever adaptações com recursos táteis, audiodescrição, acessibilidade digital e uso de impressão 3D.
+- Para deficiência intelectual, descrever adaptações com atividades concretas, linguagem simplificada, repetição estruturada e uso de materiais manipuláveis.
 
 Na seção de tecnologias educacionais inclusivas, analise o perfil do estudante e indique somente recursos coerentes com suas necessidades, potencialidades, barreiras e interesses. Para cada tecnologia sugerida, explique:
 - objetivo pedagógico;
@@ -399,8 +413,6 @@ Na seção de tecnologias educacionais inclusivas, analise o perfil do estudante
 - material necessário;
 - cuidado de acessibilidade;
 - como avaliar se funcionou.
-
-Dê atenção especial ao uso de impressão 3D, robótica educacional, jogos digitais, materiais concretos, recursos visuais e tecnologias assistivas, quando forem adequados ao caso.
 """
 
     client = OpenAI(api_key=api_key)
@@ -409,6 +421,31 @@ Dê atenção especial ao uso de impressão 3D, robótica educacional, jogos dig
         input=prompt,
     )
     return resposta.output_text
+
+
+def gerar_pdf_paee(conteudo, codigo):
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+    from reportlab.lib.styles import getSampleStyleSheet
+    from reportlab.lib.pagesizes import A4
+
+    caminho = f"PAEE_{codigo}.pdf"
+
+    doc = SimpleDocTemplate(caminho, pagesize=A4)
+    styles = getSampleStyleSheet()
+    elementos = []
+
+    elementos.append(Paragraph("<b>PLANO DE ATENDIMENTO EDUCACIONAL ESPECIALIZADO (PAEE)</b>", styles["Title"]))
+    elementos.append(Spacer(1, 12))
+
+    for linha in conteudo.split("\n"):
+        elementos.append(Paragraph(linha, styles["Normal"]))
+        elementos.append(Spacer(1, 6))
+
+    elementos.append(Spacer(1, 20))
+    elementos.append(Paragraph("<i>Elaborado com apoio do LabTec3DI – UFRPE</i>", styles["Normal"]))
+
+    doc.build(elementos)
+    return caminho
 
 
 # ======================================================
@@ -542,25 +579,27 @@ with tab3:
             else:
                 st.info("IA não configurada. O sistema irá gerar um PAEE-base automático sem conexão com IA.")
 
-            if st.button("Gerar sugestão de PAEE"):
-                with st.spinner("Gerando PAEE..."):
-                    try:
-                        paee = gerar_paee_com_ia(estudante, avaliacao)
-                        st.session_state["paee_gerado"] = paee
-                        salvar_paee(estudante_id, paee)
-                        st.success("PAEE gerado e salvo no histórico.")
-                    except Exception as erro:
-                        st.error(f"Erro ao gerar PAEE: {erro}")
+           if "paee_gerado" in st.session_state:
+    	       st.subheader("PAEE gerado")
+	       st.text_area("Conteúdo", st.session_state["paee_gerado"], height=600)
 
-            if "paee_gerado" in st.session_state:
-                st.subheader("PAEE gerado")
-                st.text_area("Conteúdo", st.session_state["paee_gerado"], height=600)
-                st.download_button(
-                    "Baixar PAEE em .txt",
-                    data=st.session_state["paee_gerado"],
-                    file_name=f"PAEE_{estudante[1]}.txt",
-                    mime="text/plain",
-                )
+               st.download_button(
+               "Baixar PAEE em .txt",
+               data=st.session_state["paee_gerado"],
+               file_name=f"PAEE_{estudante[1]}.txt",
+               mime="text/plain",
+    )
+
+    if st.button("Gerar PDF"):
+        arquivo = gerar_pdf_paee(st.session_state["paee_gerado"], estudante[1])
+
+        with open(arquivo, "rb") as f:
+            st.download_button(
+                "Baixar PAEE em PDF",
+                f,
+                file_name=f"PAEE_{estudante[1]}.pdf",
+                mime="application/pdf",
+            )
 
 with tab4:
     st.header("Registro dos atendimentos")
