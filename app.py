@@ -6,9 +6,9 @@ from pathlib import Path
 import streamlit as st
 
 try:
-from openai import OpenAI
+    from openai import OpenAI
 except Exception:
-OpenAI = None
+    OpenAI = None
 
 DB_PATH = Path("inclui_paee.db")
 
