@@ -950,8 +950,8 @@ with tab1:
                 except sqlite3.IntegrityError:
                     st.error("Este código interno já está sendo usado por outro estudante.")
       
-      st.markdown("---")
-      st.markdown("### 🗑️ Excluir estudante")
+     st.markdown("---")
+     st.markdown("### 🗑️ Excluir estudante")
 
            confirmar = st.checkbox("Confirmar exclusão do estudante")
 
