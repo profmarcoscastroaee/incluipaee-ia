@@ -358,6 +358,8 @@ Se os registros forem fracos, dizer explicitamente isso.
 
     return resposta.output_text
 
+    prompt = f"""
+
 # PLANO DE ATENDIMENTO EDUCACIONAL ESPECIALIZADO - PAEE
 
 ## 1. Identificação do estudante
