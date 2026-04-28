@@ -294,6 +294,25 @@ Observação: este documento utiliza código interno para preservar a identidade
 - Registrar avanços, dificuldades, participação, autonomia e resposta às estratégias utilizadas.
 - Revisar o PAEE periodicamente, considerando a evolução do estudante.
 
+## 16. Adaptação automática conforme o perfil educacional
+
+Evite respostas genéricas. Todas as recomendações devem estar diretamente relacionadas aos dados do estudante.
+
+A IA deve analisar o perfil educacional informado e elaborar um texto descritivo explicando como o plano foi adaptado especificamente para esse estudante.
+
+- Para TEA (nível I, II ou III), descrever o nível de suporte necessário e como isso impacta as estratégias, organização do ambiente, comunicação e uso de tecnologias.
+- Para Altas habilidades/superdotação, descrever como o plano promove enriquecimento curricular, desafios cognitivos, criatividade e autonomia.
+- Para deficiência visual, descrever adaptações com recursos táteis, audiodescrição, acessibilidade digital e uso de impressão 3D.
+- Para deficiência intelectual, descrever adaptações com atividades concretas, linguagem simplificada, repetição estruturada e uso de materiais manipuláveis.
+
+A seção deve:
+- Ser escrita em formato de texto corrido (não apenas lista).
+- Explicar o "porquê" das escolhas pedagógicas.
+- Relacionar as adaptações com as tecnologias sugeridas (impressão 3D, robótica, jogos, etc.).
+- Considerar as barreiras e potencialidades do estudante.
+
+Quando houver mais de um perfil ou dúvidas no perfil informado, a IA deve indicar a necessidade de avaliação complementar e sugerir estratégias flexíveis.
+
 Data da avaliação utilizada: {data_registro}
 """
 
@@ -326,11 +345,23 @@ Resumo pedagógico do laudo: {avaliacao[7]}
     prompt = f"""
 Você é um assistente pedagógico especializado em Atendimento Educacional Especializado (AEE), Educação Inclusiva e elaboração de PAEE.
 
-Elabore uma sugestão de PAEE com linguagem técnica, objetiva e pedagógica.
-Não invente diagnóstico. Não use nome de estudante. Use apenas o código interno.
-Não apresente condutas médicas. Foque em barreiras, potencialidades, objetivos, estratégias pedagógicas, acessibilidade, tecnologia assistiva e acompanhamento.
+Antes de elaborar o PAEE, analise o perfil educacional informado e adapte automaticamente as recomendações conforme o caso:
 
+1. TEA - Nível I: sugerir estratégias com foco em autonomia, organização da rotina, comunicação funcional, interação social mediada e uso de recursos visuais.
+2. TEA - Nível II: sugerir estratégias com maior nível de apoio, previsibilidade, comunicação alternativa, mediação constante, atividades estruturadas e redução de sobrecarga sensorial.
+3. TEA - Nível III: sugerir estratégias com apoio intensivo, comunicação alternativa e aumentativa, recursos sensoriais, rotina altamente estruturada, atividades curtas, mediação individualizada e foco em funcionalidade.
+4. Altas habilidades/superdotação: sugerir enriquecimento curricular, projetos investigativos, desafios maker, robótica, programação, produção criativa, mentoria e aprofundamento temático.
+5. Deficiência visual: sugerir materiais táteis, impressão 3D, audiodescrição, Braille quando necessário, recursos sonoros, mapas táteis, objetos concretos e acessibilidade digital.
+6. Deficiência intelectual: sugerir atividades concretas, repetição planejada, linguagem simples, etapas curtas, recursos visuais, jogos pedagógicos, materiais manipuláveis e avaliação processual.
+
+A IA deve:
+- Não inventar diagnóstico.
+- Usar apenas o perfil informado e as observações pedagógicas.
+- Quando o nível de suporte do TEA não estiver informado, indicar que as estratégias devem ser ajustadas após observação pedagógica.
+- Priorizar recursos tecnológicos coerentes com o caso.
+- Sugerir impressão 3D, robótica, jogos digitais e recursos maker apenas quando fizerem sentido pedagógico.
 DADOS DO ESTUDANTE:
+
 {estudante_txt}
 
 AVALIAÇÃO PEDAGÓGICA:
