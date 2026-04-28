@@ -981,44 +981,51 @@ with tab4:
 
 with tab5:
     st.header("Relatório de evolução e qualidade do atendimento")
+
     estudantes = listar_estudantes()
 
     if not estudantes:
         st.info("Cadastre um estudante primeiro.")
     else:
         opcoes = {f"{e[1]} - {e[2]} - {e[4]}": e[0] for e in estudantes}
-        selecionado = st.selectbox("Selecione o estudante", list(opcoes.keys()), key="relatorio_estudante")
+
+        selecionado = st.selectbox(
+            "Selecione o estudante",
+            list(opcoes.keys()),
+            key="relatorio_estudante"
+        )
 
         estudante_id = opcoes[selecionado]
         estudante = buscar_estudante(estudante_id)
         avaliacao = ultima_avaliacao(estudante_id)
 
-        if st.button("Gerar relatório de evolução", key="btn_relatorio_evolucao"):
+        if st.button("Gerar relatório de evolução", key="btn_relatorio"):
             with st.spinner("Analisando atendimentos..."):
                 relatorio = gerar_relatorio_evolucao(estudante, avaliacao)
                 st.session_state["relatorio_evolucao"] = relatorio
 
-       if "relatorio_evolucao" in st.session_state:
-    relatorio = st.session_state["relatorio_evolucao"
+        # 🔥 AQUI ESTAVA O ERRO DE INDENTAÇÃO
+        if "relatorio_evolucao" in st.session_state:
+            relatorio = st.session_state["relatorio_evolucao"]
 
-    st.text_area("Relatório", relatorio, height=500)
+            st.text_area("Relatório", relatorio, height=500)
 
-    # 🔥 BOTÃO TXT
-    st.download_button(
-        "Baixar relatório em .txt",
-        data=relatorio,
-        file_name=f"Relatorio_{estudante[1]}.txt",
-        mime="text/plain",
-    )
-
-    # 🔥 BOTÃO PDF
-    if st.button("Gerar PDF do relatório"):
-        arquivo = gerar_pdf_paee(relatorio, f"Relatorio_{estudante[1]}")
-
-        with open(arquivo, "rb") as f:
+            # TXT
             st.download_button(
-                "Baixar relatório em PDF",
-                f,
-                file_name=f"Relatorio_{estudante[1]}.pdf",
-                mime="application/pdf",
+                "Baixar relatório em .txt",
+                data=relatorio,
+                file_name=f"Relatorio_{estudante[1]}.txt",
+                mime="text/plain",
             )
+
+            # PDF
+            if st.button("Gerar PDF do relatório"):
+                arquivo = gerar_pdf_paee(relatorio, f"Relatorio_{estudante[1]}")
+
+                with open(arquivo, "rb") as f:
+                    st.download_button(
+                        "Baixar relatório em PDF",
+                        f,
+                        file_name=f"Relatorio_{estudante[1]}.pdf",
+                        mime="application/pdf",
+                    )
