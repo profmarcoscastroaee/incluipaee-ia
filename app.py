@@ -639,19 +639,26 @@ tab1, tab2, tab3, tab4 = st.tabs([
 
 with tab1:
     st.markdown("### 👤 Cadastro do estudante")
-    st.markdown("""
-    <div style="
-    background-color:#F8F9FA;
-    padding:20px;
-    border-radius:12px;
-    border:1px solid #DDD;
-    ">
-    """, unsafe_allow_html=True)
-    
+
     with st.form("form_cadastro"):
-        codigo = st.text_input("Código interno do estudante", placeholder="Ex.: AEE-001")
-        ano_serie = st.text_input("Ano/Série", placeholder="Ex.: 4º ano")
-        turma = st.text_input("Turma", placeholder="Ex.: 4º ano B")
+        codigo = st.text_input(
+            "Código interno do estudante",
+            placeholder="Ex.: AEE-001",
+            key="cad_codigo"
+        )
+
+        ano_serie = st.text_input(
+            "Ano/Série",
+            placeholder="Ex.: 4º ano",
+            key="cad_ano"
+        )
+
+        turma = st.text_input(
+            "Turma",
+            placeholder="Ex.: 4º ano B",
+            key="cad_turma"
+        )
+
         perfil = st.selectbox(
             "Perfil educacional informado",
             [
@@ -661,12 +668,21 @@ with tab1:
                 "Deficiência auditiva/surdez",
                 "Deficiência física",
                 "TEA",
+                "TEA - Nível I",
+                "TEA - Nível II",
+                "TEA - Nível III",
                 "Altas habilidades/superdotação",
                 "Deficiência múltipla",
                 "Outro",
             ],
+            key="cad_perfil"
         )
-        observacoes = st.text_area("Observações pedagógicas iniciais")
+
+        observacoes = st.text_area(
+            "Observações pedagógicas iniciais",
+            key="cad_observacoes"
+        )
+
         enviar = st.form_submit_button("Cadastrar estudante")
 
         if enviar:
@@ -674,10 +690,127 @@ with tab1:
                 st.error("Informe um código interno para o estudante.")
             else:
                 try:
-                    cadastrar_estudante(codigo.strip(), ano_serie, turma, perfil, observacoes)
+                    cadastrar_estudante(
+                        codigo.strip(),
+                        ano_serie,
+                        turma,
+                        perfil,
+                        observacoes
+                    )
                     st.success("Estudante cadastrado com sucesso.")
+                    st.rerun()
                 except sqlite3.IntegrityError:
                     st.error("Este código já existe. Use outro código interno.")
+
+    st.markdown("---")
+    st.markdown("### 📋 Estudantes cadastrados")
+
+    estudantes = listar_estudantes()
+
+    if estudantes:
+        st.dataframe(
+            [
+                {
+                    "ID": e[0],
+                    "Código": e[1],
+                    "Ano/Série": e[2],
+                    "Turma": e[3],
+                    "Perfil": e[4],
+                    "Observações": e[5],
+                }
+                for e in estudantes
+            ],
+            use_container_width=True,
+        )
+    else:
+        st.info("Nenhum estudante cadastrado ainda.")
+
+    st.markdown("---")
+    st.markdown("### ✏️ Editar cadastro do estudante")
+
+    estudantes = listar_estudantes()
+
+    if estudantes:
+        opcoes_editar = {f"{e[1]} - {e[2]} - {e[4]}": e[0] for e in estudantes}
+
+        selecionado_editar = st.selectbox(
+            "Selecione o estudante para editar",
+            list(opcoes_editar.keys()),
+            key="editar_estudante"
+        )
+
+        estudante_id_editar = opcoes_editar[selecionado_editar]
+        estudante_editar = buscar_estudante(estudante_id_editar)
+
+        perfis = [
+            "Não informado",
+            "Deficiência intelectual",
+            "Deficiência visual",
+            "Deficiência auditiva/surdez",
+            "Deficiência física",
+            "TEA",
+            "TEA - Nível I",
+            "TEA - Nível II",
+            "TEA - Nível III",
+            "Altas habilidades/superdotação",
+            "Deficiência múltipla",
+            "Outro",
+        ]
+
+        perfil_atual = estudante_editar[4] if estudante_editar[4] in perfis else "Não informado"
+
+        with st.form("form_editar_estudante"):
+            col1, col2 = st.columns(2)
+
+            with col1:
+                codigo_edit = st.text_input(
+                    "Código interno",
+                    value=estudante_editar[1],
+                    key="edit_codigo"
+                )
+
+                ano_edit = st.text_input(
+                    "Ano/Série",
+                    value=estudante_editar[2],
+                    key="edit_ano"
+                )
+
+            with col2:
+                turma_edit = st.text_input(
+                    "Turma",
+                    value=estudante_editar[3],
+                    key="edit_turma"
+                )
+
+                perfil_edit = st.selectbox(
+                    "Perfil educacional",
+                    perfis,
+                    index=perfis.index(perfil_atual),
+                    key="edit_perfil"
+                )
+
+            observacoes_edit = st.text_area(
+                "Observações pedagógicas iniciais",
+                value=estudante_editar[5] or "",
+                key="edit_observacoes"
+            )
+
+            atualizar = st.form_submit_button("💾 Atualizar cadastro")
+
+            if atualizar:
+                try:
+                    atualizar_estudante(
+                        estudante_id_editar,
+                        codigo_edit.strip(),
+                        ano_edit,
+                        turma_edit,
+                        perfil_edit,
+                        observacoes_edit
+                    )
+                    st.success("Cadastro atualizado com sucesso.")
+                    st.rerun()
+                except sqlite3.IntegrityError:
+                    st.error("Este código interno já está sendo usado por outro estudante.")
 
 st.markdown("---")
 st.markdown("### ✏️ Editar cadastro do estudante")
