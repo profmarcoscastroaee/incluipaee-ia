@@ -4730,5 +4730,3 @@ estudante_id = opcoes[selecionado]
                 st.markdown(f"**Encaminhamentos:** {item[6]}")
     else:
         st.info("Nenhum atendimento registrado para este estudante.")
-
-Fechar
