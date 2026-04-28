@@ -615,9 +615,9 @@ def gerar_pdf_paee(conteudo, codigo):
         if "Relatorio" in codigo or "relatorio" in codigo:
         titulo_doc = "RELATÓRIO DE EVOLUÇÃO E QUALIDADE DO ATENDIMENTO"
     else:
-    titulo_doc = "PLANO DE ATENDIMENTO EDUCACIONAL ESPECIALIZADO (PAEE)"
+        titulo_doc = "PLANO DE ATENDIMENTO EDUCACIONAL ESPECIALIZADO (PAEE)"
 
-    elementos.append(Paragraph(titulo_doc, titulo_style))
+        elementos.append(Paragraph(titulo_doc, titulo_style))
 
     for linha in conteudo.split("\n"):
         linha = linha.strip()
@@ -990,12 +990,12 @@ with tab4:
 with tab5:
     st.header("Relatório de evolução e qualidade do atendimento")
 
-    estudantes = listar_estudantes()
+       estudantes = listar_estudantes()
 
-    if not estudantes:
-        st.info("Cadastre um estudante primeiro.")
-    else:
-        opcoes = {f"{e[1]} - {e[2]} - {e[4]}": e[0] for e in estudantes}
+          if not estudantes:
+           st.info("Cadastre um estudante primeiro.")
+        else:
+            opcoes = {f"{e[1]} - {e[2]} - {e[4]}": e[0] for e in estudantes}
 
         selecionado = st.selectbox(
             "Selecione o estudante",
