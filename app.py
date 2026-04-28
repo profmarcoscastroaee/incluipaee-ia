@@ -565,7 +565,12 @@ with tab3:
         st.info("Cadastre um estudante primeiro.")
     else:
         opcoes = {f"{e[1]} - {e[2]} - {e[4]}": e[0] for e in estudantes}
-        selecionado = st.selectbox("Selecione o estudante", list(opcoes.keys()))
+        selecionado = st.selectbox(
+            "Selecione o estudante",
+            list(opcoes.keys()),
+            key="paee_estudante"
+        )
+
         estudante_id = opcoes[selecionado]
         estudante = buscar_estudante(estudante_id)
         avaliacao = ultima_avaliacao(estudante_id)
@@ -574,32 +579,46 @@ with tab3:
             st.warning("Este estudante ainda não possui avaliação pedagógica registrada.")
         else:
             usar_ia = OpenAI is not None and bool(obter_api_key())
+
             if usar_ia:
                 st.success("IA ativada: a variável OPENAI_API_KEY foi encontrada.")
             else:
                 st.info("IA não configurada. O sistema irá gerar um PAEE-base automático sem conexão com IA.")
 
-    if "paee_gerado" in st.session_state:
-       st.subheader("PAEE gerado")
-       st.text_area("Conteúdo", st.session_state["paee_gerado"], height=600)
+            if st.button("Gerar sugestão de PAEE"):
+                with st.spinner("Gerando PAEE..."):
+                    try:
+                        paee = gerar_paee_com_ia(estudante, avaliacao)
+                        st.session_state["paee_gerado"] = paee
+                        salvar_paee(estudante_id, paee)
+                        st.success("PAEE gerado e salvo no histórico.")
+                    except Exception as erro:
+                        st.error(f"Erro ao gerar PAEE: {erro}")
 
-       st.download_button(
-           "Baixar PAEE em .txt",
-           data=st.session_state["paee_gerado"],
-           file_name=f"PAEE_{estudante[1]}.txt",
-           mime="text/plain",
-    )
+            if "paee_gerado" in st.session_state:
+                st.subheader("PAEE gerado")
+                st.text_area("Conteúdo", st.session_state["paee_gerado"], height=600)
 
-    if st.button("Gerar PDF"):
-        arquivo = gerar_pdf_paee(st.session_state["paee_gerado"], estudante[1])
+                st.download_button(
+                    "Baixar PAEE em .txt",
+                    data=st.session_state["paee_gerado"],
+                    file_name=f"PAEE_{estudante[1]}.txt",
+                    mime="text/plain",
+                )
 
-        with open(arquivo, "rb") as f:
-            st.download_button(
-                "Baixar PAEE em PDF",
-                f,
-                file_name=f"PAEE_{estudante[1]}.pdf",
-                mime="application/pdf",
-            )
+                if st.button("Gerar PDF"):
+                    arquivo = gerar_pdf_paee(
+                        st.session_state["paee_gerado"],
+                        estudante[1]
+                    )
+
+                    with open(arquivo, "rb") as f:
+                        st.download_button(
+                            "Baixar PAEE em PDF",
+                            f,
+                            file_name=f"PAEE_{estudante[1]}.pdf",
+                            mime="application/pdf",
+                        )
 
 with tab4:
     st.header("Registro dos atendimentos")
