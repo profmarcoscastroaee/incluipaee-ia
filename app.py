@@ -419,9 +419,23 @@ Apresentar orientações para atualização do PAEE, incluindo necessidade de av
 15. Adaptação automática conforme o perfil educacional
 Descrever de forma técnica como o plano foi ajustado ao perfil do estudante.
 No caso de TEA sem definição de nível, indicar a adoção provisória do nível II (suporte moderado), com justificativa pedagógica baseada nas barreiras, potencialidades e necessidades identificadas, ressaltando a necessidade de avaliação complementar.
-16. Responsável pelo AEE:Espaço destinado à identificação do profissional responsável pela elaboração e acompanhamento do plano.
-17. Coordenação pedagógica:Espaço destinado à validação institucional do documento pela coordenação pedagógica.
-18. Data:Indicar a data de elaboração do documento no formato padrão: dd/mm/aaaa.
+16. Responsável pelo AEE:
+
+Nome: ___________________________________________
+
+Função: Professor(a) do Atendimento Educacional Especializado (AEE)
+
+Assinatura: _______________________________________
+
+17. Coordenação pedagógica:
+
+Nome: ___________________________________________
+
+Cargo: Coordenação Pedagógica
+
+Assinatura: _______________________________________
+
+18. Indicar a data de elaboração do documento no formato padrão: dd/mm/aaaa.
 Evite respostas genéricas. Todas as recomendações devem estar diretamente relacionadas aos dados do estudante.
 
 Não incluir título principal do documento.
