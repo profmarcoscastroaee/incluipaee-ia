@@ -664,7 +664,7 @@ def gerar_pdf_documento(conteudo, codigo, tipo="paee"):
         spaceBefore=20,
     )
 
-    # LOGO
+# LOGO
 try:
     logo = Image("logo.png", width=140, height=70)
     logo.hAlign = 'CENTER'
@@ -682,9 +682,9 @@ elementos.append(
     )
 )
 
-elementos.append(Spacer(1, 8))
-elementos.append(HRFlowable(width="100%", thickness=1, color=colors.grey))
-elementos.append(Spacer(1, 12))
+    elementos.append(Spacer(1, 8))
+    elementos.append(HRFlowable(width="100%", thickness=1, color=colors.grey))
+    elementos.append(Spacer(1, 12))
     elementos.append(Spacer(1, 8))
     elementos.append(HRFlowable(width="100%", thickness=1, color=colors.grey))
     elementos.append(Spacer(1, 12))
