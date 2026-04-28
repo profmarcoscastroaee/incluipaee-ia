@@ -376,6 +376,17 @@ Se o perfil educacional for TEA e o nível de suporte (I, II ou III) não estive
 - Adaptar o grau de mediação pedagógica, a estruturação das atividades, o uso de tecnologias e a intensidade do apoio necessário.
 - Não afirmar diagnóstico clínico; tratar essa definição como interpretação pedagógica provisória.
 
+Para garantir consistência, clareza e qualidade institucional do documento, o texto gerado deve seguir os seguintes padrões:
+
+- Utilizar exclusivamente a expressão “Código interno” para identificação do estudante, evitando variações como “Código do estudante”.
+- Empregar a forma “Data de elaboração” como referência temporal do documento, mantendo uniformidade terminológica.
+- Padronizar títulos e subtítulos com uso de letras minúsculas após a primeira palavra, conforme norma de textos técnicos, por exemplo:
+“Objetivo geral” (em vez de “Objetivo Geral”)
+- Manter linguagem formal, técnica e pedagógica, evitando variações informais ou redundantes.
+- Garantir uniformidade na estrutura das seções ao longo de todo o documento.
+
+Esses critérios visam assegurar que o PAEE apresente padrão profissional, adequado para uso em contextos escolares, institucionais e acadêmicos.
+
 DADOS DO ESTUDANTE:
 {estudante_txt}
 
@@ -404,8 +415,13 @@ Estruture o documento com:
 12. Articulação com família e professores
 13. Avaliação e acompanhamento
 14. Recomendações para revisão do plano
+Apresentar orientações para atualização do PAEE, incluindo necessidade de avaliações complementares, revisão periódica das estratégias pedagógicas, adequação do nível de suporte e incorporação de novos recursos conforme a evolução do estudante.
 15. Adaptação automática conforme o perfil educacional
-
+Descrever de forma técnica como o plano foi ajustado ao perfil do estudante.
+No caso de TEA sem definição de nível, indicar a adoção provisória do nível II (suporte moderado), com justificativa pedagógica baseada nas barreiras, potencialidades e necessidades identificadas, ressaltando a necessidade de avaliação complementar.
+16. Responsável pelo AEE:Espaço destinado à identificação do profissional responsável pela elaboração e acompanhamento do plano.
+17. Coordenação pedagógica:Espaço destinado à validação institucional do documento pela coordenação pedagógica.
+18. Data:Indicar a data de elaboração do documento no formato padrão: dd/mm/aaaa.
 Evite respostas genéricas. Todas as recomendações devem estar diretamente relacionadas aos dados do estudante.
 
 Quando o nível de suporte do TEA não estiver informado, indicar que está sendo adotada uma abordagem pedagógica intermediária, equivalente ao nível II, de forma provisória, justificando essa escolha com base nas barreiras e necessidades observadas.
