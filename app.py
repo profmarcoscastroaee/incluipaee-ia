@@ -585,16 +585,37 @@ def gerar_pdf_paee(conteudo, codigo):
 # INTERFACE STREAMLIT
 # ======================================================
 
-st.set_page_config(page_title="IncluiPAEE IA", page_icon="AEE", layout="wide")
-criar_tabelas()
-
-st.title("IncluiPAEE IA")
-st.caption("Sistema inicial para elaboração, organização e acompanhamento do PAEE no AEE")
-
-st.warning(
-    "Use apenas código interno do estudante. Não insira nome completo, CPF, endereço, telefone, documentos pessoais ou dados que identifiquem diretamente o aluno."
+st.set_page_config(
+    page_title="IncluiPAEE IA",
+    page_icon="🧠",
+    layout="wide"
 )
 
+criar_tabelas()
+
+# 🔥 Cabeçalho moderno
+st.markdown("""
+<h1 style='margin-bottom:0;'>🧠 IncluiPAEE IA</h1>
+<p style='color:gray; margin-top:0; font-size:16px;'>
+Sistema inteligente para elaboração, organização e acompanhamento do PAEE no AEE
+</p>
+<hr>
+""", unsafe_allow_html=True)
+
+# ⚠️ Alerta estilizado
+st.markdown("""
+<div style="
+padding:15px;
+border-radius:10px;
+background-color:#FFF3CD;
+border:1px solid #FFEEBA;
+color:#856404;
+font-size:14px;
+">
+<b>⚠️ Atenção:</b> Utilize apenas código interno do estudante. 
+Não insira nome completo, CPF, endereço, telefone, documentos pessoais ou dados que identifiquem diretamente o aluno.
+</div>
+""", unsafe_allow_html=True)
 tab1, tab2, tab3, tab4 = st.tabs([
     "1. Cadastro",
     "2. Avaliação Pedagógica",
@@ -635,7 +656,7 @@ with tab1:
                 except sqlite3.IntegrityError:
                     st.error("Este código já existe. Use outro código interno.")
 
-    st.subheader("Estudantes cadastrados")
+  st.markdown("### 📄 Resultado do PAEE")
     estudantes = listar_estudantes()
     if estudantes:
         st.dataframe(
