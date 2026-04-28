@@ -767,14 +767,20 @@ st.markdown(
         padding: 16px;
         margin-bottom: 16px;
     }
+   st.markdown(
+    """
+    <style>
+    /* seu CSS aqui */
     </style>
     """,
     unsafe_allow_html=True,
+)
 
 col1, col2, col3 = st.columns([1, 3, 1])
 
 with col2:
     st.image("logo.png", use_container_width=True)
+
 tab1, tab2, tab3, tab4, tab5 = st.tabs(
     [
         "1. Cadastro",
