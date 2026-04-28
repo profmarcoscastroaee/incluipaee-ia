@@ -1029,7 +1029,11 @@ with tab3:
         st.info("Cadastre um estudante primeiro.")
     else:
         opcoes = {f"{e[1]} - {e[2]} - {e[4]}": e[0] for e in estudantes}
-        selecionado = st.selectbox("Selecione o estudante", list(opcoes.keys()), key="paee_estudante")
+        selecionado = st.selectbox(
+            "Selecione o estudante",
+            list(opcoes.keys()),
+            key="paee_estudante",
+        )
 
         estudante_id = opcoes[selecionado]
         estudante = buscar_estudante(estudante_id)
@@ -1058,7 +1062,12 @@ with tab3:
 
             if "paee_gerado" in st.session_state:
                 st.subheader("PAEE gerado")
-                st.text_area("Conteúdo", st.session_state["paee_gerado"], height=600, key="txt_paee_gerado")
+                st.text_area(
+                    "Conteúdo",
+                    st.session_state["paee_gerado"],
+                    height=600,
+                    key="txt_paee_gerado",
+                )
 
                 codigo_download = st.session_state.get("paee_codigo", estudante[1])
 
@@ -1084,13 +1093,16 @@ with tab3:
                             key="download_pdf_paee",
                         )
 
- st.markdown("---")
+                # ==================================================
+                # BUSCA DE MODELOS 3D - THINGIVERSE E PRINTABLES
+                # ==================================================
+                st.markdown("---")
                 st.subheader("🔎 Buscar modelos 3D para apoio pedagógico")
 
                 termo_3d = st.text_input(
                     "Digite o recurso 3D que deseja procurar",
                     placeholder="Ex.: braille, frações táteis, letras 3D, comunicação alternativa",
-                    key="termo_3d_paee"
+                    key="termo_3d_paee",
                 )
 
                 col_a, col_b = st.columns(2)
@@ -1098,45 +1110,52 @@ with tab3:
                 with col_a:
                     buscar_modelos = st.button(
                         "Buscar no Thingiverse",
-                        key="btn_buscar_thingiverse_paee"
+                        key="btn_buscar_thingiverse_paee",
                     )
 
                 with col_b:
                     if termo_3d:
                         st.link_button(
                             "Buscar no Printables",
-                            link_busca_printables(termo_3d)
-                        )
-
-                if buscar_modelos:
-                    resultados = buscar_thingiverse(termo_3d)
-
-                    if not resultados:
-                        st.warning(
-                            "Nenhum modelo encontrado ou token do Thingiverse não configurado."
+                            link_busca_printables(termo_3d),
                         )
                     else:
-                        st.success(f"{len(resultados)} modelo(s) encontrado(s).")
+                        st.caption("Digite um termo para liberar a busca no Printables.")
 
-                        for item in resultados:
-                            nome = item.get("name", "Modelo 3D")
-                            link = item.get("public_url", "")
-                            imagem = item.get("thumbnail", "")
+                if buscar_modelos:
+                    if not termo_3d.strip():
+                        st.warning("Digite um termo de busca antes de pesquisar modelos 3D.")
+                    else:
+                        resultados = buscar_thingiverse(termo_3d.strip())
 
-                            with st.container():
-                                col_img, col_info = st.columns([1, 3])
+                        if not resultados:
+                            st.warning(
+                                "Nenhum modelo encontrado ou token do Thingiverse não configurado."
+                            )
+                        else:
+                            st.success(f"{len(resultados)} modelo(s) encontrado(s).")
 
-                                with col_img:
-                                    if imagem:
-                                        st.image(imagem, width=120)
+                            for item in resultados:
+                                nome = item.get("name", "Modelo 3D")
+                                link = item.get("public_url", "")
+                                imagem = item.get("thumbnail", "")
 
-                                with col_info:
-                                    st.markdown(f"**{nome}**")
+                                with st.container():
+                                    col_img, col_info = st.columns([1, 3])
 
-                                    if link:
-                                        st.markdown(f"[Abrir modelo no Thingiverse]({link})")
+                                    with col_img:
+                                        if imagem:
+                                            st.image(imagem, width=120)
 
-                                st.markdown("---")
+                                    with col_info:
+                                        st.markdown(f"**{nome}**")
+
+                                        if link:
+                                            st.markdown(f"[Abrir modelo no Thingiverse]({link})")
+                                        else:
+                                            st.caption("Link público não retornado pela API.")
+
+                                    st.markdown("---")
 
 with tab4:
     st.header("Registro dos atendimentos")
