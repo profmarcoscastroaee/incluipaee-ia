@@ -366,6 +366,52 @@ def link_busca_printables(termo):
     termo_formatado = termo.replace(" ", "%20")
     return f"https://www.printables.com/search/models?q={termo_formatado}"
 
+
+def gerar_termos_3d_com_ia(conteudo_paee):
+    """Gera termos curtos para busca de modelos 3D a partir do PAEE."""
+    api_key = obter_api_key()
+
+    termos_padrao = [
+        "braille",
+        "tactile math",
+        "visual schedule",
+        "communication cards",
+        "sensory toys",
+    ]
+
+    if OpenAI is None or not api_key or not conteudo_paee:
+        return termos_padrao
+
+    prompt = f"""
+Analise o PAEE abaixo e gere exatamente 5 termos curtos para busca de modelos 3D pedagógicos
+em sites como Thingiverse e Printables.
+
+Use termos preferencialmente em inglês, pois retornam mais modelos.
+Priorize recursos inclusivos, táteis, manipuláveis, visuais, sensoriais ou de comunicação alternativa.
+Não explique. Retorne apenas uma lista, um termo por linha.
+
+PAEE:
+{conteudo_paee}
+"""
+
+    try:
+        client = OpenAI(api_key=api_key)
+        resposta = client.responses.create(
+            model="gpt-4.1-mini",
+            input=prompt,
+        )
+
+        termos = []
+        for linha in resposta.output_text.split("\n"):
+            termo = linha.strip().strip("-•0123456789. )(").strip()
+            if termo and termo not in termos:
+                termos.append(termo)
+
+        return termos[:5] if termos else termos_padrao
+
+    except Exception:
+        return termos_padrao
+
 # ======================================================
 # IA
 # ======================================================
@@ -1094,46 +1140,95 @@ with tab3:
                         )
 
                 # ==================================================
-                # BUSCA DE MODELOS 3D - THINGIVERSE E PRINTABLES
+                # BUSCA SEMIAUTOMÁTICA DE MODELOS 3D
+                # IA SUGERE TERMOS + PROFESSOR ESCOLHE
                 # ==================================================
                 st.markdown("---")
-                st.subheader("🔎 Buscar modelos 3D para apoio pedagógico")
+                st.subheader("🔎 Modelos 3D sugeridos para apoio pedagógico")
+                st.caption(
+                    "A IA analisa o PAEE e sugere termos de busca. "
+                    "Depois, o professor escolhe onde pesquisar."
+                )
 
+                if st.button("Gerar sugestões de busca com IA", key="btn_gerar_termos_3d"):
+                    with st.spinner("Gerando termos de busca a partir do PAEE..."):
+                        termos_sugeridos = gerar_termos_3d_com_ia(
+                            st.session_state["paee_gerado"]
+                        )
+                        st.session_state["termos_3d_sugeridos"] = termos_sugeridos
+                        st.success("Sugestões geradas com sucesso.")
+
+                if "termos_3d_sugeridos" in st.session_state:
+                    st.markdown("### Sugestões geradas a partir do PAEE")
+
+                    for i, termo in enumerate(st.session_state["termos_3d_sugeridos"]):
+                        col_termo, col_thingiverse, col_printables = st.columns([2.5, 1.5, 1.5])
+
+                        with col_termo:
+                            st.markdown(f"**{termo}**")
+
+                        with col_thingiverse:
+                            if st.button(
+                                "Buscar no Thingiverse",
+                                key=f"buscar_thingiverse_auto_{i}",
+                            ):
+                                st.session_state["termo_3d_busca"] = termo
+                                st.session_state["executar_busca_thingiverse"] = True
+
+                        with col_printables:
+                            st.link_button(
+                                "Ver no Printables",
+                                link_busca_printables(termo),
+                            )
+
+                st.markdown("### Busca manual")
                 termo_3d = st.text_input(
-                    "Digite o recurso 3D que deseja procurar",
-                    placeholder="Ex.: braille, frações táteis, letras 3D, comunicação alternativa",
+                    "Digite outro termo, se desejar",
+                    value=st.session_state.get("termo_3d_busca", ""),
+                    placeholder="Ex.: braille, tactile math, visual schedule",
                     key="termo_3d_paee",
                 )
 
-                col_a, col_b = st.columns(2)
+                col_busca_manual, col_printables_manual = st.columns(2)
 
-                with col_a:
-                    buscar_modelos = st.button(
-                        "Buscar no Thingiverse",
+                with col_busca_manual:
+                    buscar_modelos_manual = st.button(
+                        "Buscar modelos no Thingiverse",
                         key="btn_buscar_thingiverse_paee",
                     )
 
-                with col_b:
-                    if termo_3d:
+                with col_printables_manual:
+                    if termo_3d.strip():
                         st.link_button(
-                            "Buscar no Printables",
-                            link_busca_printables(termo_3d),
+                            "Ver termo manual no Printables",
+                            link_busca_printables(termo_3d.strip()),
                         )
-                    else:
-                        st.caption("Digite um termo para liberar a busca no Printables.")
 
-                if buscar_modelos:
-                    if not termo_3d.strip():
-                        st.warning("Digite um termo de busca antes de pesquisar modelos 3D.")
+                executar_busca = buscar_modelos_manual or st.session_state.get(
+                    "executar_busca_thingiverse", False
+                )
+
+                if executar_busca:
+                    termo_busca = st.session_state.get("termo_3d_busca", termo_3d).strip()
+
+                    if buscar_modelos_manual:
+                        termo_busca = termo_3d.strip()
+                        st.session_state["termo_3d_busca"] = termo_busca
+
+                    st.session_state["executar_busca_thingiverse"] = False
+
+                    if not termo_busca:
+                        st.warning("Digite ou escolha um termo antes de pesquisar modelos 3D.")
                     else:
-                        resultados = buscar_thingiverse(termo_3d.strip())
+                        with st.spinner(f"Buscando modelos para: {termo_busca}"):
+                            resultados = buscar_thingiverse(termo_busca)
 
                         if not resultados:
                             st.warning(
                                 "Nenhum modelo encontrado ou token do Thingiverse não configurado."
                             )
                         else:
-                            st.success(f"{len(resultados)} modelo(s) encontrado(s).")
+                            st.success(f"{len(resultados)} modelo(s) encontrado(s) para: {termo_busca}")
 
                             for item in resultados:
                                 nome = item.get("name", "Modelo 3D")
