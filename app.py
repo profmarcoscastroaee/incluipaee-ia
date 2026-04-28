@@ -1,4 +1,5 @@
 import os
+import requests
 import sqlite3
 from datetime import datetime
 from pathlib import Path
@@ -326,6 +327,44 @@ Encaminhamentos: {a[7] or 'Não informado.'}
 """
     return texto.strip()
 
+# ======================================================
+# BUSCA DE MODELOS 3D
+# ======================================================
+def buscar_thingiverse(termo, limite=5):
+    token = st.secrets.get("THINGIVERSE_TOKEN", "")
+
+    if not token or not termo:
+        return []
+
+    url = "https://api.thingiverse.com/search"
+    headers = {"Authorization": f"Bearer {token}"}
+    params = {
+        "q": termo,
+        "type": "things",
+        "sort": "popular",
+        "per_page": limite
+    }
+
+    try:
+        resposta = requests.get(url, headers=headers, params=params, timeout=10)
+
+        if resposta.status_code != 200:
+            return []
+
+        dados = resposta.json()
+
+        if isinstance(dados, list):
+            return dados
+
+        return dados.get("hits", [])
+
+    except Exception:
+        return []
+
+
+def link_busca_printables(termo):
+    termo_formatado = termo.replace(" ", "%20")
+    return f"https://www.printables.com/search/models?q={termo_formatado}"
 
 # ======================================================
 # IA
@@ -1045,6 +1084,59 @@ with tab3:
                             key="download_pdf_paee",
                         )
 
+ st.markdown("---")
+                st.subheader("🔎 Buscar modelos 3D para apoio pedagógico")
+
+                termo_3d = st.text_input(
+                    "Digite o recurso 3D que deseja procurar",
+                    placeholder="Ex.: braille, frações táteis, letras 3D, comunicação alternativa",
+                    key="termo_3d_paee"
+                )
+
+                col_a, col_b = st.columns(2)
+
+                with col_a:
+                    buscar_modelos = st.button(
+                        "Buscar no Thingiverse",
+                        key="btn_buscar_thingiverse_paee"
+                    )
+
+                with col_b:
+                    if termo_3d:
+                        st.link_button(
+                            "Buscar no Printables",
+                            link_busca_printables(termo_3d)
+                        )
+
+                if buscar_modelos:
+                    resultados = buscar_thingiverse(termo_3d)
+
+                    if not resultados:
+                        st.warning(
+                            "Nenhum modelo encontrado ou token do Thingiverse não configurado."
+                        )
+                    else:
+                        st.success(f"{len(resultados)} modelo(s) encontrado(s).")
+
+                        for item in resultados:
+                            nome = item.get("name", "Modelo 3D")
+                            link = item.get("public_url", "")
+                            imagem = item.get("thumbnail", "")
+
+                            with st.container():
+                                col_img, col_info = st.columns([1, 3])
+
+                                with col_img:
+                                    if imagem:
+                                        st.image(imagem, width=120)
+
+                                with col_info:
+                                    st.markdown(f"**{nome}**")
+
+                                    if link:
+                                        st.markdown(f"[Abrir modelo no Thingiverse]({link})")
+
+                                st.markdown("---")
 
 with tab4:
     st.header("Registro dos atendimentos")
