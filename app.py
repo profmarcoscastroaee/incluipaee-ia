@@ -726,11 +726,18 @@ def gerar_pdf_relatorio(conteudo, codigo):
 # ======================================================
 # INTERFACE STREAMLIT
 # ======================================================
-st.set_page_config(
-    page_title="IncluiPAEE IA",
-    page_icon="🧠",
-    layout="wide",
-)
+col1, col2 = st.columns([1, 5])
+
+with col1:
+    st.image("logo.png", width=100)
+
+with col2:
+    st.markdown("""
+    <h2 style='margin-bottom:0;'>IncluiPAEE IA</h2>
+    <p style='color: gray; margin-top:0;'>
+    Sistema de apoio à elaboração do PAEE, registro de atendimentos e relatório de evolução do AEE.
+    </p>
+    """, unsafe_allow_html=True)
 
 criar_tabelas()
 
