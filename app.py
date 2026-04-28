@@ -471,6 +471,10 @@ with tab2:
 with tab3:
     st.header("Gerar PAEE com IA")
     estudantes = listar_estudantes()
+
+    st.write("DEBUG - OpenAI:", OpenAI)
+    st.write("DEBUG - API KEY encontrada:", bool(obter_api_key()))
+
     if not estudantes:
         st.info("Cadastre um estudante primeiro.")
     else:
