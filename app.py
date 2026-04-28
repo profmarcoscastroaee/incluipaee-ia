@@ -734,19 +734,14 @@ st.markdown("""
     margin-top: 10px;
     margin-bottom: 30px;
 }
-
-.logo-topo img {
-    width: 450px;
-    border-radius: 12px;
-}
 </style>
 """, unsafe_allow_html=True)
 
-st.markdown("""
-<div class="logo-topo">
-    <img src="logo.png">
-</div>
-""", unsafe_allow_html=True)
+st.markdown("<div class='logo-topo'>", unsafe_allow_html=True)
+
+st.image("logo.png", width=450)
+
+st.markdown("</div>", unsafe_allow_html=True)
 
 criar_tabelas()
 
