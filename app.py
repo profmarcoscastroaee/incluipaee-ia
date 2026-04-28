@@ -722,27 +722,6 @@ def gerar_pdf_paee(conteudo, codigo):
 def gerar_pdf_relatorio(conteudo, codigo):
     return gerar_pdf_documento(conteudo, codigo, tipo="relatorio")
 
-
-# ======================================================
-# INTERFACE STREAMLIT
-# ======================================================
-st.markdown("""
-<style>
-.logo-topo {
-    display: flex;
-    justify-content: center;
-    margin-top: 10px;
-    margin-bottom: 30px;
-}
-</style>
-""", unsafe_allow_html=True)
-
-st.markdown("<div class='logo-topo'>", unsafe_allow_html=True)
-
-st.image("logo.png", width=450)
-
-st.markdown("</div>", unsafe_allow_html=True)
-
 criar_tabelas()
 
 # ======================================================
