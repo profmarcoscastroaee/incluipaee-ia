@@ -317,6 +317,7 @@ A seção deve:
 - Ser escrita em formato de texto corrido (não apenas lista).
 - Explicar o "porquê" das escolhas pedagógicas.
 - Relacionar as adaptações com as tecnologias sugeridas (impressão 3D, robótica, jogos, etc.).
+- Utilizar linguagem pedagógica adequada, evitando termos genéricos ou imprecisos. Preferir expressões como “materiais concretos e manipuláveis” em vez de termos informais.
 - Considerar as barreiras e potencialidades do estudante.
 
 Quando houver mais de um perfil ou dúvidas no perfil informado, a IA deve indicar a necessidade de avaliação complementar e sugerir estratégias flexíveis.
