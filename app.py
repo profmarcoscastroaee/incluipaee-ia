@@ -166,6 +166,17 @@ def atualizar_estudante(estudante_id, codigo, ano_serie, turma, perfil, observac
     conn.commit()
     conn.close()
 
+def excluir_estudante(estudante_id):
+    conn = conectar()
+    cursor = conn.cursor()
+
+    cursor.execute("DELETE FROM atendimentos WHERE estudante_id=?", (estudante_id,))
+    cursor.execute("DELETE FROM avaliacoes WHERE estudante_id=?", (estudante_id,))
+    cursor.execute("DELETE FROM estudantes WHERE id=?", (estudante_id,))
+
+    conn.commit()
+    conn.close()
+
 def salvar_avaliacao(estudante_id, barreiras, potencialidades, comunicacao, interacao, autonomia, aprendizagem, resumo_laudo):
     conn = conectar()
     cursor = conn.cursor()
@@ -938,6 +949,20 @@ with tab1:
                     st.rerun()
                 except sqlite3.IntegrityError:
                     st.error("Este código interno já está sendo usado por outro estudante.")
+      
+      st.markdown("---")
+      st.markdown("### 🗑️ Excluir estudante")
+
+           confirmar = st.checkbox("Confirmar exclusão do estudante")
+
+      if st.button("Excluir estudante"):
+      if confirmar:
+         excluir_estudante(estudante_id_editar)
+         st.success("Estudante excluído com sucesso")
+         st.rerun()
+      else:
+         st.warning("Marque a confirmação antes de excluir")   
+    
     st.markdown("### 📋 Estudantes cadastrados")
     estudantes = listar_estudantes()
     if estudantes:
