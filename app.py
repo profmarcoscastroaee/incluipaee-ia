@@ -611,6 +611,14 @@ def gerar_pdf_paee(conteudo, codigo):
     elementos.append(Spacer(1, 12))
     elementos.append(Paragraph("PLANO DE ATENDIMENTO EDUCACIONAL ESPECIALIZADO (PAEE)", titulo_style))
 
+# 🔥 título dinâmico
+        if "Relatorio" in codigo or "relatorio" in codigo:
+        titulo_doc = "RELATÓRIO DE EVOLUÇÃO E QUALIDADE DO ATENDIMENTO"
+    else:
+    titulo_doc = "PLANO DE ATENDIMENTO EDUCACIONAL ESPECIALIZADO (PAEE)"
+
+    elementos.append(Paragraph(titulo_doc, titulo_style))
+
     for linha in conteudo.split("\n"):
         linha = linha.strip()
 
