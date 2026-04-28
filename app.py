@@ -520,7 +520,7 @@ def gerar_pdf_paee(conteudo, codigo):
         titulo_style
     ))
 
-for linha in conteudo.split("\n"):
+    for linha in conteudo.split("\n"):
         linha = linha.strip()
 
         # 🔥 remove título duplicado da IA
@@ -555,6 +555,7 @@ for linha in conteudo.split("\n"):
         else:
             elementos.append(Paragraph(linha, normal_style))
 
+    # 🔥 FORA DO FOR (mesmo nível)
     elementos.append(Spacer(1, 20))
     elementos.append(Paragraph(
         "Elaborado com apoio do LabTec3DI – UFRPE",
@@ -564,7 +565,6 @@ for linha in conteudo.split("\n"):
     doc.build(elementos)
 
     return caminho
-
 # ======================================================
 # INTERFACE STREAMLIT
 # ======================================================
