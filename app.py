@@ -616,6 +616,7 @@ font-size:14px;
 Não insira nome completo, CPF, endereço, telefone, documentos pessoais ou dados que identifiquem diretamente o aluno.
 </div>
 """, unsafe_allow_html=True)
+
 tab1, tab2, tab3, tab4 = st.tabs([
     "1. Cadastro",
     "2. Avaliação Pedagógica",
@@ -656,7 +657,7 @@ with tab1:
                 except sqlite3.IntegrityError:
                     st.error("Este código já existe. Use outro código interno.")
 
-  st.markdown("### 📄 Resultado do PAEE")
+    st.markdown("### 📄 Resultado do PAEE")
     estudantes = listar_estudantes()
     if estudantes:
         st.dataframe(
