@@ -889,8 +889,7 @@ with tab1:
     col1, col2 = st.columns(2)
 
     with col1:
-        codigo_edit = st.text_input(
-            "Código interno",
+        codigo_edit = st.text_input("Código interno")
             value=estudante_editar[1],
             key="edit_codigo"
         )
@@ -901,9 +900,8 @@ with tab1:
             key="edit_ano"
         )
 
-    with col2:
-        turma_edit = st.text_input(
-            "Turma",
+     with col2:
+        turma_edit = st.text_input("Turma"),
             value=estudante_editar[3],
             key="edit_turma"
         )
