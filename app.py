@@ -675,8 +675,7 @@ with tab1:
                     st.success("Estudante cadastrado com sucesso.")
                 except sqlite3.IntegrityError:
                     st.error("Este código já existe. Use outro código interno.")
-
-st.markdown("---")
+    st.markdown("---")
     st.markdown("### ✏️ Editar cadastro do estudante")
 
     estudantes = listar_estudantes()
