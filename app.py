@@ -12,9 +12,9 @@ except Exception:
 
 DB_PATH = Path("inclui_paee.db")
 
-======================================================
+# ======================================================
 # CONFIGURAÇÃO DA API KEY
-======================================================
+# ======================================================
 def obter_api_key():
 """Busca a chave da OpenAI no ambiente local ou nos Secrets do Streamlit Cloud."""
 try:
@@ -22,9 +22,9 @@ return os.getenv("OPENAI_API_KEY") or st.secrets.get("OPENAI_API_KEY")
 except Exception:
 return os.getenv("OPENAI_API_KEY")
 
-======================================================
-BANCO DE DADOS
-======================================================
+# ======================================================
+# BANCO DE DADOS
+# ======================================================
 def conectar():
 return sqlite3.connect(DB_PATH)
 
