@@ -770,14 +770,11 @@ st.markdown(
     </style>
     """,
     unsafe_allow_html=True,
-)
 
-st.markdown('<p class="main-title">IncluiPAEE IA</p>', unsafe_allow_html=True)
-st.markdown(
-    '<p class="subtitle">Sistema de apoio à elaboração do PAEE, registro de atendimentos e relatório de evolução do AEE.</p>',
-    unsafe_allow_html=True,
-)
+col1, col2, col3 = st.columns([1, 3, 1])
 
+with col2:
+    st.image("logo.png", use_container_width=True)
 tab1, tab2, tab3, tab4, tab5 = st.tabs(
     [
         "1. Cadastro",
