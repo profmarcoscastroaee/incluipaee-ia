@@ -727,6 +727,25 @@ criar_tabelas()
 # ======================================================
 # LOGO PRINCIPAL
 # ======================================================
+st.markdown("""
+<style>
+/* reduz espaço abaixo da logo */
+.block-container {
+    padding-top: 1rem;
+}
+
+/* remove espaço extra entre elementos */
+img {
+    margin-bottom: -20px;
+}
+
+/* reduz espaço das tabs */
+.stTabs {
+    margin-top: -20px;
+}
+</style>
+""", unsafe_allow_html=True)
+
 col1, col2, col3 = st.columns([0.2, 8, 0.2])
 
 with col2:
