@@ -85,24 +85,6 @@ def criar_tabelas():
         """
     )
 
-     cursor.execute(
-         """
-        CREATE TABLE IF NOT EXISTS atendimentos (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            estudante_id INTEGER NOT NULL,
-            data_atendimento TEXT,
-            objetivo TEXT,
-            atividade TEXT,
-            resposta_estudante TEXT,
-            avancos TEXT,
-            dificuldades TEXT,
-            evolucao TEXT,
-            encaminhamentos TEXT,
-            FOREIGN KEY(estudante_id) REFERENCES estudantes(id)
-        )
-        """
-     )
-
     cursor.execute(
         """
         CREATE TABLE IF NOT EXISTS atendimentos (
@@ -440,9 +422,6 @@ DADOS DO ESTUDANTE:
 
 AVALIAÇÃO PEDAGÓGICA:
 {avaliacao_txt}
-
-HISTÓRICO DE ATENDIMENTOS:
-{historico_txt}
 
 Estruture o documento com:
 1. Identificação do estudante
