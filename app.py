@@ -424,6 +424,8 @@ No caso de TEA sem definição de nível, indicar a adoção provisória do nív
 18. Data:Indicar a data de elaboração do documento no formato padrão: dd/mm/aaaa.
 Evite respostas genéricas. Todas as recomendações devem estar diretamente relacionadas aos dados do estudante.
 
+Não incluir título principal do documento.
+
 Quando o nível de suporte do TEA não estiver informado, indicar que está sendo adotada uma abordagem pedagógica intermediária, equivalente ao nível II, de forma provisória, justificando essa escolha com base nas barreiras e necessidades observadas.
 
 A IA deve analisar o perfil educacional informado e elaborar um texto descritivo explicando como o plano foi adaptado especificamente para esse estudante.
@@ -524,7 +526,7 @@ def gerar_pdf_paee(conteudo, codigo):
         linha = linha.strip()
 
         # 🔥 remove título duplicado da IA
-        if "plano de atendimento educacional especializado" in linha.lower():
+        if "plano de atendimento educacional especializado" in linha.lower() or "(paee)" in linha.lower():
             continue
 
         # 🔥 remove lixo
