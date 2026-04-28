@@ -472,11 +472,11 @@ with tab3:
     st.header("Gerar PAEE com IA")
     estudantes = listar_estudantes()
 
-      if not estudantes:
+    if not estudantes:
         st.info("Cadastre um estudante primeiro.")
     else:
         opcoes = {f"{e[1]} - {e[2]} - {e[4]}": e[0] for e in estudantes}
-        selecionado = st.selectbox("Selecione o estudante", list(opcoes.keys()), key="paee_estudante")
+        selecionado = st.selectbox("Selecione o estudante", list(opcoes.keys()))
         estudante_id = opcoes[selecionado]
         estudante = buscar_estudante(estudante_id)
         avaliacao = ultima_avaliacao(estudante_id)
