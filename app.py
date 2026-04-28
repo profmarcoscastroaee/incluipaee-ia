@@ -298,6 +298,10 @@ Observação: este documento utiliza código interno para preservar a identidade
 
 Evite respostas genéricas. Todas as recomendações devem estar diretamente relacionadas aos dados do estudante.
 
+Quando o nível de suporte do TEA não estiver informado, indicar que está sendo adotada uma abordagem pedagógica intermediária, equivalente ao nível II, de forma provisória, justificando essa escolha com base nas barreiras e necessidades observadas.
+
+A IA deve evitar repetir o mesmo padrão de texto entre diferentes estudantes, variando a escrita conforme os dados analisados.
+
 A IA deve analisar o perfil educacional informado e elaborar um texto descritivo explicando como o plano foi adaptado especificamente para esse estudante.
 
 - Para TEA (nível I, II ou III), descrever o nível de suporte necessário e como isso impacta as estratégias, organização do ambiente, comunicação e uso de tecnologias.
@@ -345,23 +349,18 @@ Resumo pedagógico do laudo: {avaliacao[7]}
     prompt = f"""
 Você é um assistente pedagógico especializado em Atendimento Educacional Especializado (AEE), Educação Inclusiva e elaboração de PAEE.
 
-Antes de elaborar o PAEE, analise o perfil educacional informado e adapte automaticamente as recomendações conforme o caso:
+Elabore uma sugestão de PAEE com linguagem técnica, objetiva e pedagógica.
+Não invente diagnóstico. Não use nome de estudante. Use apenas o código interno.
+Não apresente condutas médicas. Foque em barreiras, potencialidades, objetivos, estratégias pedagógicas, acessibilidade, tecnologia assistiva e acompanhamento.
 
-1. TEA - Nível I: sugerir estratégias com foco em autonomia, organização da rotina, comunicação funcional, interação social mediada e uso de recursos visuais.
-2. TEA - Nível II: sugerir estratégias com maior nível de apoio, previsibilidade, comunicação alternativa, mediação constante, atividades estruturadas e redução de sobrecarga sensorial.
-3. TEA - Nível III: sugerir estratégias com apoio intensivo, comunicação alternativa e aumentativa, recursos sensoriais, rotina altamente estruturada, atividades curtas, mediação individualizada e foco em funcionalidade.
-4. Altas habilidades/superdotação: sugerir enriquecimento curricular, projetos investigativos, desafios maker, robótica, programação, produção criativa, mentoria e aprofundamento temático.
-5. Deficiência visual: sugerir materiais táteis, impressão 3D, audiodescrição, Braille quando necessário, recursos sonoros, mapas táteis, objetos concretos e acessibilidade digital.
-6. Deficiência intelectual: sugerir atividades concretas, repetição planejada, linguagem simples, etapas curtas, recursos visuais, jogos pedagógicos, materiais manipuláveis e avaliação processual.
+Se o perfil educacional for TEA e o nível de suporte (I, II ou III) não estiver explicitamente informado, a IA deve:
+- Considerar provisoriamente características de nível II (suporte moderado), por ser um ponto intermediário seguro.
+- Informar claramente no texto que o nível de suporte não foi especificado e que a proposta está baseada em uma hipótese pedagógica inicial.
+- Recomendar avaliação complementar para definição mais precisa do nível de suporte.
+- Adaptar o grau de mediação pedagógica, a estruturação das atividades, o uso de tecnologias e a intensidade do apoio necessário.
+- Não afirmar diagnóstico clínico; tratar essa definição como interpretação pedagógica provisória.
 
-A IA deve:
-- Não inventar diagnóstico.
-- Usar apenas o perfil informado e as observações pedagógicas.
-- Quando o nível de suporte do TEA não estiver informado, indicar que as estratégias devem ser ajustadas após observação pedagógica.
-- Priorizar recursos tecnológicos coerentes com o caso.
-- Sugerir impressão 3D, robótica, jogos digitais e recursos maker apenas quando fizerem sentido pedagógico.
 DADOS DO ESTUDANTE:
-
 {estudante_txt}
 
 AVALIAÇÃO PEDAGÓGICA:
