@@ -5,6 +5,10 @@ from pathlib import Path
 
 import streamlit as st
 
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.pagesizes import A4
+
 try:
     from openai import OpenAI
 except Exception:
