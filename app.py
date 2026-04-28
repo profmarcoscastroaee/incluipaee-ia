@@ -422,7 +422,6 @@ Na seção de tecnologias educacionais inclusivas, analise o perfil do estudante
     )
     return resposta.output_text
 
-
 def gerar_pdf_paee(conteudo, codigo):
     from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, HRFlowable
     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -430,7 +429,7 @@ def gerar_pdf_paee(conteudo, codigo):
     from reportlab.lib.enums import TA_CENTER
     from reportlab.lib import colors
 
-     caminho = f"PAEE_{codigo}.pdf"
+    caminho = f"PAEE_{codigo}.pdf"
 
     doc = SimpleDocTemplate(
         caminho,
@@ -485,6 +484,7 @@ def gerar_pdf_paee(conteudo, codigo):
         "LabTec3DI – Laboratório de Tecnologias 3D e Inclusivas</b>",
         normal_style
     ))
+
     elementos.append(Spacer(1, 8))
     elementos.append(HRFlowable(width="100%", thickness=1, color=colors.grey))
     elementos.append(Spacer(1, 12))
@@ -494,27 +494,18 @@ def gerar_pdf_paee(conteudo, codigo):
         titulo_style
     ))
 
-    # 🧠 Processamento do texto
     for linha in conteudo.split("\n"):
-
         linha = linha.strip()
 
         if not linha:
             elementos.append(Spacer(1, 6))
-            continue
-
-        # 🔹 Títulos de seção
-        if linha.startswith("##"):
-            elementos.append(Paragraph(linha.replace("##", "").strip(), secao_style))
-
-        # 🔹 Linhas com destaque (negrito)
-        elif linha.startswith("**") and linha.endswith("**"):
-            elementos.append(Paragraph(f"<b>{linha.replace('**','')}</b>", normal_style))
-
+        elif linha.startswith("#"):
+            elementos.append(Paragraph(linha.replace("#", "").strip(), secao_style))
+        elif linha.startswith("-"):
+            elementos.append(Paragraph(f"• {linha[1:].strip()}", normal_style))
         else:
             elementos.append(Paragraph(linha, normal_style))
 
-    # 🧾 Rodapé
     elementos.append(Spacer(1, 20))
     elementos.append(Paragraph(
         "Elaborado com apoio do LabTec3DI – UFRPE",
