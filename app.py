@@ -464,13 +464,55 @@ Estruture o documento com:
 10. Como aplicar essas tecnologias no atendimento
 11. Organização do atendimento
 12. Articulação com família e professores
-13. Avaliação e acompanhamento
+13. EVOLUÇÃO DO ESTUDANTE COM BASE NOS ATENDIMENTOS:
+
+É obrigatório analisar o histórico de atendimentos registrados para identificar evolução pedagógica do estudante.
+
+A IA deve considerar:
+- avanços observados;
+- dificuldades persistentes;
+- mudanças na comunicação;
+- mudanças na autonomia;
+- mudanças na interação social;
+- respostas às estratégias pedagógicas;
+- resposta ao uso de tecnologias educacionais;
+- encaminhamentos recorrentes;
+- necessidade de ajuste no PAEE.
+
+A seção “13. Avaliação e acompanhamento” deve mencionar explicitamente os atendimentos registrados, usando expressões como:
+- “Com base nos atendimentos recentes...”
+- “Observa-se avanço...”
+- “Persistem dificuldades...”
+- “Os registros indicam...”
+- “A evolução observada aponta...”
+
+Criar também uma seção específica:
+
+19. Evolução do estudante com base nos atendimentos
+
+Nessa seção, descrever:
+- principais avanços observados;
+- dificuldades que permanecem;
+- estratégias que funcionaram melhor;
+- tecnologias que tiveram melhor resposta;
+- ajustes recomendados para os próximos atendimentos;
+- indicativos de autonomia, comunicação, interação e aprendizagem.
+
+Caso não existam atendimentos registrados, informar:
+“Até o momento, não há registros de atendimentos suficientes para análise evolutiva. Recomenda-se iniciar registros sistemáticos para acompanhar a evolução do estudante.”
+
+Não inventar evolução. Usar apenas os dados registrados nos atendimentos.
+
 14. Recomendações para revisão do plano
 Apresentar orientações para atualização do PAEE, incluindo necessidade de avaliações complementares, revisão periódica das estratégias pedagógicas, adequação do nível de suporte e incorporação de novos recursos conforme a evolução do estudante.
 15. Adaptação automática conforme o perfil educacional
 Descrever de forma técnica como o plano foi ajustado ao perfil do estudante.
 No caso de TEA sem definição de nível, indicar a adoção provisória do nível II (suporte moderado), com justificativa pedagógica baseada nas barreiras, potencialidades e necessidades identificadas, ressaltando a necessidade de avaliação complementar.
-16. Responsável pelo AEE:
+
+16. evolução do estudante
+
+
+17. Responsável pelo AEE:
 
 Nome: ___________________________________________
 
@@ -478,7 +520,7 @@ Função: Professor(a) do Atendimento Educacional Especializado (AEE)
 
 Assinatura: _______________________________________
 
-17. Coordenação pedagógica:
+18. Coordenação pedagógica:
 
 Nome: ___________________________________________
 
@@ -486,7 +528,7 @@ Cargo: Coordenação Pedagógica
 
 Assinatura: _______________________________________
 
-18. Indicar a data de elaboração do documento no formato padrão: dd/mm/aaaa.
+19. Indicar a data de elaboração do documento no formato padrão: dd/mm/aaaa.
 Evite respostas genéricas. Todas as recomendações devem estar diretamente relacionadas aos dados do estudante.
 
 Não incluir título principal do documento.
