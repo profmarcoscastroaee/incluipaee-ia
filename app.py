@@ -277,12 +277,6 @@ Encaminhamentos: {a[6]}
 # IA
 # ======================================================
 
-def gerar_paee_sem_ia(estudante, avaliacao):
-    codigo, ano_serie, turma, perfil, observacoes = estudante[1], estudante[2], estudante[3], estudante[4], estudante[5]
-    data_registro, barreiras, potencialidades, comunicacao, interacao, autonomia, aprendizagem, resumo_laudo = avaliacao
-
-    return f"""
-
 def gerar_relatorio_evolucao(estudante, avaliacao):
     api_key = obter_api_key()
 
@@ -292,11 +286,11 @@ def gerar_relatorio_evolucao(estudante, avaliacao):
     historico_txt = listar_atendimentos_texto(estudante[0])
 
     estudante_txt = f"""
-    Código interno: {estudante[1]}
-    Ano/Série: {estudante[2]}
-    Turma: {estudante[3]}
-    Perfil educacional: {estudante[4]}
-    """
+Código interno: {estudante[1]}
+Ano/Série: {estudante[2]}
+Turma: {estudante[3]}
+Perfil educacional: {estudante[4]}
+"""
 
     prompt = f"""
 Você é um especialista em Educação Inclusiva e AEE.
