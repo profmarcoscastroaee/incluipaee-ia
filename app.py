@@ -998,5 +998,27 @@ with tab5:
                 relatorio = gerar_relatorio_evolucao(estudante, avaliacao)
                 st.session_state["relatorio_evolucao"] = relatorio
 
-        if "relatorio_evolucao" in st.session_state:
-            st.text_area("Relatório", st.session_state["relatorio_evolucao"], height=500, key="txt_relatorio_evolucao")
+       if "relatorio_evolucao" in st.session_state:
+    relatorio = st.session_state["relatorio_evolucao"]
+
+    st.text_area("Relatório", relatorio, height=500)
+
+    # 🔥 BOTÃO TXT
+    st.download_button(
+        "Baixar relatório em .txt",
+        data=relatorio,
+        file_name=f"Relatorio_{estudante[1]}.txt",
+        mime="text/plain",
+    )
+
+    # 🔥 BOTÃO PDF
+    if st.button("Gerar PDF do relatório"):
+        arquivo = gerar_pdf_paee(relatorio, f"Relatorio_{estudante[1]}")
+
+        with open(arquivo, "rb") as f:
+            st.download_button(
+                "Baixar relatório em PDF",
+                f,
+                file_name=f"Relatorio_{estudante[1]}.pdf",
+                mime="application/pdf",
+            )
