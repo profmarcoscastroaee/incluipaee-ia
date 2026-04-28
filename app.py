@@ -670,7 +670,7 @@ try:
     logo.hAlign = 'CENTER'
     elementos.append(logo)
     elementos.append(Spacer(1, 8))
-except:
+except Exception:
     pass
 
 # NOME INSTITUCIONAL
@@ -682,13 +682,11 @@ elementos.append(
     )
 )
 
-    elementos.append(Spacer(1, 8))
-    elementos.append(HRFlowable(width="100%", thickness=1, color=colors.grey))
-    elementos.append(Spacer(1, 12))
-    elementos.append(Spacer(1, 8))
-    elementos.append(HRFlowable(width="100%", thickness=1, color=colors.grey))
-    elementos.append(Spacer(1, 12))
-    elementos.append(Paragraph(titulo_doc, titulo_style))
+# LINHAS E ESPAÇAMENTOS (SEM INDENTAÇÃO)
+elementos.append(Spacer(1, 8))
+elementos.append(HRFlowable(width="100%", thickness=1, color=colors.grey))
+elementos.append(Spacer(1, 12))
+elementos.append(Paragraph(titulo_doc, titulo_style))
 
     for linha in conteudo.split("\n"):
         linha = linha.strip()
