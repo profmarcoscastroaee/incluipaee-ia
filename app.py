@@ -540,7 +540,7 @@ def gerar_pdf_paee(conteudo, codigo):
            ))
 
        elif linha.startswith("-"):
-            elementos.append(Paragraph(
+           elementos.append(Paragraph(
                 f"• {linha[1:].strip()}",
                 normal_style
            ))
