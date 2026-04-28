@@ -999,7 +999,7 @@ with tab5:
                 st.session_state["relatorio_evolucao"] = relatorio
 
        if "relatorio_evolucao" in st.session_state:
-    relatorio = st.session_state["relatorio_evolucao"]
+    relatorio = st.session_state["relatorio_evolucao"
 
     st.text_area("Relatório", relatorio, height=500)
 
