@@ -345,10 +345,28 @@ Estruture o documento com:
 6. Objetivos gerais e específicos do AEE
 7. Estratégias pedagógicas
 8. Recursos de acessibilidade e tecnologias assistivas
-9. Organização do atendimento
-10. Articulação com família e professores
-11. Avaliação e acompanhamento
-12. Recomendações para revisão do plano
+9. Sugestões de tecnologias educacionais inclusivas
+   - impressão 3D
+   - robótica educacional
+   - jogos digitais
+   - recursos maker
+   - comunicação alternativa e aumentativa
+   - materiais táteis, visuais e manipuláveis
+   - atividades plugadas e desplugadas
+10. Como aplicar essas tecnologias no atendimento
+11. Organização do atendimento
+12. Articulação com família e professores
+13. Avaliação e acompanhamento
+14. Recomendações para revisão do plano
+
+Na seção de tecnologias educacionais inclusivas, analise o perfil do estudante e indique somente recursos coerentes com suas necessidades, potencialidades, barreiras e interesses. Para cada tecnologia sugerida, explique:
+- objetivo pedagógico;
+- forma de aplicação no AEE;
+- material necessário;
+- cuidado de acessibilidade;
+- como avaliar se funcionou.
+
+Dê atenção especial ao uso de impressão 3D, robótica educacional, jogos digitais, materiais concretos, recursos visuais e tecnologias assistivas, quando forem adequados ao caso.
 """
 
     client = OpenAI(api_key=api_key)
