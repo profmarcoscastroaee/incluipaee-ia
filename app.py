@@ -333,7 +333,12 @@ Encaminhamentos: {a[7] or 'Não informado.'}
 def buscar_thingiverse(termo, limite=5):
     token = st.secrets.get("THINGIVERSE_TOKEN", "")
 
-    if not token or not termo:
+    if not token:
+        st.error("THINGIVERSE_TOKEN não encontrado nos Secrets.")
+        return []
+
+    if not termo:
+        st.error("Termo de busca vazio.")
         return []
 
     url = "https://api.thingiverse.com/search"
@@ -349,6 +354,8 @@ def buscar_thingiverse(termo, limite=5):
         resposta = requests.get(url, headers=headers, params=params, timeout=10)
 
         if resposta.status_code != 200:
+            st.error(f"Erro Thingiverse: {resposta.status_code}")
+            st.code(resposta.text[:500])
             return []
 
         dados = resposta.json()
@@ -358,7 +365,8 @@ def buscar_thingiverse(termo, limite=5):
 
         return dados.get("hits", [])
 
-    except Exception:
+    except Exception as erro:
+        st.error(f"Erro ao conectar ao Thingiverse: {erro}")
         return []
 
 
