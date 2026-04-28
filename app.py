@@ -892,9 +892,7 @@ with tab1:
         codigo_edit = st.text_input("Código interno")
             value=estudante_editar[1],
             key="edit_codigo"
-        )
-
-        ano_edit = st.text_input(
+            ano_edit = st.text_input(
             "Ano/Série",
             value=estudante_editar[2],
             key="edit_ano"
