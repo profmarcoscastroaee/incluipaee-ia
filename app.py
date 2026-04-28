@@ -356,6 +356,15 @@ Resumo pedagógico do laudo: {avaliacao[7]}
     prompt = f"""
 Você é um assistente pedagógico especializado em Atendimento Educacional Especializado (AEE), Educação Inclusiva e elaboração de PAEE.
 
+Utilizar linguagem pedagógica formal, clara e tecnicamente correta.
+
+Evitar:
+- termos imprecisos (ex: "materiais duros", "habilidades sensores");
+- ambiguidades de gênero (utilizar linguagem neutra, como "o estudante");
+- repetições desnecessárias.
+
+Garantir coerência gramatical e terminológica em todo o documento.
+
 Elabore uma sugestão de PAEE com linguagem técnica, objetiva e pedagógica.
 Não invente diagnóstico. Não use nome de estudante. Use apenas o código interno.
 Não apresente condutas médicas. Foque em barreiras, potencialidades, objetivos, estratégias pedagógicas, acessibilidade, tecnologia assistiva e acompanhamento.
