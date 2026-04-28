@@ -433,6 +433,28 @@ Para garantir consistência, clareza e qualidade institucional do documento, o t
 - Manter linguagem formal, técnica e pedagógica, evitando variações informais ou redundantes.
 - Garantir uniformidade na estrutura das seções ao longo de todo o documento.
 
+REGRA CRÍTICA SOBRE O USO DOS ATENDIMENTOS:
+
+A análise da evolução do estudante deve ser baseada EXCLUSIVAMENTE nos dados reais fornecidos no histórico de atendimentos.
+
+É proibido:
+- inventar avanços que não estejam descritos;
+- inferir melhorias não registradas;
+- criar evolução genérica sem base nos dados;
+- usar linguagem padrão sem relação direta com os atendimentos.
+
+A IA deve:
+- citar explicitamente os avanços descritos no campo "Avanços";
+- citar explicitamente as dificuldades descritas no campo "Dificuldades";
+- utilizar o campo "Evolução observada" como principal referência;
+- manter fidelidade ao que foi registrado, mesmo que os dados sejam simples ou limitados.
+
+Se os dados forem insuficientes, deve escrever:
+
+"Os registros de atendimento ainda são limitados para uma análise evolutiva consistente, sendo necessário ampliar o acompanhamento pedagógico."
+
+Não complementar com informações fictícias.
+
 Esses critérios visam assegurar que o PAEE apresente padrão profissional, adequado para uso em contextos escolares, institucionais e acadêmicos.
 
 DADOS DO ESTUDANTE:
