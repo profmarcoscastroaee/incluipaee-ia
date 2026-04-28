@@ -123,11 +123,14 @@ def cadastrar_estudante(codigo, ano_serie, turma, perfil, observacoes):
 def listar_estudantes():
     conn = conectar()
     cursor = conn.cursor()
-    cursor.execute("SELECT id, codigo, ano_serie, turma, perfil FROM estudantes ORDER BY codigo")
+    cursor.execute("""
+        SELECT id, codigo, ano_serie, turma, perfil, observacoes
+        FROM estudantes
+        ORDER BY codigo
+    """)
     dados = cursor.fetchall()
     conn.close()
     return dados
-
 
 def buscar_estudante(estudante_id):
     conn = conectar()
@@ -745,18 +748,19 @@ if estudantes:
     st.markdown("### 📋 Estudantes cadastrados")
     estudantes = listar_estudantes()
     if estudantes:
-        st.dataframe(
-            [
+
+       st.dataframe(
+           [
                 {
-                    "ID": e[0],
-                    "Código": e[1],
-                    "Ano/Série": e[2],
-                    "Turma": e[3],
-                    "Perfil": e[4],
+                   "ID": e[0],
+                   "Código": e[1],
+                   "Ano/Série": e[2],
+                   "Turma": e[3],
+                   "Perfil": e[4],
                 }
                 for e in estudantes
-            ],
-            use_container_width=True,
+           ],
+           use_container_width=True,
         )
     else:
         st.info("Nenhum estudante cadastrado ainda.")
