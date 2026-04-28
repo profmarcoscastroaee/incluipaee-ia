@@ -496,7 +496,11 @@ def gerar_pdf_paee(conteudo, codigo):
 
     for linha in conteudo.split("\n"):
         linha = linha.strip()
-
+    
+        if linha.strip() == "--":
+            continue
+        if linha.strip() == "• --":
+            continue
         if not linha:
             elementos.append(Spacer(1, 6))
         elif linha.startswith("#"):
