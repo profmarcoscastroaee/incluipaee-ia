@@ -425,28 +425,98 @@ Na seção de tecnologias educacionais inclusivas, analise o perfil do estudante
 
 def gerar_pdf_paee(conteudo, codigo):
     from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
-    from reportlab.lib.styles import getSampleStyleSheet
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
     from reportlab.lib.pagesizes import A4
+    from reportlab.lib.enums import TA_CENTER
+    from reportlab.lib import colors
 
     caminho = f"PAEE_{codigo}.pdf"
 
-    doc = SimpleDocTemplate(caminho, pagesize=A4)
+    doc = SimpleDocTemplate(
+        caminho,
+        pagesize=A4,
+        rightMargin=40,
+        leftMargin=40,
+        topMargin=40,
+        bottomMargin=40
+    )
+
     styles = getSampleStyleSheet()
+
+    # 🎯 Estilos personalizados
+    titulo_style = ParagraphStyle(
+        name="Titulo",
+        parent=styles["Title"],
+        alignment=TA_CENTER,
+        fontSize=16,
+        spaceAfter=16,
+        textColor=colors.black
+    )
+
+    secao_style = ParagraphStyle(
+        name="Secao",
+        parent=styles["Heading2"],
+        fontSize=13,
+        spaceBefore=10,
+        spaceAfter=6,
+        textColor=colors.darkblue
+    )
+
+    normal_style = ParagraphStyle(
+        name="NormalCustom",
+        parent=styles["Normal"],
+        fontSize=10,
+        leading=14,
+        spaceAfter=6
+    )
+
+    rodape_style = ParagraphStyle(
+        name="Rodape",
+        parent=styles["Normal"],
+        fontSize=9,
+        alignment=TA_CENTER,
+        textColor=colors.grey,
+        spaceBefore=20
+    )
+
     elementos = []
 
-    elementos.append(Paragraph("<b>PLANO DE ATENDIMENTO EDUCACIONAL ESPECIALIZADO (PAEE)</b>", styles["Title"]))
-    elementos.append(Spacer(1, 12))
+    # 🔥 Título principal
+    elementos.append(Paragraph(
+        "PLANO DE ATENDIMENTO EDUCACIONAL ESPECIALIZADO (PAEE)",
+        titulo_style
+    ))
 
+    # 🧠 Processamento do texto
     for linha in conteudo.split("\n"):
-        elementos.append(Paragraph(linha, styles["Normal"]))
-        elementos.append(Spacer(1, 6))
 
+        linha = linha.strip()
+
+        if not linha:
+            elementos.append(Spacer(1, 6))
+            continue
+
+        # 🔹 Títulos de seção
+        if linha.startswith("##"):
+            elementos.append(Paragraph(linha.replace("##", "").strip(), secao_style))
+
+        # 🔹 Linhas com destaque (negrito)
+        elif linha.startswith("**") and linha.endswith("**"):
+            elementos.append(Paragraph(f"<b>{linha.replace('**','')}</b>", normal_style))
+
+        else:
+            elementos.append(Paragraph(linha, normal_style))
+
+    # 🧾 Rodapé
     elementos.append(Spacer(1, 20))
-    elementos.append(Paragraph("<i>Elaborado com apoio do LabTec3DI – UFRPE</i>", styles["Normal"]))
+    elementos.append(Paragraph(
+        "Elaborado com apoio do LabTec3DI – UFRPE",
+        rodape_style
+    ))
 
     doc.build(elementos)
-    return caminho
 
+    return caminho
 
 # ======================================================
 # INTERFACE STREAMLIT
