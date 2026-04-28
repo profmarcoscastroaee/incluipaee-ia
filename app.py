@@ -579,15 +579,15 @@ with tab3:
             else:
                 st.info("IA não configurada. O sistema irá gerar um PAEE-base automático sem conexão com IA.")
 
-           if "paee_gerado" in st.session_state:
-    	       st.subheader("PAEE gerado")
-	       st.text_area("Conteúdo", st.session_state["paee_gerado"], height=600)
+    if "paee_gerado" in st.session_state:
+       st.subheader("PAEE gerado")
+       st.text_area("Conteúdo", st.session_state["paee_gerado"], height=600)
 
-               st.download_button(
-               "Baixar PAEE em .txt",
-               data=st.session_state["paee_gerado"],
-               file_name=f"PAEE_{estudante[1]}.txt",
-               mime="text/plain",
+       st.download_button(
+           "Baixar PAEE em .txt",
+           data=st.session_state["paee_gerado"],
+           file_name=f"PAEE_{estudante[1]}.txt",
+           mime="text/plain",
     )
 
     if st.button("Gerar PDF"):
