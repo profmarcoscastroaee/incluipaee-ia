@@ -886,9 +886,9 @@ with tab1:
         estudante_editar = buscar_estudante(estudante_id_editar)
 
         with st.form("form_editar_estudante"):
-    col1, col2 = st.columns(2)
-        )
-    with col1:
+        col1, col2 = st.columns(2)
+    
+     with col1:
         codigo_edit = st.text_input("Código interno")
             value=estudante_editar[1],
             key="edit_codigo"
