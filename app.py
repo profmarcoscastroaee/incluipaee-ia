@@ -495,20 +495,35 @@ def gerar_pdf_paee(conteudo, codigo):
     ))
 
     for linha in conteudo.split("\n"):
-        linha = linha.strip()
-    
-        if linha.strip() == "--":
-            continue
-        if linha.strip() == "• --":
-            continue
-        if not linha:
-            elementos.append(Spacer(1, 6))
-        elif linha.startswith("#"):
-            elementos.append(Paragraph(linha.replace("#", "").strip(), secao_style))
-        elif linha.startswith("-"):
-            elementos.append(Paragraph(f"• {linha[1:].strip()}", normal_style))
-        else:
-            elementos.append(Paragraph(linha, normal_style))
+    linha = linha.strip()
+
+    # 🔥 remover lixo visual
+    if linha in ["--", "• --", "---"]:
+        continue
+
+    if not linha:
+        elementos.append(Spacer(1, 6))
+
+    elif linha.startswith("#"):
+        elementos.append(Paragraph(
+            f"<b>{linha.replace('#','').strip()}</b>",
+            secao_style
+        ))
+
+    elif linha.startswith("**") and linha.endswith("**"):
+        elementos.append(Paragraph(
+            f"<b>{linha.replace('**','')}</b>",
+            normal_style
+        ))
+
+    elif linha.startswith("-"):
+        elementos.append(Paragraph(
+            f"• {linha[1:].strip()}",
+            normal_style
+        ))
+
+    else:
+        elementos.append(Paragraph(linha, normal_style))
 
     elementos.append(Spacer(1, 20))
     elementos.append(Paragraph(
