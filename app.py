@@ -727,7 +727,7 @@ criar_tabelas()
 # ======================================================
 # LOGO PRINCIPAL
 # ======================================================
-col1, col2, col3 = st.columns([1, 3, 1])
+col1, col2, col3 = st.columns([0.2, 8, 0.2])
 
 with col2:
     st.image("logo.png", use_container_width=True)
