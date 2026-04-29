@@ -1542,6 +1542,7 @@ with tab6:
 
     if estudantes:
         opcoes_editar = {f"{e[1]} - {e[2]} - {e[4]}": e[0] for e in estudantes}
+
         selecionado_editar = st.selectbox(
             "Selecione o estudante para editar",
             list(opcoes_editar.keys()),
@@ -1553,38 +1554,40 @@ with tab6:
 
         perfil_atual = estudante_editar[4] if estudante_editar[4] in PERFIS else "Não informado"
 
-        with st.form("form_editar_estudante"):
+        with st.form(f"form_editar_estudante_{estudante_id_editar}"):
             col1, col2 = st.columns(2)
 
             with col1:
                 codigo_edit = st.text_input(
                     "Código interno",
-                    value=estudante_editar[1],
-                    key="edit_codigo",
+                    value=estudante_editar[1] or "",
+                    key=f"edit_codigo_{estudante_id_editar}",
                 )
+
                 ano_edit = st.text_input(
                     "Ano/Série",
                     value=estudante_editar[2] or "",
-                    key="edit_ano",
+                    key=f"edit_ano_{estudante_id_editar}",
                 )
 
             with col2:
                 turma_edit = st.text_input(
                     "Turma",
                     value=estudante_editar[3] or "",
-                    key="edit_turma",
+                    key=f"edit_turma_{estudante_id_editar}",
                 )
+
                 perfil_edit = st.selectbox(
                     "Perfil educacional",
                     PERFIS,
                     index=PERFIS.index(perfil_atual),
-                    key="edit_perfil",
+                    key=f"edit_perfil_{estudante_id_editar}",
                 )
 
             observacoes_edit = st.text_area(
                 "Observações pedagógicas iniciais",
                 value=estudante_editar[5] or "",
-                key="edit_observacoes",
+                key=f"edit_observacoes_{estudante_id_editar}",
             )
 
             atualizar = st.form_submit_button("💾 Atualizar cadastro")
@@ -1612,14 +1615,17 @@ with tab6:
 
         confirmar = st.checkbox(
             "Confirmar exclusão do estudante selecionado",
-            key="confirmar_exclusao_estudante",
+            key=f"confirmar_exclusao_estudante_{estudante_id_editar}",
         )
 
-        if st.button("Excluir estudante", key="btn_excluir_estudante"):
+        if st.button("Excluir estudante", key=f"btn_excluir_estudante_{estudante_id_editar}"):
             if confirmar:
                 excluir_estudante(estudante_id_editar)
                 st.success("Estudante excluído com sucesso.")
                 st.rerun()
             else:
                 st.warning("Marque a confirmação antes de excluir.")
+
+    else:
+        st.info("Nenhum estudante cadastrado ainda.")
 
