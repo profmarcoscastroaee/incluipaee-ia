@@ -848,13 +848,14 @@ with col2:
 # ======================================================
 # ABAS DO SISTEMA
 # ======================================================
-tab1, tab2, tab3, tab4, tab5 = st.tabs(
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(
     [
         "1. Cadastro",
         "2. Avaliação Pedagógica",
         "3. Gerar PAEE",
         "4. Atendimentos",
         "5. Relatório IA",
+        "6. Administração",
     ]
 )
 
@@ -918,93 +919,6 @@ with tab1:
     else:
         st.info("Nenhum estudante cadastrado ainda.")
 
-    st.markdown("---")
-    st.markdown("### ✏️ Editar cadastro do estudante")
-
-    estudantes = listar_estudantes()
-
-    if estudantes:
-        opcoes_editar = {f"{e[1]} - {e[2]} - {e[4]}": e[0] for e in estudantes}
-        selecionado_editar = st.selectbox(
-            "Selecione o estudante para editar",
-            list(opcoes_editar.keys()),
-            key="editar_estudante",
-        )
-
-        estudante_id_editar = opcoes_editar[selecionado_editar]
-        estudante_editar = buscar_estudante(estudante_id_editar)
-
-        perfil_atual = estudante_editar[4] if estudante_editar[4] in PERFIS else "Não informado"
-
-        with st.form("form_editar_estudante"):
-            col1, col2 = st.columns(2)
-
-            with col1:
-                codigo_edit = st.text_input(
-                    "Código interno",
-                    value=estudante_editar[1],
-                    key="edit_codigo",
-                )
-                ano_edit = st.text_input(
-                    "Ano/Série",
-                    value=estudante_editar[2] or "",
-                    key="edit_ano",
-                )
-
-            with col2:
-                turma_edit = st.text_input(
-                    "Turma",
-                    value=estudante_editar[3] or "",
-                    key="edit_turma",
-                )
-                perfil_edit = st.selectbox(
-                    "Perfil educacional",
-                    PERFIS,
-                    index=PERFIS.index(perfil_atual),
-                    key="edit_perfil",
-                )
-
-            observacoes_edit = st.text_area(
-                "Observações pedagógicas iniciais",
-                value=estudante_editar[5] or "",
-                key="edit_observacoes",
-            )
-
-            atualizar = st.form_submit_button("💾 Atualizar cadastro")
-
-            if atualizar:
-                if not codigo_edit.strip():
-                    st.error("O código interno não pode ficar vazio.")
-                else:
-                    try:
-                        atualizar_estudante(
-                            estudante_id_editar,
-                            codigo_edit.strip(),
-                            ano_edit,
-                            turma_edit,
-                            perfil_edit,
-                            observacoes_edit,
-                        )
-                        st.success("Cadastro atualizado com sucesso.")
-                        st.rerun()
-                    except sqlite3.IntegrityError:
-                        st.error("Este código interno já está sendo usado por outro estudante.")
-
-        st.markdown("---")
-        st.markdown("### 🗑️ Excluir estudante")
-
-        confirmar = st.checkbox(
-            "Confirmar exclusão do estudante selecionado",
-            key="confirmar_exclusao_estudante",
-        )
-
-        if st.button("Excluir estudante", key="btn_excluir_estudante"):
-            if confirmar:
-                excluir_estudante(estudante_id_editar)
-                st.success("Estudante excluído com sucesso.")
-                st.rerun()
-            else:
-                st.warning("Marque a confirmação antes de excluir.")
 
 
 with tab2:
@@ -1318,3 +1232,94 @@ with tab5:
                         mime="application/pdf",
                         key="download_pdf_relatorio",
                     )
+
+with tab6:
+    st.header("Administração")
+    st.markdown("---")
+    st.markdown("### ✏️ Editar cadastro do estudante")
+
+    estudantes = listar_estudantes()
+
+    if estudantes:
+        opcoes_editar = {f"{e[1]} - {e[2]} - {e[4]}": e[0] for e in estudantes}
+        selecionado_editar = st.selectbox(
+            "Selecione o estudante para editar",
+            list(opcoes_editar.keys()),
+            key="editar_estudante",
+        )
+
+        estudante_id_editar = opcoes_editar[selecionado_editar]
+        estudante_editar = buscar_estudante(estudante_id_editar)
+
+        perfil_atual = estudante_editar[4] if estudante_editar[4] in PERFIS else "Não informado"
+
+        with st.form("form_editar_estudante"):
+            col1, col2 = st.columns(2)
+
+            with col1:
+                codigo_edit = st.text_input(
+                    "Código interno",
+                    value=estudante_editar[1],
+                    key="edit_codigo",
+                )
+                ano_edit = st.text_input(
+                    "Ano/Série",
+                    value=estudante_editar[2] or "",
+                    key="edit_ano",
+                )
+
+            with col2:
+                turma_edit = st.text_input(
+                    "Turma",
+                    value=estudante_editar[3] or "",
+                    key="edit_turma",
+                )
+                perfil_edit = st.selectbox(
+                    "Perfil educacional",
+                    PERFIS,
+                    index=PERFIS.index(perfil_atual),
+                    key="edit_perfil",
+                )
+
+            observacoes_edit = st.text_area(
+                "Observações pedagógicas iniciais",
+                value=estudante_editar[5] or "",
+                key="edit_observacoes",
+            )
+
+            atualizar = st.form_submit_button("💾 Atualizar cadastro")
+
+            if atualizar:
+                if not codigo_edit.strip():
+                    st.error("O código interno não pode ficar vazio.")
+                else:
+                    try:
+                        atualizar_estudante(
+                            estudante_id_editar,
+                            codigo_edit.strip(),
+                            ano_edit,
+                            turma_edit,
+                            perfil_edit,
+                            observacoes_edit,
+                        )
+                        st.success("Cadastro atualizado com sucesso.")
+                        st.rerun()
+                    except sqlite3.IntegrityError:
+                        st.error("Este código interno já está sendo usado por outro estudante.")
+
+        st.markdown("---")
+        st.markdown("### 🗑️ Excluir estudante")
+
+        confirmar = st.checkbox(
+            "Confirmar exclusão do estudante selecionado",
+            key="confirmar_exclusao_estudante",
+        )
+
+        if st.button("Excluir estudante", key="btn_excluir_estudante"):
+            if confirmar:
+                excluir_estudante(estudante_id_editar)
+                st.success("Estudante excluído com sucesso.")
+                st.rerun()
+            else:
+                st.warning("Marque a confirmação antes de excluir.")
+
