@@ -327,6 +327,45 @@ Encaminhamentos: {a[7] or 'Não informado.'}
 """
     return texto.strip()
 
+
+def montar_texto_avaliacao(estudante, data_registro, barreiras, potencialidades, comunicacao, interacao, autonomia, aprendizagem, resumo_laudo):
+    """Monta um texto simples para download após salvar a avaliação pedagógica."""
+    return f"""
+AVALIAÇÃO PEDAGÓGICA INICIAL
+
+Data do registro: {data_registro}
+
+1. Identificação do estudante
+Código interno: {estudante[1] or 'Não informado.'}
+Ano/Série: {estudante[2] or 'Não informado.'}
+Turma: {estudante[3] or 'Não informado.'}
+Perfil educacional informado: {estudante[4] or 'Não informado.'}
+Observações pedagógicas iniciais: {estudante[5] or 'Não informado.'}
+
+2. Informações lançadas na avaliação
+Barreiras enfrentadas pelo estudante:
+{barreiras or 'Não informado.'}
+
+Potencialidades e habilidades já desenvolvidas:
+{potencialidades or 'Não informado.'}
+
+Comunicação:
+{comunicacao or 'Não informado.'}
+
+Interação social:
+{interacao or 'Não informado.'}
+
+Autonomia:
+{autonomia or 'Não informado.'}
+
+Aprendizagem:
+{aprendizagem or 'Não informado.'}
+
+Resumo pedagógico do laudo, sem identificação:
+{resumo_laudo or 'Não informado.'}
+""".strip()
+
+
 # ======================================================
 # BUSCA DE MODELOS 3D
 # ======================================================
@@ -682,6 +721,9 @@ def gerar_pdf_documento(conteudo, codigo, tipo="paee"):
     if tipo == "relatorio":
         nome_arquivo = f"Relatorio_{codigo}.pdf"
         titulo_doc = "RELATÓRIO DE EVOLUÇÃO E QUALIDADE DO ATENDIMENTO"
+    elif tipo == "avaliacao":
+        nome_arquivo = f"Avaliacao_Pedagogica_{codigo}.pdf"
+        titulo_doc = "AVALIAÇÃO PEDAGÓGICA INICIAL"
     else:
         nome_arquivo = f"PAEE_{codigo}.pdf"
         titulo_doc = "PLANO DE ATENDIMENTO EDUCACIONAL ESPECIALIZADO (PAEE)"
@@ -776,6 +818,8 @@ def gerar_pdf_documento(conteudo, codigo, tipo="paee"):
             continue
         if "relatório de evolução e qualidade do atendimento" in linha_lower:
             continue
+        if "avaliação pedagógica inicial" in linha_lower:
+            continue
         if linha in ["--", "• --", "---"]:
             continue
 
@@ -811,6 +855,10 @@ def gerar_pdf_documento(conteudo, codigo, tipo="paee"):
 
 def gerar_pdf_paee(conteudo, codigo):
     return gerar_pdf_documento(conteudo, codigo, tipo="paee")
+
+
+def gerar_pdf_avaliacao(conteudo, codigo):
+    return gerar_pdf_documento(conteudo, codigo, tipo="avaliacao")
 
 
 def gerar_pdf_relatorio(conteudo, codigo):
@@ -920,6 +968,7 @@ with tab1:
         st.info("Nenhum estudante cadastrado ainda.")
 
 
+
 with tab2:
     st.header("Avaliação pedagógica inicial")
     estudantes = listar_estudantes()
@@ -931,24 +980,6 @@ with tab2:
         selecionado = st.selectbox("Selecione o estudante", list(opcoes.keys()), key="avaliacao_estudante")
         estudante_id = opcoes[selecionado]
         estudante_info = buscar_estudante(estudante_id)
-
-        st.markdown("### 📌 Informações cadastradas do estudante")
-        col_info1, col_info2, col_info3, col_info4 = st.columns(4)
-
-        with col_info1:
-            st.markdown(f"**Código:** {estudante_info[1] or 'Não informado.'}")
-
-        with col_info2:
-            st.markdown(f"**Ano/Série:** {estudante_info[2] or 'Não informado.'}")
-
-        with col_info3:
-            st.markdown(f"**Turma:** {estudante_info[3] or 'Não informado.'}")
-
-        with col_info4:
-            st.markdown(f"**Perfil:** {estudante_info[4] or 'Não informado.'}")
-
-        st.markdown("**Observações pedagógicas iniciais:**")
-        st.info(estudante_info[5] or "Nenhuma observação cadastrada.")
 
         with st.form("form_avaliacao"):
             barreiras = st.text_area("Barreiras enfrentadas pelo estudante", key="av_barreiras")
@@ -965,6 +996,8 @@ with tab2:
             enviar = st.form_submit_button("Salvar avaliação")
 
             if enviar:
+                data_registro_avaliacao = datetime.now().strftime("%d/%m/%Y %H:%M")
+
                 salvar_avaliacao(
                     estudante_id,
                     barreiras,
@@ -975,7 +1008,51 @@ with tab2:
                     aprendizagem,
                     resumo_laudo,
                 )
+
+                texto_avaliacao = montar_texto_avaliacao(
+                    estudante_info,
+                    data_registro_avaliacao,
+                    barreiras,
+                    potencialidades,
+                    comunicacao,
+                    interacao,
+                    autonomia,
+                    aprendizagem,
+                    resumo_laudo,
+                )
+
+                st.session_state["avaliacao_salva_texto"] = texto_avaliacao
+                st.session_state["avaliacao_salva_codigo"] = estudante_info[1]
                 st.success("Avaliação pedagógica salva com sucesso.")
+
+        if "avaliacao_salva_texto" in st.session_state:
+            texto_avaliacao = st.session_state["avaliacao_salva_texto"]
+            codigo_avaliacao = st.session_state.get("avaliacao_salva_codigo", estudante_info[1])
+
+            st.markdown("---")
+            st.subheader("Avaliação salva para download")
+
+            st.download_button(
+                "Baixar avaliação em .txt",
+                data=texto_avaliacao,
+                file_name=f"Avaliacao_Pedagogica_{codigo_avaliacao}.txt",
+                mime="text/plain",
+                key="download_txt_avaliacao",
+            )
+
+            if st.button("Gerar PDF da avaliação", key="btn_pdf_avaliacao"):
+                arquivo = gerar_pdf_avaliacao(texto_avaliacao, codigo_avaliacao)
+                st.session_state["arquivo_pdf_avaliacao"] = arquivo
+
+            if "arquivo_pdf_avaliacao" in st.session_state:
+                with open(st.session_state["arquivo_pdf_avaliacao"], "rb") as f:
+                    st.download_button(
+                        "Baixar avaliação em PDF",
+                        data=f,
+                        file_name=f"Avaliacao_Pedagogica_{codigo_avaliacao}.pdf",
+                        mime="application/pdf",
+                        key="download_pdf_avaliacao",
+                    )
 
 
 with tab3:
@@ -1253,8 +1330,6 @@ with tab5:
 
 with tab6:
     st.header("Administração")
-    st.caption("Área para alteração de cadastro e exclusão de estudantes.")
-
     st.markdown("---")
     st.markdown("### ✏️ Editar cadastro do estudante")
 
@@ -1342,3 +1417,4 @@ with tab6:
                 st.rerun()
             else:
                 st.warning("Marque a confirmação antes de excluir.")
+
