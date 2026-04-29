@@ -23,8 +23,15 @@ st.markdown("""
 
 /* Espaçamento geral */
 .block-container {
-    padding-top: 1.2rem;
+    padding-top: 3rem;
     padding-bottom: 2rem;
+    padding-left: 2rem;
+    padding-right: 2rem;
+}
+
+/* Corrige topo e centraliza melhor conteúdo */
+main > div {
+    padding-top: 1rem;
 }
 
 /* Sidebar */
