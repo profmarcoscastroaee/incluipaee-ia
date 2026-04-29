@@ -241,6 +241,24 @@ def ultima_avaliacao(estudante_id):
     return dado
 
 
+def listar_avaliacoes(estudante_id):
+    conn = conectar()
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        SELECT id, data_registro, barreiras, potencialidades, comunicacao, interacao,
+               autonomia, aprendizagem, resumo_laudo
+        FROM avaliacoes
+        WHERE estudante_id = ?
+        ORDER BY id DESC
+        """,
+        (estudante_id,),
+    )
+    dados = cursor.fetchall()
+    conn.close()
+    return dados
+
+
 def salvar_paee(estudante_id, conteudo):
     conn = conectar()
     cursor = conn.cursor()
@@ -1053,6 +1071,67 @@ with tab2:
                         mime="application/pdf",
                         key="download_pdf_avaliacao",
                     )
+
+        st.markdown("---")
+        st.subheader("Histórico de avaliações pedagógicas")
+        avaliacoes = listar_avaliacoes(estudante_id)
+
+        if avaliacoes:
+            for avaliacao_item in avaliacoes:
+                avaliacao_id = avaliacao_item[0]
+                data_registro = avaliacao_item[1]
+                barreiras_hist = avaliacao_item[2]
+                potencialidades_hist = avaliacao_item[3]
+                comunicacao_hist = avaliacao_item[4]
+                interacao_hist = avaliacao_item[5]
+                autonomia_hist = avaliacao_item[6]
+                aprendizagem_hist = avaliacao_item[7]
+                resumo_laudo_hist = avaliacao_item[8]
+
+                with st.expander(f"Avaliação em {data_registro}"):
+                    st.markdown(f"**Barreiras:** {barreiras_hist or 'Não informado.'}")
+                    st.markdown(f"**Potencialidades:** {potencialidades_hist or 'Não informado.'}")
+                    st.markdown(f"**Comunicação:** {comunicacao_hist or 'Não informado.'}")
+                    st.markdown(f"**Interação social:** {interacao_hist or 'Não informado.'}")
+                    st.markdown(f"**Autonomia:** {autonomia_hist or 'Não informado.'}")
+                    st.markdown(f"**Aprendizagem:** {aprendizagem_hist or 'Não informado.'}")
+                    st.markdown(f"**Resumo pedagógico do laudo:** {resumo_laudo_hist or 'Não informado.'}")
+
+                    texto_historico = montar_texto_avaliacao(
+                        estudante_info,
+                        data_registro,
+                        barreiras_hist,
+                        potencialidades_hist,
+                        comunicacao_hist,
+                        interacao_hist,
+                        autonomia_hist,
+                        aprendizagem_hist,
+                        resumo_laudo_hist,
+                    )
+
+                    st.download_button(
+                        "Baixar esta avaliação em .txt",
+                        data=texto_historico,
+                        file_name=f"Avaliacao_Pedagogica_{estudante_info[1]}_{avaliacao_id}.txt",
+                        mime="text/plain",
+                        key=f"download_txt_avaliacao_hist_{avaliacao_id}",
+                    )
+
+                    if st.button("Gerar PDF desta avaliação", key=f"btn_pdf_avaliacao_hist_{avaliacao_id}"):
+                        arquivo = gerar_pdf_avaliacao(texto_historico, f"{estudante_info[1]}_{avaliacao_id}")
+                        st.session_state[f"arquivo_pdf_avaliacao_hist_{avaliacao_id}"] = arquivo
+
+                    if f"arquivo_pdf_avaliacao_hist_{avaliacao_id}" in st.session_state:
+                        with open(st.session_state[f"arquivo_pdf_avaliacao_hist_{avaliacao_id}"], "rb") as f:
+                            st.download_button(
+                                "Baixar esta avaliação em PDF",
+                                data=f,
+                                file_name=f"Avaliacao_Pedagogica_{estudante_info[1]}_{avaliacao_id}.pdf",
+                                mime="application/pdf",
+                                key=f"download_pdf_avaliacao_hist_{avaliacao_id}",
+                            )
+        else:
+            st.info("Nenhuma avaliação pedagógica registrada para este estudante.")
 
 
 with tab3:
