@@ -507,6 +507,70 @@ def salvar_atendimento(
     conn.close()
 
 
+
+
+def atualizar_atendimento(
+    atendimento_id,
+    data_atendimento,
+    objetivo,
+    atividade,
+    resposta_estudante,
+    avancos,
+    dificuldades,
+    evolucao,
+    qtd_atividades,
+    nivel_resposta,
+    nivel_avanco,
+    nivel_dificuldade,
+    nivel_engajamento,
+    nivel_evolucao,
+    encaminhamentos,
+):
+    conn = conectar()
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        UPDATE atendimentos
+        SET data_atendimento = ?,
+            objetivo = ?,
+            atividade = ?,
+            resposta_estudante = ?,
+            avancos = ?,
+            dificuldades = ?,
+            evolucao = ?,
+            qtd_atividades = ?,
+            nivel_resposta = ?,
+            nivel_avanco = ?,
+            nivel_dificuldade = ?,
+            nivel_engajamento = ?,
+            nivel_evolucao = ?,
+            encaminhamentos = ?
+        WHERE id = ?
+        """,
+        (
+            data_atendimento, objetivo, atividade, resposta_estudante, avancos, dificuldades, evolucao,
+            qtd_atividades, nivel_resposta, nivel_avanco, nivel_dificuldade, nivel_engajamento,
+            nivel_evolucao, encaminhamentos, atendimento_id,
+        ),
+    )
+    conn.commit()
+    conn.close()
+
+
+def excluir_atendimento(atendimento_id):
+    conn = conectar()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM atendimentos WHERE id = ?", (atendimento_id,))
+    conn.commit()
+    conn.close()
+
+
+def data_para_date(data_texto):
+    try:
+        return datetime.strptime(data_texto, "%d/%m/%Y").date()
+    except Exception:
+        return datetime.now().date()
+
 def listar_atendimentos(estudante_id):
     conn = conectar()
     cursor = conn.cursor()
@@ -690,7 +754,6 @@ Resposta do estudante: {a[3] or 'Não informado.'}
 Avanços observados: {a[4] or 'Não informado.'}
 Dificuldades observadas: {a[5] or 'Não informado.'}
 Evolução observada: {a[6] or 'Não informado.'}
-Quantidade de atividades realizadas: {a[7] if len(a) > 7 and a[7] is not None else 'Não informado.'}
 Resposta do estudante: {a[8] if len(a) > 8 and a[8] is not None else 'Não informado.'}/10
 Avanço pedagógico: {a[9] if len(a) > 9 and a[9] is not None else 'Não informado.'}/10
 Nível de dificuldade: {a[10] if len(a) > 10 and a[10] is not None else 'Não informado.'}/10
@@ -787,9 +850,6 @@ Dificuldades observadas:
 
 Evolução observada:
 {evolucao or 'Não informado.'}
-
-Quantidade de atividades realizadas:
-{qtd_atividades if qtd_atividades is not None else 'Não informado.'}
 
 Resposta do estudante:
 {nivel_resposta if nivel_resposta is not None else 'Não informado.'}/10
@@ -1829,29 +1889,17 @@ elif menu == "Atendimentos":
 
                 st.markdown("#### Registro pedagógico e indicadores")
                 st.caption(
-                    "Preencha o texto pedagógico e, logo abaixo, informe a escala correspondente. "
-                    "Assim o relatório mantém a análise qualitativa e o dashboard usa dados quantitativos consistentes."
+                    "Preencha o texto pedagógico e, logo abaixo de cada dimensão, informe a escala correspondente. "
+                    "O gráfico será alimentado pelos indicadores numéricos e o relatório pela descrição pedagógica."
                 )
 
                 objetivo = st.text_area("Objetivo trabalhado", key="at_objetivo")
-
                 atividade = st.text_area("Atividade realizada", key="at_atividade")
-                qtd_atividades = st.number_input(
-                    "Quantidade de atividades realizadas",
-                    min_value=0,
-                    max_value=50,
-                    value=1,
-                    step=1,
-                    help="Informe quantas atividades ou propostas pedagógicas foram realizadas neste atendimento.",
-                    key="at_qtd_atividades",
-                )
 
                 resposta_estudante = st.text_area("Resposta do estudante", key="at_resposta")
                 nivel_resposta = st.slider(
                     "Escala da resposta do estudante",
-                    min_value=1,
-                    max_value=10,
-                    value=5,
+                    min_value=1, max_value=10, value=5,
                     help="1 a 3: pouca resposta; 4 a 6: resposta parcial; 7 a 8: boa resposta; 9 a 10: resposta excelente.",
                     key="at_nivel_resposta",
                 )
@@ -1859,9 +1907,7 @@ elif menu == "Atendimentos":
                 avancos = st.text_area("Avanços observados", key="at_avancos")
                 nivel_avanco = st.slider(
                     "Escala do avanço pedagógico",
-                    min_value=1,
-                    max_value=10,
-                    value=5,
+                    min_value=1, max_value=10, value=5,
                     help="Avalia avanço em aprendizagem, participação, comunicação, autonomia ou objetivo trabalhado.",
                     key="at_nivel_avanco",
                 )
@@ -1869,29 +1915,20 @@ elif menu == "Atendimentos":
                 dificuldades = st.text_area("Dificuldades observadas", key="at_dificuldades")
                 nivel_dificuldade = st.slider(
                     "Escala de dificuldade/barreira observada",
-                    min_value=1,
-                    max_value=10,
-                    value=5,
+                    min_value=1, max_value=10, value=5,
                     help="1 representa pouca dificuldade; 10 representa muita dificuldade/barreira observada.",
                     key="at_nivel_dificuldade",
                 )
 
                 evolucao = st.text_area("Evolução observada", key="at_evolucao")
                 nivel_engajamento = st.slider(
-                    "Escala de engajamento do estudante",
-                    min_value=1,
-                    max_value=10,
-                    value=5,
+                    "Escala de engajamento/participação",
+                    min_value=1, max_value=10, value=5,
                     help="Avalia interesse, participação, permanência na atividade e envolvimento durante o atendimento.",
                     key="at_nivel_engajamento",
                 )
 
-                nivel_evolucao = calcular_indice_geral(
-                    nivel_resposta,
-                    nivel_avanco,
-                    nivel_dificuldade,
-                    nivel_engajamento,
-                )
+                nivel_evolucao = calcular_indice_geral(nivel_resposta, nivel_avanco, nivel_dificuldade, nivel_engajamento)
                 st.info(
                     f"Índice geral calculado automaticamente: {nivel_evolucao}/10. "
                     "Esse índice considera resposta, avanço, engajamento e o impacto invertido da dificuldade."
@@ -1902,21 +1939,9 @@ elif menu == "Atendimentos":
 
                 if enviar:
                     salvar_atendimento(
-                        estudante_id,
-                        data_atendimento.strftime("%d/%m/%Y"),
-                        objetivo,
-                        atividade,
-                        resposta_estudante,
-                        avancos,
-                        dificuldades,
-                        evolucao,
-                        qtd_atividades,
-                        nivel_resposta,
-                        nivel_avanco,
-                        nivel_dificuldade,
-                        nivel_engajamento,
-                        nivel_evolucao,
-                        encaminhamentos,
+                        estudante_id, data_atendimento.strftime("%d/%m/%Y"), objetivo, atividade,
+                        resposta_estudante, avancos, dificuldades, evolucao, 1, nivel_resposta, nivel_avanco,
+                        nivel_dificuldade, nivel_engajamento, nivel_evolucao, encaminhamentos,
                     )
                     st.success("Atendimento registrado com sucesso.")
                     st.rerun()
@@ -1935,75 +1960,91 @@ elif menu == "Atendimentos":
                     avancos_hist = item[5]
                     dificuldades_hist = item[6]
                     evolucao_hist = item[7]
-                    qtd_atividades_hist = item[8] if len(item) > 8 else None
-                    nivel_resposta_hist = item[9] if len(item) > 9 else None
-                    nivel_avanco_hist = item[10] if len(item) > 10 else None
-                    nivel_dificuldade_hist = item[11] if len(item) > 11 else None
-                    nivel_engajamento_hist = item[12] if len(item) > 12 else None
-                    nivel_evolucao_hist = item[13] if len(item) > 13 else None
+                    qtd_atividades_hist = item[8] if len(item) > 8 and item[8] is not None else 1
+                    nivel_resposta_hist = limitar_escala(item[9] if len(item) > 9 else 5)
+                    nivel_avanco_hist = limitar_escala(item[10] if len(item) > 10 else 5)
+                    nivel_dificuldade_hist = limitar_escala(item[11] if len(item) > 11 else 5)
+                    nivel_engajamento_hist = limitar_escala(item[12] if len(item) > 12 else 5)
+                    nivel_evolucao_hist = item[13] if len(item) > 13 and item[13] is not None else calcular_indice_geral(nivel_resposta_hist, nivel_avanco_hist, nivel_dificuldade_hist, nivel_engajamento_hist)
                     encaminhamentos_hist = item[14] if len(item) > 14 else None
 
                     with st.expander(f"Atendimento em {data_hist}"):
+                        st.markdown("#### Visualização do atendimento")
                         st.markdown(f"**Objetivo:** {objetivo_hist or 'Não informado.'}")
                         st.markdown(f"**Atividade:** {atividade_hist or 'Não informado.'}")
                         st.markdown(f"**Resposta do estudante:** {resposta_hist or 'Não informado.'}")
                         st.markdown(f"**Avanços:** {avancos_hist or 'Não informado.'}")
                         st.markdown(f"**Dificuldades:** {dificuldades_hist or 'Não informado.'}")
                         st.markdown(f"**Evolução observada:** {evolucao_hist or 'Não informado.'}")
-                        st.markdown(f"**Quantidade de atividades:** {qtd_atividades_hist if qtd_atividades_hist is not None else 'Não informado.'}")
-                        st.markdown(f"**Resposta do estudante:** {nivel_resposta_hist if nivel_resposta_hist is not None else 'Não informado.'}/10")
-                        st.markdown(f"**Avanço pedagógico:** {nivel_avanco_hist if nivel_avanco_hist is not None else 'Não informado.'}/10")
-                        st.markdown(f"**Nível de dificuldade:** {nivel_dificuldade_hist if nivel_dificuldade_hist is not None else 'Não informado.'}/10")
-                        st.markdown(f"**Engajamento:** {nivel_engajamento_hist if nivel_engajamento_hist is not None else 'Não informado.'}/10")
-                        st.markdown(f"**Índice geral de evolução:** {nivel_evolucao_hist if nivel_evolucao_hist is not None else 'Não informado.'}/10")
+                        st.markdown(f"**Resposta do estudante:** {nivel_resposta_hist}/10")
+                        st.markdown(f"**Avanço pedagógico:** {nivel_avanco_hist}/10")
+                        st.markdown(f"**Nível de dificuldade:** {nivel_dificuldade_hist}/10")
+                        st.markdown(f"**Engajamento:** {nivel_engajamento_hist}/10")
+                        st.markdown(f"**Índice geral de evolução:** {nivel_evolucao_hist}/10")
                         st.markdown(f"**Encaminhamentos:** {encaminhamentos_hist or 'Não informado.'}")
 
                         texto_atendimento = montar_texto_atendimento(
-                            estudante_info,
-                            data_hist,
-                            objetivo_hist,
-                            atividade_hist,
-                            resposta_hist,
-                            avancos_hist,
-                            dificuldades_hist,
-                            evolucao_hist,
-                            qtd_atividades_hist,
-                            nivel_resposta_hist,
-                            nivel_avanco_hist,
-                            nivel_dificuldade_hist,
-                            nivel_engajamento_hist,
-                            nivel_evolucao_hist,
-                            encaminhamentos_hist,
+                            estudante_info, data_hist, objetivo_hist, atividade_hist, resposta_hist, avancos_hist,
+                            dificuldades_hist, evolucao_hist, qtd_atividades_hist, nivel_resposta_hist, nivel_avanco_hist,
+                            nivel_dificuldade_hist, nivel_engajamento_hist, nivel_evolucao_hist, encaminhamentos_hist,
                         )
 
                         col_txt_at, col_pdf_at = st.columns(2)
-
                         with col_txt_at:
                             st.download_button(
-                                "Baixar este atendimento em .txt",
-                                data=texto_atendimento,
+                                "Baixar este atendimento em .txt", data=texto_atendimento,
                                 file_name=f"Registro_Atendimento_{estudante_info[1]}_{atendimento_id}.txt",
-                                mime="text/plain",
-                                key=f"download_txt_atendimento_{atendimento_id}",
+                                mime="text/plain", key=f"download_txt_atendimento_{atendimento_id}",
                             )
-
                         with col_pdf_at:
                             if st.button("Gerar PDF deste atendimento", key=f"btn_pdf_atendimento_{atendimento_id}"):
-                                arquivo = gerar_pdf_atendimento(
-                                    texto_atendimento,
-                                    f"{estudante_info[1]}_{atendimento_id}",
-                                )
+                                arquivo = gerar_pdf_atendimento(texto_atendimento, f"{estudante_info[1]}_{atendimento_id}")
                                 st.session_state[f"arquivo_pdf_atendimento_{atendimento_id}"] = arquivo
-
                             if f"arquivo_pdf_atendimento_{atendimento_id}" in st.session_state:
                                 with open(st.session_state[f"arquivo_pdf_atendimento_{atendimento_id}"], "rb") as f:
                                     st.download_button(
-                                        "Baixar este atendimento em PDF",
-                                        data=f,
+                                        "Baixar este atendimento em PDF", data=f,
                                         file_name=f"Registro_Atendimento_{estudante_info[1]}_{atendimento_id}.pdf",
-                                        mime="application/pdf",
-                                        key=f"download_pdf_atendimento_{atendimento_id}",
+                                        mime="application/pdf", key=f"download_pdf_atendimento_{atendimento_id}",
                                     )
+
+                        st.markdown("---")
+                        st.markdown("#### ✏️ Editar atendimento")
+                        with st.form(f"form_editar_atendimento_{atendimento_id}"):
+                            data_edit = st.date_input("Data do atendimento", value=data_para_date(data_hist), key=f"edit_at_data_{atendimento_id}")
+                            objetivo_edit = st.text_area("Objetivo trabalhado", value=objetivo_hist or "", key=f"edit_at_objetivo_{atendimento_id}")
+                            atividade_edit = st.text_area("Atividade realizada", value=atividade_hist or "", key=f"edit_at_atividade_{atendimento_id}")
+                            resposta_edit = st.text_area("Resposta do estudante", value=resposta_hist or "", key=f"edit_at_resposta_{atendimento_id}")
+                            nivel_resposta_edit = st.slider("Escala da resposta do estudante", 1, 10, int(nivel_resposta_hist), key=f"edit_at_nivel_resposta_{atendimento_id}")
+                            avancos_edit = st.text_area("Avanços observados", value=avancos_hist or "", key=f"edit_at_avancos_{atendimento_id}")
+                            nivel_avanco_edit = st.slider("Escala do avanço pedagógico", 1, 10, int(nivel_avanco_hist), key=f"edit_at_nivel_avanco_{atendimento_id}")
+                            dificuldades_edit = st.text_area("Dificuldades observadas", value=dificuldades_hist or "", key=f"edit_at_dificuldades_{atendimento_id}")
+                            nivel_dificuldade_edit = st.slider("Escala de dificuldade/barreira observada", 1, 10, int(nivel_dificuldade_hist), key=f"edit_at_nivel_dificuldade_{atendimento_id}")
+                            evolucao_edit = st.text_area("Evolução observada", value=evolucao_hist or "", key=f"edit_at_evolucao_{atendimento_id}")
+                            nivel_engajamento_edit = st.slider("Escala de engajamento/participação", 1, 10, int(nivel_engajamento_hist), key=f"edit_at_nivel_engajamento_{atendimento_id}")
+                            nivel_evolucao_edit = calcular_indice_geral(nivel_resposta_edit, nivel_avanco_edit, nivel_dificuldade_edit, nivel_engajamento_edit)
+                            st.info(f"Índice geral recalculado: {nivel_evolucao_edit}/10")
+                            encaminhamentos_edit = st.text_area("Encaminhamentos", value=encaminhamentos_hist or "", key=f"edit_at_encaminhamentos_{atendimento_id}")
+                            salvar_edicao = st.form_submit_button("Salvar atualização do atendimento")
+                            if salvar_edicao:
+                                atualizar_atendimento(
+                                    atendimento_id, data_edit.strftime("%d/%m/%Y"), objetivo_edit, atividade_edit, resposta_edit,
+                                    avancos_edit, dificuldades_edit, evolucao_edit, qtd_atividades_hist, nivel_resposta_edit,
+                                    nivel_avanco_edit, nivel_dificuldade_edit, nivel_engajamento_edit, nivel_evolucao_edit,
+                                    encaminhamentos_edit,
+                                )
+                                st.success("Atendimento atualizado com sucesso.")
+                                st.rerun()
+
+                        st.markdown("#### 🗑️ Excluir atendimento")
+                        confirmar_exclusao_atendimento = st.checkbox("Confirmar exclusão deste atendimento", key=f"confirmar_exclusao_atendimento_{atendimento_id}")
+                        if st.button("Excluir este atendimento", key=f"btn_excluir_atendimento_{atendimento_id}"):
+                            if confirmar_exclusao_atendimento:
+                                excluir_atendimento(atendimento_id)
+                                st.success("Atendimento excluído com sucesso.")
+                                st.rerun()
+                            else:
+                                st.warning("Marque a confirmação antes de excluir.")
             else:
                 st.info("Nenhum atendimento registrado para este estudante.")
 
