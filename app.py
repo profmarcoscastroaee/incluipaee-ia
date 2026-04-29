@@ -187,6 +187,7 @@ def criar_tabelas():
             avancos TEXT,
             dificuldades TEXT,
             evolucao TEXT,
+            nivel_evolucao INTEGER,
             encaminhamentos TEXT,
             FOREIGN KEY(estudante_id) REFERENCES estudantes(id)
         )
@@ -197,6 +198,8 @@ def criar_tabelas():
     colunas = [col[1] for col in cursor.fetchall()]
     if "evolucao" not in colunas:
         cursor.execute("ALTER TABLE atendimentos ADD COLUMN evolucao TEXT")
+    if "nivel_evolucao" not in colunas:
+        cursor.execute("ALTER TABLE atendimentos ADD COLUMN nivel_evolucao INTEGER DEFAULT 5")
 
     conn.commit()
     conn.close()
@@ -372,6 +375,7 @@ def salvar_atendimento(
     avancos,
     dificuldades,
     evolucao,
+    nivel_evolucao,
     encaminhamentos,
 ):
     conn = conectar()
@@ -380,8 +384,8 @@ def salvar_atendimento(
         """
         INSERT INTO atendimentos (
             estudante_id, data_atendimento, objetivo, atividade,
-            resposta_estudante, avancos, dificuldades, evolucao, encaminhamentos
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            resposta_estudante, avancos, dificuldades, evolucao, nivel_evolucao, encaminhamentos
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             estudante_id,
@@ -392,6 +396,7 @@ def salvar_atendimento(
             avancos,
             dificuldades,
             evolucao,
+            nivel_evolucao,
             encaminhamentos,
         ),
     )
@@ -405,7 +410,7 @@ def listar_atendimentos(estudante_id):
     cursor.execute(
         """
         SELECT data_atendimento, objetivo, atividade, resposta_estudante,
-               avancos, dificuldades, evolucao, encaminhamentos
+               avancos, dificuldades, evolucao, nivel_evolucao, encaminhamentos
         FROM atendimentos
         WHERE estudante_id = ?
         ORDER BY id DESC
@@ -467,7 +472,14 @@ def montar_dataframe_evolucao(atendimentos):
         avancos = atendimento[4]
         dificuldades = atendimento[5]
         evolucao = atendimento[6]
-        nivel = calcular_nivel_evolucao(evolucao, avancos, dificuldades)
+        nivel_salvo = atendimento[7] if len(atendimento) > 7 else None
+
+        try:
+            nivel = int(nivel_salvo) if nivel_salvo is not None else calcular_nivel_evolucao(evolucao, avancos, dificuldades)
+        except Exception:
+            nivel = calcular_nivel_evolucao(evolucao, avancos, dificuldades)
+
+        nivel = max(1, min(10, nivel))
 
         try:
             data_ordenacao = datetime.strptime(data_atendimento, "%d/%m/%Y")
@@ -522,7 +534,8 @@ Resposta do estudante: {a[3] or 'Não informado.'}
 Avanços observados: {a[4] or 'Não informado.'}
 Dificuldades observadas: {a[5] or 'Não informado.'}
 Evolução observada: {a[6] or 'Não informado.'}
-Encaminhamentos: {a[7] or 'Não informado.'}
+Nível de evolução registrado: {a[7] if len(a) > 7 and a[7] is not None else 'Não informado.'}/10
+Encaminhamentos: {a[8] if len(a) > 8 and a[8] else 'Não informado.'}
 ---
 """
     return texto.strip()
@@ -575,6 +588,7 @@ def montar_texto_atendimento(
     avancos,
     dificuldades,
     evolucao,
+    nivel_evolucao,
     encaminhamentos,
 ):
     """Monta um texto simples para download de um registro de atendimento."""
@@ -607,6 +621,9 @@ Dificuldades observadas:
 
 Evolução observada:
 {evolucao or 'Não informado.'}
+
+Nível de evolução registrado:
+{nivel_evolucao if nivel_evolucao is not None else 'Não informado.'}/10
 
 Encaminhamentos:
 {encaminhamentos or 'Não informado.'}
@@ -1634,6 +1651,18 @@ elif menu == "Atendimentos":
                 avancos = st.text_area("Avanços observados", key="at_avancos")
                 dificuldades = st.text_area("Dificuldades observadas", key="at_dificuldades")
                 evolucao = st.text_area("Evolução observada", key="at_evolucao")
+
+                st.markdown("#### Avaliação quantitativa do atendimento")
+                st.caption("Informe uma nota de 1 a 10 para alimentar o gráfico de evolução do estudante.")
+                nivel_evolucao = st.slider(
+                    "Nível de evolução observado",
+                    min_value=1,
+                    max_value=10,
+                    value=5,
+                    help="1 a 3: pouca resposta; 4 a 6: resposta parcial; 7 a 8: boa evolução; 9 a 10: evolução excelente.",
+                    key="at_nivel_evolucao",
+                )
+
                 encaminhamentos = st.text_area("Encaminhamentos", key="at_encaminhamentos")
                 enviar = st.form_submit_button("Salvar atendimento")
 
@@ -1647,6 +1676,7 @@ elif menu == "Atendimentos":
                         avancos,
                         dificuldades,
                         evolucao,
+                        nivel_evolucao,
                         encaminhamentos,
                     )
                     st.success("Atendimento registrado com sucesso.")
@@ -1666,7 +1696,8 @@ elif menu == "Atendimentos":
                     avancos_hist = item[5]
                     dificuldades_hist = item[6]
                     evolucao_hist = item[7]
-                    encaminhamentos_hist = item[8]
+                    nivel_evolucao_hist = item[8] if len(item) > 8 else None
+                    encaminhamentos_hist = item[9] if len(item) > 9 else None
 
                     with st.expander(f"Atendimento em {data_hist}"):
                         st.markdown(f"**Objetivo:** {objetivo_hist or 'Não informado.'}")
@@ -1675,6 +1706,7 @@ elif menu == "Atendimentos":
                         st.markdown(f"**Avanços:** {avancos_hist or 'Não informado.'}")
                         st.markdown(f"**Dificuldades:** {dificuldades_hist or 'Não informado.'}")
                         st.markdown(f"**Evolução observada:** {evolucao_hist or 'Não informado.'}")
+                        st.markdown(f"**Nível de evolução:** {nivel_evolucao_hist if nivel_evolucao_hist is not None else 'Não informado.'}/10")
                         st.markdown(f"**Encaminhamentos:** {encaminhamentos_hist or 'Não informado.'}")
 
                         texto_atendimento = montar_texto_atendimento(
@@ -1686,6 +1718,7 @@ elif menu == "Atendimentos":
                             avancos_hist,
                             dificuldades_hist,
                             evolucao_hist,
+                            nivel_evolucao_hist,
                             encaminhamentos_hist,
                         )
 
@@ -1749,11 +1782,11 @@ elif menu == "Relatório IA":
             with st.container(border=True):
                 st.markdown("### 📈 Gráfico de evolução do estudante")
                 st.caption(
-                    "Escala de 1 a 5 calculada automaticamente com base nos campos de avanços, dificuldades e evolução observada. "
+                    "Escala de 1 a 10 informada pelo professor no registro de atendimento. "
                     "O gráfico é um apoio visual e não substitui a análise pedagógica do professor."
                 )
 
-                st.line_chart(
+                st.bar_chart(
                     df_evolucao,
                     x="Data",
                     y="Nível de evolução",
@@ -1767,8 +1800,8 @@ elif menu == "Relatório IA":
 
                 col1, col2, col3, col4 = st.columns(4)
                 col1.metric("Atendimentos analisados", len(df_evolucao))
-                col2.metric("Média de evolução", f"{media_evolucao:.1f}/5")
-                col3.metric("Último nível", f"{ultimo_nivel}/5")
+                col2.metric("Média de evolução", f"{media_evolucao:.1f}/10")
+                col3.metric("Último nível", f"{ultimo_nivel}/10")
                 col4.metric("Variação", f"{variacao:+d}")
 
                 with st.expander("Ver dados usados no gráfico"):
