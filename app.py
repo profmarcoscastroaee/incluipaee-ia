@@ -1536,58 +1536,60 @@ with tab5:
 with tab6:
     st.header("Administração")
     st.markdown("---")
-    st.markdown("### ✏️ Editar cadastro do estudante")
+   st.markdown("### ✏️ Editar cadastro do estudante")
 
-    estudantes = listar_estudantes()
+estudantes = listar_estudantes()
 
-    if estudantes:
-        opcoes_editar = {f"{e[1]} - {e[2]} - {e[4]}": e[0] for e in estudantes}
+if estudantes:
+    ids_estudantes = [e[0] for e in estudantes]
 
-        selecionado_editar = st.selectbox(
-            "Selecione o estudante para editar",
-            list(opcoes_editar.keys()),
-            key="editar_estudante",
-        )
+    mapa_estudantes = {
+        e[0]: f"{e[1]} - {e[2]} - {e[4]}"
+        for e in estudantes
+    }
 
-        estudante_id_editar = opcoes_editar[selecionado_editar]
-        estudante_editar = buscar_estudante(estudante_id_editar)
+    estudante_id_editar = st.selectbox(
+        "Selecione o estudante para editar",
+        ids_estudantes,
+        format_func=lambda x: mapa_estudantes[x],
+        key="editar_estudante_id",
+    )
 
+    estudante_editar = buscar_estudante(estudante_id_editar)
+
+    if estudante_editar:
         perfil_atual = estudante_editar[4] if estudante_editar[4] in PERFIS else "Não informado"
 
         with st.form(f"form_editar_estudante_{estudante_id_editar}"):
+
             col1, col2 = st.columns(2)
 
             with col1:
                 codigo_edit = st.text_input(
                     "Código interno",
                     value=estudante_editar[1] or "",
-                    key=f"edit_codigo_{estudante_id_editar}",
                 )
 
                 ano_edit = st.text_input(
                     "Ano/Série",
                     value=estudante_editar[2] or "",
-                    key=f"edit_ano_{estudante_id_editar}",
                 )
 
             with col2:
                 turma_edit = st.text_input(
                     "Turma",
                     value=estudante_editar[3] or "",
-                    key=f"edit_turma_{estudante_id_editar}",
                 )
 
                 perfil_edit = st.selectbox(
                     "Perfil educacional",
                     PERFIS,
                     index=PERFIS.index(perfil_atual),
-                    key=f"edit_perfil_{estudante_id_editar}",
                 )
 
             observacoes_edit = st.text_area(
                 "Observações pedagógicas iniciais",
                 value=estudante_editar[5] or "",
-                key=f"edit_observacoes_{estudante_id_editar}",
             )
 
             atualizar = st.form_submit_button("💾 Atualizar cadastro")
@@ -1609,6 +1611,9 @@ with tab6:
                         st.rerun()
                     except sqlite3.IntegrityError:
                         st.error("Este código interno já está sendo usado por outro estudante.")
+
+else:
+    st.info("Nenhum estudante cadastrado ainda.")
 
         st.markdown("---")
         st.markdown("### 🗑️ Excluir estudante")
