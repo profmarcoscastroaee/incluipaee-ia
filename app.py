@@ -1,10 +1,9 @@
 import os
-import re
+import requests
 import sqlite3
 from datetime import datetime
 from pathlib import Path
 from html import escape
-from urllib.parse import quote_plus
 
 import streamlit as st
 
@@ -15,29 +14,6 @@ except Exception:
 
 
 DB_PATH = Path("inclui_paee.db")
-
-
-# ======================================================
-# UTILITÁRIOS GERAIS
-# ======================================================
-def sanitizar_nome_arquivo(valor):
-    """Remove caracteres problemáticos para nomes de arquivo."""
-    valor = str(valor or "sem_codigo").strip()
-    valor = re.sub(r"[^A-Za-z0-9_-]+", "_", valor)
-    return valor.strip("_") or "sem_codigo"
-
-
-def termo_url(termo):
-    """Prepara o termo para ser usado em links de busca."""
-    return quote_plus(str(termo or "").strip())
-
-
-def rerun_app():
-    """Compatibilidade entre versões do Streamlit."""
-    try:
-        st.rerun()
-    except AttributeError:
-        st.experimental_rerun()
 
 
 # ======================================================
@@ -352,47 +328,22 @@ Encaminhamentos: {a[7] or 'Não informado.'}
     return texto.strip()
 
 # ======================================================
-# BUSCAS EXTERNAS PARA PROJETOS MAKER, ROBÓTICA E GAMES
-# ======================================================
-def link_busca_arduino(termo):
-    return f"https://projecthub.arduino.cc/search?q={termo_url(termo)}"
-
-
-def link_busca_instructables(termo):
-    return f"https://www.instructables.com/howto/{termo_url(termo)}/"
-
-
-def link_busca_hackster(termo):
-    return f"https://www.hackster.io/search?i=projects&q={termo_url(termo)}"
-
-
-def link_busca_adafruit(termo):
-    return f"https://learn.adafruit.com/search?q={termo_url(termo)}"
-
-
-def link_busca_scratch(termo):
-    return f"https://scratch.mit.edu/search/projects?q={termo_url(termo)}"
-
-
-def link_busca_microbit(termo):
-    return f"https://microbit.org/projects/?search={termo_url(termo)}"
-
-
-# ======================================================
 # BUSCA DE MODELOS 3D
 # ======================================================
 def link_busca_thingiverse(termo):
     """Gera link de busca no Thingiverse sem depender da API."""
-    return f"https://www.thingiverse.com/search?q={termo_url(termo)}&type=things"
-
+    termo_formatado = termo.replace(" ", "%20")
+    return f"https://www.thingiverse.com/search?q={termo_formatado}&type=things"
 
 def link_busca_printables(termo):
-    return f"https://www.printables.com/search/models?q={termo_url(termo)}"
+    termo_formatado = termo.replace(" ", "%20")
+    return f"https://www.printables.com/search/models?q={termo_formatado}"
 
 
 def link_busca_makerworld(termo):
     """Gera link de busca no MakerWorld sem depender de API."""
-    return f"https://makerworld.com/pt/search/models?keyword={termo_url(termo)}"
+    termo_formatado = termo.replace(" ", "%20")
+    return f"https://makerworld.com/pt/search/models?keyword={termo_formatado}"
 
 
 def gerar_termos_3d_com_ia(conteudo_paee):
@@ -416,54 +367,6 @@ em sites como Thingiverse, Printables e MakerWorld.
 
 Use termos preferencialmente em inglês, pois retornam mais modelos.
 Priorize recursos inclusivos, táteis, manipuláveis, visuais, sensoriais ou de comunicação alternativa.
-Não explique. Retorne apenas uma lista, um termo por linha.
-
-PAEE:
-{conteudo_paee}
-"""
-
-    try:
-        client = OpenAI(api_key=api_key)
-        resposta = client.responses.create(
-            model="gpt-4.1-mini",
-            input=prompt,
-        )
-
-        termos = []
-        for linha in resposta.output_text.split("\n"):
-            termo = linha.strip().strip("-•0123456789. )(").strip()
-            if termo and termo not in termos:
-                termos.append(termo)
-
-        return termos[:5] if termos else termos_padrao
-
-    except Exception:
-        return termos_padrao
-
-
-def gerar_termos_maker_com_ia(conteudo_paee):
-    """Gera termos curtos para busca de projetos de robótica, games e recursos maker."""
-    api_key = obter_api_key()
-
-    termos_padrao = [
-        "assistive technology arduino",
-        "inclusive robotics",
-        "scratch communication game",
-        "microbit accessibility",
-        "sensory educational game",
-    ]
-
-    if OpenAI is None or not api_key or not conteudo_paee:
-        return termos_padrao
-
-    prompt = f"""
-Analise o PAEE abaixo e gere exatamente 5 termos curtos para busca de projetos pedagógicos
-em sites como Arduino Project Hub, Scratch, Instructables, Hackster.io, Adafruit Learn e Micro:bit.
-
-Use termos preferencialmente em inglês, pois retornam mais projetos.
-Priorize robótica educacional, jogos digitais com Scratch, comunicação alternativa, acessibilidade,
-recursos maker, sensores, materiais concretos, tecnologia assistiva e atividades plugadas/desplugadas.
-
 Não explique. Retorne apenas uma lista, um termo por linha.
 
 PAEE:
@@ -777,10 +680,10 @@ def gerar_pdf_documento(conteudo, codigo, tipo="paee"):
     )
 
     if tipo == "relatorio":
-        nome_arquivo = f"Relatorio_{sanitizar_nome_arquivo(codigo)}.pdf"
+        nome_arquivo = f"Relatorio_{codigo}.pdf"
         titulo_doc = "RELATÓRIO DE EVOLUÇÃO E QUALIDADE DO ATENDIMENTO"
     else:
-        nome_arquivo = f"PAEE_{sanitizar_nome_arquivo(codigo)}.pdf"
+        nome_arquivo = f"PAEE_{codigo}.pdf"
         titulo_doc = "PLANO DE ATENDIMENTO EDUCACIONAL ESPECIALIZADO (PAEE)"
 
     doc = SimpleDocTemplate(
@@ -913,12 +816,6 @@ def gerar_pdf_paee(conteudo, codigo):
 def gerar_pdf_relatorio(conteudo, codigo):
     return gerar_pdf_documento(conteudo, codigo, tipo="relatorio")
 
-st.set_page_config(
-    page_title="Inclui PAEE IA",
-    page_icon="♿",
-    layout="wide",
-)
-
 criar_tabelas()
 
 # ======================================================
@@ -926,27 +823,24 @@ criar_tabelas()
 # ======================================================
 st.markdown("""
 <style>
+/* reduz espaço abaixo da logo */
 .block-container {
-    padding-top: 0.6rem;
+    padding-top: 1rem;
 }
 
-[data-testid="stImage"] {
-    margin-bottom: -1.0rem;
+/* remove espaço extra entre elementos */
+img {
+    margin-bottom: -20px;
 }
 
+/* reduz espaço das tabs */
 .stTabs {
-    margin-top: -1.2rem;
-}
-
-div[data-testid="stDownloadButton"] button,
-div[data-testid="stButton"] button,
-a[data-testid="stLinkButton"] {
-    border-radius: 10px;
+    margin-top: -20px;
 }
 </style>
 """, unsafe_allow_html=True)
 
-col1, col2, col3 = st.columns([0.1, 8, 0.1])
+col1, col2, col3 = st.columns([0.2, 8, 0.2])
 
 with col2:
     st.image("logo.png", use_container_width=True)
@@ -954,14 +848,13 @@ with col2:
 # ======================================================
 # ABAS DO SISTEMA
 # ======================================================
-tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(
+tab1, tab2, tab3, tab4, tab5 = st.tabs(
     [
         "1. Cadastro",
         "2. Avaliação Pedagógica",
         "3. Gerar PAEE",
         "4. Atendimentos",
         "5. Relatório IA",
-        "6. Administração",
     ]
 )
 
@@ -998,7 +891,7 @@ with tab1:
                 try:
                     cadastrar_estudante(codigo.strip(), ano_serie, turma, perfil, observacoes)
                     st.success("Estudante cadastrado com sucesso.")
-                    rerun_app()
+                    st.rerun()
                 except sqlite3.IntegrityError:
                     st.error("Este código já existe. Use outro código interno.")
 
@@ -1025,7 +918,93 @@ with tab1:
     else:
         st.info("Nenhum estudante cadastrado ainda.")
 
+    st.markdown("---")
+    st.markdown("### ✏️ Editar cadastro do estudante")
 
+    estudantes = listar_estudantes()
+
+    if estudantes:
+        opcoes_editar = {f"{e[1]} - {e[2]} - {e[4]}": e[0] for e in estudantes}
+        selecionado_editar = st.selectbox(
+            "Selecione o estudante para editar",
+            list(opcoes_editar.keys()),
+            key="editar_estudante",
+        )
+
+        estudante_id_editar = opcoes_editar[selecionado_editar]
+        estudante_editar = buscar_estudante(estudante_id_editar)
+
+        perfil_atual = estudante_editar[4] if estudante_editar[4] in PERFIS else "Não informado"
+
+        with st.form("form_editar_estudante"):
+            col1, col2 = st.columns(2)
+
+            with col1:
+                codigo_edit = st.text_input(
+                    "Código interno",
+                    value=estudante_editar[1],
+                    key="edit_codigo",
+                )
+                ano_edit = st.text_input(
+                    "Ano/Série",
+                    value=estudante_editar[2] or "",
+                    key="edit_ano",
+                )
+
+            with col2:
+                turma_edit = st.text_input(
+                    "Turma",
+                    value=estudante_editar[3] or "",
+                    key="edit_turma",
+                )
+                perfil_edit = st.selectbox(
+                    "Perfil educacional",
+                    PERFIS,
+                    index=PERFIS.index(perfil_atual),
+                    key="edit_perfil",
+                )
+
+            observacoes_edit = st.text_area(
+                "Observações pedagógicas iniciais",
+                value=estudante_editar[5] or "",
+                key="edit_observacoes",
+            )
+
+            atualizar = st.form_submit_button("💾 Atualizar cadastro")
+
+            if atualizar:
+                if not codigo_edit.strip():
+                    st.error("O código interno não pode ficar vazio.")
+                else:
+                    try:
+                        atualizar_estudante(
+                            estudante_id_editar,
+                            codigo_edit.strip(),
+                            ano_edit,
+                            turma_edit,
+                            perfil_edit,
+                            observacoes_edit,
+                        )
+                        st.success("Cadastro atualizado com sucesso.")
+                        st.rerun()
+                    except sqlite3.IntegrityError:
+                        st.error("Este código interno já está sendo usado por outro estudante.")
+
+        st.markdown("---")
+        st.markdown("### 🗑️ Excluir estudante")
+
+        confirmar = st.checkbox(
+            "Confirmar exclusão do estudante selecionado",
+            key="confirmar_exclusao_estudante",
+        )
+
+        if st.button("Excluir estudante", key="btn_excluir_estudante"):
+            if confirmar:
+                excluir_estudante(estudante_id_editar)
+                st.success("Estudante excluído com sucesso.")
+                st.rerun()
+            else:
+                st.warning("Marque a confirmação antes de excluir.")
 
 
 with tab2:
@@ -1120,7 +1099,7 @@ with tab3:
                 st.download_button(
                     "Baixar PAEE em .txt",
                     data=st.session_state["paee_gerado"],
-                    file_name=f"PAEE_{sanitizar_nome_arquivo(codigo_download)}.txt",
+                    file_name=f"PAEE_{codigo_download}.txt",
                     mime="text/plain",
                     key="download_txt_paee",
                 )
@@ -1131,115 +1110,38 @@ with tab3:
 
                 if "arquivo_pdf_paee" in st.session_state:
                     with open(st.session_state["arquivo_pdf_paee"], "rb") as f:
-                        pdf_bytes = f.read()
-
-                    st.download_button(
-                        "Baixar PAEE em PDF",
-                        data=pdf_bytes,
-                        file_name=f"PAEE_{sanitizar_nome_arquivo(codigo_download)}.pdf",
-                        mime="application/pdf",
-                        key="download_pdf_paee",
-                    )
-
-
-                # ==================================================
-                # BUSCA SEMIAUTOMÁTICA DE PROJETOS MAKER, ROBÓTICA E GAMES
-                # ==================================================
-                st.markdown("---")
-                st.subheader("🤖 Projetos maker, robótica e games sugeridos")
-                st.caption(
-                    "A IA analisa o PAEE e sugere termos de busca. "
-                    "Depois, o professor abre os sites externos para encontrar projetos de robótica, Arduino, Scratch, Micro:bit e tecnologia assistiva."
-                )
-
-                if st.button("Gerar sugestões maker com IA", key="btn_gerar_termos_maker"):
-                    with st.spinner("Gerando termos de busca para projetos maker..."):
-                        termos_maker = gerar_termos_maker_com_ia(
-                            st.session_state["paee_gerado"]
+                        st.download_button(
+                            "Baixar PAEE em PDF",
+                            data=f,
+                            file_name=f"PAEE_{codigo_download}.pdf",
+                            mime="application/pdf",
+                            key="download_pdf_paee",
                         )
-                        st.session_state["termos_maker_sugeridos"] = termos_maker
-                        st.success("Sugestões maker geradas com sucesso.")
-
-                if "termos_maker_sugeridos" in st.session_state:
-                    st.markdown("### Sugestões maker geradas a partir do PAEE")
-
-                    for termo in st.session_state["termos_maker_sugeridos"]:
-                        st.markdown(f"**{termo}**")
-                        col_arduino, col_scratch, col_microbit = st.columns(3)
-                        col_instructables, col_hackster, col_adafruit = st.columns(3)
-
-                        with col_arduino:
-                            st.link_button("Arduino Project Hub", link_busca_arduino(termo))
-
-                        with col_scratch:
-                            st.link_button("Scratch", link_busca_scratch(termo))
-
-                        with col_microbit:
-                            st.link_button("Micro:bit", link_busca_microbit(termo))
-
-                        with col_instructables:
-                            st.link_button("Instructables", link_busca_instructables(termo))
-
-                        with col_hackster:
-                            st.link_button("Hackster.io", link_busca_hackster(termo))
-
-                        with col_adafruit:
-                            st.link_button("Adafruit Learn", link_busca_adafruit(termo))
-
-                        st.markdown("---")
-
-                st.markdown("### Busca manual de projetos maker")
-                termo_maker = st.text_input(
-                    "Digite um termo para robótica, Arduino, Micro:bit ou Scratch",
-                    placeholder="Ex.: inclusive robotics, scratch communication game, assistive technology arduino",
-                    key="termo_maker_paee",
-                )
-
-                if termo_maker.strip():
-                    col_arduino_m, col_scratch_m, col_microbit_m = st.columns(3)
-                    col_instructables_m, col_hackster_m, col_adafruit_m = st.columns(3)
-
-                    with col_arduino_m:
-                        st.link_button("Arduino Project Hub", link_busca_arduino(termo_maker.strip()))
-
-                    with col_scratch_m:
-                        st.link_button("Scratch", link_busca_scratch(termo_maker.strip()))
-
-                    with col_microbit_m:
-                        st.link_button("Micro:bit", link_busca_microbit(termo_maker.strip()))
-
-                    with col_instructables_m:
-                        st.link_button("Instructables", link_busca_instructables(termo_maker.strip()))
-
-                    with col_hackster_m:
-                        st.link_button("Hackster.io", link_busca_hackster(termo_maker.strip()))
-
-                    with col_adafruit_m:
-                        st.link_button("Adafruit Learn", link_busca_adafruit(termo_maker.strip()))
-                else:
-                    st.caption("Digite um termo para liberar os botões de busca maker.")
 
                 # ==================================================
                 # BUSCA SEMIAUTOMÁTICA DE MODELOS 3D
+                # IA SUGERE TERMOS + PROFESSOR ESCOLHE
+                # Thingiverse, Printables e MakerWorld abrem por link externo
                 # ==================================================
                 st.markdown("---")
-                st.subheader("🧩 Modelos 3D sugeridos para apoio pedagógico")
+                st.subheader("🔎 Modelos 3D sugeridos para apoio pedagógico")
                 st.caption(
-                    "A IA analisa o PAEE e sugere termos de busca para modelos 3D em Thingiverse, Printables e MakerWorld."
+                    "A IA analisa o PAEE e sugere termos de busca. "
+                    "Depois, o professor escolhe onde pesquisar os modelos."
                 )
 
-                if st.button("Gerar sugestões de modelos 3D com IA", key="btn_gerar_termos_3d"):
-                    with st.spinner("Gerando termos de busca para modelos 3D..."):
+                if st.button("Gerar sugestões de busca com IA", key="btn_gerar_termos_3d"):
+                    with st.spinner("Gerando termos de busca a partir do PAEE..."):
                         termos_sugeridos = gerar_termos_3d_com_ia(
                             st.session_state["paee_gerado"]
                         )
                         st.session_state["termos_3d_sugeridos"] = termos_sugeridos
-                        st.success("Sugestões 3D geradas com sucesso.")
+                        st.success("Sugestões geradas com sucesso.")
 
                 if "termos_3d_sugeridos" in st.session_state:
-                    st.markdown("### Sugestões 3D geradas a partir do PAEE")
+                    st.markdown("### Sugestões geradas a partir do PAEE")
 
-                    for termo in st.session_state["termos_3d_sugeridos"]:
+                    for i, termo in enumerate(st.session_state["termos_3d_sugeridos"]):
                         col_termo, col_thingiverse, col_printables, col_makerworld = st.columns(
                             [2.5, 1.4, 1.4, 1.4]
                         )
@@ -1248,17 +1150,26 @@ with tab3:
                             st.markdown(f"**{termo}**")
 
                         with col_thingiverse:
-                            st.link_button("Thingiverse", link_busca_thingiverse(termo))
+                            st.link_button(
+                                "Thingiverse",
+                                link_busca_thingiverse(termo),
+                            )
 
                         with col_printables:
-                            st.link_button("Printables", link_busca_printables(termo))
+                            st.link_button(
+                                "Printables",
+                                link_busca_printables(termo),
+                            )
 
                         with col_makerworld:
-                            st.link_button("MakerWorld", link_busca_makerworld(termo))
+                            st.link_button(
+                                "MakerWorld",
+                                link_busca_makerworld(termo),
+                            )
 
-                st.markdown("### Busca manual de modelos 3D")
+                st.markdown("### Busca manual")
                 termo_3d = st.text_input(
-                    "Digite um termo para modelos 3D",
+                    "Digite outro termo, se desejar",
                     placeholder="Ex.: braille, tactile math, visual schedule",
                     key="termo_3d_paee",
                 )
@@ -1327,7 +1238,7 @@ with tab4:
                     encaminhamentos,
                 )
                 st.success("Atendimento registrado com sucesso.")
-                rerun_app()
+                st.rerun()
 
         st.subheader("Histórico de atendimentos")
         atendimentos = listar_atendimentos(estudante_id)
@@ -1389,7 +1300,7 @@ with tab5:
             st.download_button(
                 "Baixar relatório em .txt",
                 data=relatorio,
-                file_name=f"Relatorio_{sanitizar_nome_arquivo(codigo_relatorio)}.txt",
+                file_name=f"Relatorio_{codigo_relatorio}.txt",
                 mime="text/plain",
                 key="download_txt_relatorio",
             )
@@ -1407,97 +1318,3 @@ with tab5:
                         mime="application/pdf",
                         key="download_pdf_relatorio",
                     )
-
-with tab6:
-    st.header("Administração")
-    st.caption("Área destinada à manutenção dos cadastros: edição e exclusão de estudantes.")
-
-    st.markdown("### ✏️ Editar cadastro do estudante")
-
-    estudantes = listar_estudantes()
-
-    if estudantes:
-        opcoes_editar = {f"{e[1]} - {e[2]} - {e[4]}": e[0] for e in estudantes}
-        selecionado_editar = st.selectbox(
-            "Selecione o estudante para editar",
-            list(opcoes_editar.keys()),
-            key="editar_estudante",
-        )
-
-        estudante_id_editar = opcoes_editar[selecionado_editar]
-        estudante_editar = buscar_estudante(estudante_id_editar)
-
-        perfil_atual = estudante_editar[4] if estudante_editar[4] in PERFIS else "Não informado"
-
-        with st.form("form_editar_estudante"):
-            col1, col2 = st.columns(2)
-
-            with col1:
-                codigo_edit = st.text_input(
-                    "Código interno",
-                    value=estudante_editar[1],
-                    key="edit_codigo",
-                )
-                ano_edit = st.text_input(
-                    "Ano/Série",
-                    value=estudante_editar[2] or "",
-                    key="edit_ano",
-                )
-
-            with col2:
-                turma_edit = st.text_input(
-                    "Turma",
-                    value=estudante_editar[3] or "",
-                    key="edit_turma",
-                )
-                perfil_edit = st.selectbox(
-                    "Perfil educacional",
-                    PERFIS,
-                    index=PERFIS.index(perfil_atual),
-                    key="edit_perfil",
-                )
-
-            observacoes_edit = st.text_area(
-                "Observações pedagógicas iniciais",
-                value=estudante_editar[5] or "",
-                key="edit_observacoes",
-            )
-
-            atualizar = st.form_submit_button("💾 Atualizar cadastro")
-
-            if atualizar:
-                if not codigo_edit.strip():
-                    st.error("O código interno não pode ficar vazio.")
-                else:
-                    try:
-                        atualizar_estudante(
-                            estudante_id_editar,
-                            codigo_edit.strip(),
-                            ano_edit,
-                            turma_edit,
-                            perfil_edit,
-                            observacoes_edit,
-                        )
-                        st.success("Cadastro atualizado com sucesso.")
-                        rerun_app()
-                    except sqlite3.IntegrityError:
-                        st.error("Este código interno já está sendo usado por outro estudante.")
-
-        st.markdown("---")
-        st.markdown("### 🗑️ Excluir estudante")
-
-        confirmar = st.checkbox(
-            "Confirmar exclusão do estudante selecionado",
-            key="confirmar_exclusao_estudante",
-        )
-
-        if st.button("Excluir estudante", key="btn_excluir_estudante"):
-            if confirmar:
-                excluir_estudante(estudante_id_editar)
-                st.success("Estudante excluído com sucesso.")
-                rerun_app()
-            else:
-                st.warning("Marque a confirmação antes de excluir.")
-
-    else:
-        st.info("Nenhum estudante cadastrado para administrar.")
