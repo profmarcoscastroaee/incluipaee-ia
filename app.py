@@ -2034,51 +2034,43 @@ elif menu == "Relatório IA":
             df_evolucao = montar_dataframe_evolucao(atendimentos)
 
             with st.container(border=True):
-                st.markdown("### 📊 Dashboard de evolução do estudante")
+                st.markdown("### 📊 Indicadores por atendimento")
                 st.caption(
-                    "Análise quantitativa baseada nas escalas preenchidas pelo professor em cada atendimento. "
-                    "A dificuldade é apresentada separadamente e também entra de forma invertida no índice geral."
+                    "Cada data apresenta barras agrupadas com os indicadores registrados no atendimento. "
+                    "A escala vai de 1 a 10. A dificuldade é exibida para identificar barreiras, mas não deve ser lida como evolução positiva."
                 )
 
-                media_indice = df_evolucao["Índice geral de evolução"].mean()
-                ultimo_indice = df_evolucao["Índice geral de evolução"].iloc[-1]
-                primeiro_indice = df_evolucao["Índice geral de evolução"].iloc[0]
-                variacao = ultimo_indice - primeiro_indice
                 media_resposta = df_evolucao["Resposta do estudante"].mean()
                 media_avanco = df_evolucao["Avanço pedagógico"].mean()
                 media_dificuldade = df_evolucao["Nível de dificuldade"].mean()
-                total_atividades = int(df_evolucao["Quantidade de atividades"].sum())
+                media_engajamento = df_evolucao["Engajamento"].mean()
 
-                col1, col2, col3, col4 = st.columns(4)
-                col1.metric("Atendimentos analisados", len(df_evolucao))
-                col2.metric("Atividades realizadas", total_atividades)
-                col3.metric("Índice médio", f"{media_indice:.1f}/10")
-                col4.metric("Variação", f"{variacao:+.1f}")
+                col1, col2, col3, col4, col5 = st.columns(5)
+                col1.metric("Atendimentos", len(df_evolucao))
+                col2.metric("Média resposta", f"{media_resposta:.1f}/10")
+                col3.metric("Média avanço", f"{media_avanco:.1f}/10")
+                col4.metric("Média dificuldade", f"{media_dificuldade:.1f}/10")
+                col5.metric("Média engajamento", f"{media_engajamento:.1f}/10")
 
-                col5, col6, col7, col8 = st.columns(4)
-                col5.metric("Média resposta", f"{media_resposta:.1f}/10")
-                col6.metric("Média avanço", f"{media_avanco:.1f}/10")
-                col7.metric("Média dificuldade", f"{media_dificuldade:.1f}/10")
-                col8.metric("Último índice", f"{ultimo_indice:.1f}/10")
-
-                st.markdown("#### Indicadores por atendimento")
-                st.caption(
-                    "Cada data apresenta barras agrupadas com os indicadores registrados no atendimento. "
-                    "A escala dos indicadores vai de 1 a 10."
-                )
                 indicadores = [
                     "Resposta do estudante",
                     "Avanço pedagógico",
                     "Nível de dificuldade",
                     "Engajamento",
-                    "Índice geral de evolução",
                 ]
+
+                # Inclui a evolução geral apenas se existir na base de dados.
+                if "Índice geral de evolução" in df_evolucao.columns:
+                    df_evolucao = df_evolucao.rename(columns={"Índice geral de evolução": "Evolução geral"})
+                    indicadores.append("Evolução geral")
+
                 df_indicadores = df_evolucao[["Data"] + indicadores].melt(
                     id_vars="Data",
                     value_vars=indicadores,
                     var_name="Indicador",
                     value_name="Pontuação",
                 )
+
                 grafico_indicadores = (
                     alt.Chart(df_indicadores)
                     .mark_bar()
@@ -2093,56 +2085,38 @@ elif menu == "Relatório IA":
                 )
                 st.altair_chart(grafico_indicadores, use_container_width=True)
 
-                st.markdown("#### Quantidade de atividades realizadas por atendimento")
-                grafico_atividades = (
-                    alt.Chart(df_evolucao)
-                    .mark_bar()
-                    .encode(
-                        x=alt.X("Data:N", title="Data do atendimento", sort=None),
-                        y=alt.Y("Quantidade de atividades:Q", title="Quantidade"),
-                        tooltip=["Data:N", alt.Tooltip("Quantidade de atividades:Q", format=".0f")],
-                    )
-                    .properties(height=260)
-                )
-                st.altair_chart(grafico_atividades, use_container_width=True)
-
-                st.markdown("#### Índice geral de evolução")
-                st.line_chart(
-                    df_evolucao,
-                    x="Data",
-                    y="Índice geral de evolução",
-                    use_container_width=True,
-                )
-
-                with st.expander("Ver dados usados nos gráficos"):
+                with st.expander("Ver dados usados no gráfico"):
+                    colunas_tabela = [
+                        "Data",
+                        "Resposta do estudante",
+                        "Avanço pedagógico",
+                        "Nível de dificuldade",
+                        "Engajamento",
+                    ]
+                    if "Evolução geral" in df_evolucao.columns:
+                        colunas_tabela.append("Evolução geral")
+                    colunas_tabela += [
+                        "Interpretação",
+                        "Avanços",
+                        "Dificuldades observadas",
+                        "Evolução observada",
+                    ]
+                    colunas_tabela = [c for c in colunas_tabela if c in df_evolucao.columns]
                     st.dataframe(
-                        df_evolucao[
-                            [
-                                "Data",
-                                "Quantidade de atividades",
-                                "Resposta do estudante",
-                                "Avanço pedagógico",
-                                "Nível de dificuldade",
-                                "Engajamento",
-                                "Índice geral de evolução",
-                                "Interpretação",
-                                "Avanços",
-                                "Dificuldades observadas",
-                                "Evolução observada",
-                            ]
-                        ],
+                        df_evolucao[colunas_tabela],
                         use_container_width=True,
                         hide_index=True,
                     )
         else:
             with st.container(border=True):
-                st.markdown("### 📈 Gráfico de evolução do estudante")
+                st.markdown("### 📊 Indicadores por atendimento")
                 st.warning(
                     "Este estudante ainda não possui atendimentos registrados. "
-                    "Registre pelo menos um atendimento para gerar o gráfico de evolução."
+                    "Registre pelo menos um atendimento para gerar o gráfico."
                 )
 
         with st.container(border=True):
+            st.markdown("### 🤖 Gerar novo relatório")
             if not atendimentos:
                 st.warning("Este estudante ainda não possui atendimentos registrados. O relatório poderá ficar limitado.")
 
@@ -2166,7 +2140,7 @@ elif menu == "Relatório IA":
                 relatorio_id_atual = st.session_state.get("relatorio_id")
 
                 st.markdown("### ✏️ Relatório gerado para revisão")
-                st.caption("Você pode editar o texto abaixo antes de baixar ou salvar as alterações.")
+                st.caption("Você pode editar, salvar, excluir ou baixar o relatório gerado.")
 
                 if "relatorio_evolucao_editavel" not in st.session_state:
                     st.session_state["relatorio_evolucao_editavel"] = st.session_state["relatorio_evolucao"]
@@ -2240,6 +2214,7 @@ elif menu == "Relatório IA":
 
         with st.container(border=True):
             st.markdown("### 📚 Histórico de relatórios salvos")
+            st.caption("Abra um relatório salvo para editar, baixar ou excluir.")
             relatorios_salvos = listar_relatorios(estudante_id)
 
             if relatorios_salvos:
@@ -2275,7 +2250,7 @@ elif menu == "Relatório IA":
                                 "Confirmar exclusão",
                                 key=f"check_excluir_relatorio_hist_{relatorio_id_hist}",
                             )
-                            if st.button("Excluir", key=f"btn_excluir_relatorio_hist_{relatorio_id_hist}"):
+                            if st.button("Excluir relatório salvo", key=f"btn_excluir_relatorio_hist_{relatorio_id_hist}"):
                                 if confirmar_exclusao_relatorio:
                                     excluir_relatorio(relatorio_id_hist)
                                     st.success("Relatório excluído com sucesso.")
@@ -2311,7 +2286,6 @@ elif menu == "Relatório IA":
                                     )
             else:
                 st.info("Nenhum relatório salvo para este estudante.")
-
 
 # ======================================================
 # ADMINISTRAÇÃO
