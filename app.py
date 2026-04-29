@@ -6,6 +6,7 @@ from pathlib import Path
 from html import escape
 
 import streamlit as st
+import pandas as pd
 
 st.set_page_config(
     page_title="IncluiPAEE IA",
@@ -415,6 +416,77 @@ def listar_atendimentos(estudante_id):
     conn.close()
     return dados
 
+
+
+
+def calcular_nivel_evolucao(texto_evolucao, avancos, dificuldades):
+    texto_positivo = f"{texto_evolucao or ''} {avancos or ''}".lower()
+    texto_dificuldades = f"{dificuldades or ''}".lower()
+    pontos = 0
+
+    palavras_positivas = [
+        "melhorou", "avançou", "evoluiu", "participou", "realizou",
+        "conseguiu", "interagiu", "compreendeu", "autonomia",
+        "progresso", "positivo", "bom desempenho", "maior interesse",
+        "engajamento", "atenção", "comunicação", "iniciativa",
+        "independência", "colaborou", "respondeu bem"
+    ]
+
+    palavras_dificuldade = [
+        "dificuldade", "não conseguiu", "resistência", "recusou",
+        "limitação", "necessita apoio", "necessitou apoio", "dependência",
+        "desatenção", "não realizou", "não participou", "crise",
+        "agitação", "dispersão", "baixa interação"
+    ]
+
+    for palavra in palavras_positivas:
+        if palavra in texto_positivo:
+            pontos += 1
+
+    for palavra in palavras_dificuldade:
+        if palavra in texto_dificuldades:
+            pontos -= 1
+
+    if pontos <= 0:
+        return 1
+    elif pontos == 1:
+        return 2
+    elif pontos == 2:
+        return 3
+    elif pontos == 3:
+        return 4
+    else:
+        return 5
+
+
+def montar_dataframe_evolucao(atendimentos):
+    dados_grafico = []
+
+    for atendimento in reversed(atendimentos):
+        data_atendimento = atendimento[0]
+        avancos = atendimento[4]
+        dificuldades = atendimento[5]
+        evolucao = atendimento[6]
+        nivel = calcular_nivel_evolucao(evolucao, avancos, dificuldades)
+
+        try:
+            data_ordenacao = datetime.strptime(data_atendimento, "%d/%m/%Y")
+        except Exception:
+            data_ordenacao = None
+
+        dados_grafico.append({
+            "Data": data_atendimento,
+            "Data ordenação": data_ordenacao,
+            "Nível de evolução": nivel,
+            "Avanços": avancos or "Não informado.",
+            "Dificuldades": dificuldades or "Não informado.",
+            "Evolução observada": evolucao or "Não informado.",
+        })
+
+    df = pd.DataFrame(dados_grafico)
+    if not df.empty and "Data ordenação" in df.columns:
+        df = df.sort_values(by="Data ordenação", na_position="last")
+    return df
 
 def listar_atendimentos_com_id(estudante_id):
     conn = conectar()
@@ -1670,6 +1742,56 @@ elif menu == "Relatório IA":
         estudante = buscar_estudante(estudante_id)
         avaliacao = ultima_avaliacao(estudante_id)
         atendimentos = listar_atendimentos(estudante_id)
+
+        if atendimentos:
+            df_evolucao = montar_dataframe_evolucao(atendimentos)
+
+            with st.container(border=True):
+                st.markdown("### 📈 Gráfico de evolução do estudante")
+                st.caption(
+                    "Escala de 1 a 5 calculada automaticamente com base nos campos de avanços, dificuldades e evolução observada. "
+                    "O gráfico é um apoio visual e não substitui a análise pedagógica do professor."
+                )
+
+                st.line_chart(
+                    df_evolucao,
+                    x="Data",
+                    y="Nível de evolução",
+                    use_container_width=True,
+                )
+
+                media_evolucao = df_evolucao["Nível de evolução"].mean()
+                ultimo_nivel = df_evolucao["Nível de evolução"].iloc[-1]
+                primeiro_nivel = df_evolucao["Nível de evolução"].iloc[0]
+                variacao = ultimo_nivel - primeiro_nivel
+
+                col1, col2, col3, col4 = st.columns(4)
+                col1.metric("Atendimentos analisados", len(df_evolucao))
+                col2.metric("Média de evolução", f"{media_evolucao:.1f}/5")
+                col3.metric("Último nível", f"{ultimo_nivel}/5")
+                col4.metric("Variação", f"{variacao:+d}")
+
+                with st.expander("Ver dados usados no gráfico"):
+                    st.dataframe(
+                        df_evolucao[
+                            [
+                                "Data",
+                                "Nível de evolução",
+                                "Avanços",
+                                "Dificuldades",
+                                "Evolução observada",
+                            ]
+                        ],
+                        use_container_width=True,
+                        hide_index=True,
+                    )
+        else:
+            with st.container(border=True):
+                st.markdown("### 📈 Gráfico de evolução do estudante")
+                st.warning(
+                    "Este estudante ainda não possui atendimentos registrados. "
+                    "Registre pelo menos um atendimento para gerar o gráfico de evolução."
+                )
 
         with st.container(border=True):
             if not atendimentos:
