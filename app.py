@@ -324,6 +324,24 @@ def listar_atendimentos(estudante_id):
     return dados
 
 
+def listar_atendimentos_com_id(estudante_id):
+    conn = conectar()
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        SELECT id, data_atendimento, objetivo, atividade, resposta_estudante,
+               avancos, dificuldades, evolucao, encaminhamentos
+        FROM atendimentos
+        WHERE estudante_id = ?
+        ORDER BY id DESC
+        """,
+        (estudante_id,),
+    )
+    dados = cursor.fetchall()
+    conn.close()
+    return dados
+
+
 def listar_atendimentos_texto(estudante_id):
     atendimentos = listar_atendimentos(estudante_id)
 
@@ -381,6 +399,53 @@ Aprendizagem:
 
 Resumo pedagógico do laudo, sem identificação:
 {resumo_laudo or 'Não informado.'}
+""".strip()
+
+
+def montar_texto_atendimento(
+    estudante,
+    data_atendimento,
+    objetivo,
+    atividade,
+    resposta_estudante,
+    avancos,
+    dificuldades,
+    evolucao,
+    encaminhamentos,
+):
+    """Monta um texto simples para download de um registro de atendimento."""
+    return f"""
+REGISTRO DE ATENDIMENTO DO AEE
+
+1. Identificação do estudante
+Código interno: {estudante[1] or 'Não informado.'}
+Ano/Série: {estudante[2] or 'Não informado.'}
+Turma: {estudante[3] or 'Não informado.'}
+Perfil educacional informado: {estudante[4] or 'Não informado.'}
+
+2. Dados do atendimento
+Data do atendimento: {data_atendimento or 'Não informado.'}
+
+Objetivo trabalhado:
+{objetivo or 'Não informado.'}
+
+Atividade realizada:
+{atividade or 'Não informado.'}
+
+Resposta do estudante:
+{resposta_estudante or 'Não informado.'}
+
+Avanços observados:
+{avancos or 'Não informado.'}
+
+Dificuldades observadas:
+{dificuldades or 'Não informado.'}
+
+Evolução observada:
+{evolucao or 'Não informado.'}
+
+Encaminhamentos:
+{encaminhamentos or 'Não informado.'}
 """.strip()
 
 
@@ -742,6 +807,9 @@ def gerar_pdf_documento(conteudo, codigo, tipo="paee"):
     elif tipo == "avaliacao":
         nome_arquivo = f"Avaliacao_Pedagogica_{codigo}.pdf"
         titulo_doc = "AVALIAÇÃO PEDAGÓGICA INICIAL"
+    elif tipo == "atendimento":
+        nome_arquivo = f"Registro_Atendimento_{codigo}.pdf"
+        titulo_doc = "REGISTRO DE ATENDIMENTO DO AEE"
     else:
         nome_arquivo = f"PAEE_{codigo}.pdf"
         titulo_doc = "PLANO DE ATENDIMENTO EDUCACIONAL ESPECIALIZADO (PAEE)"
@@ -838,6 +906,8 @@ def gerar_pdf_documento(conteudo, codigo, tipo="paee"):
             continue
         if "avaliação pedagógica inicial" in linha_lower:
             continue
+        if "registro de atendimento do aee" in linha_lower:
+            continue
         if linha in ["--", "• --", "---"]:
             continue
 
@@ -877,6 +947,10 @@ def gerar_pdf_paee(conteudo, codigo):
 
 def gerar_pdf_avaliacao(conteudo, codigo):
     return gerar_pdf_documento(conteudo, codigo, tipo="avaliacao")
+
+
+def gerar_pdf_atendimento(conteudo, codigo):
+    return gerar_pdf_documento(conteudo, codigo, tipo="atendimento")
 
 
 def gerar_pdf_relatorio(conteudo, codigo):
@@ -1301,6 +1375,7 @@ with tab4:
         opcoes = {f"{e[1]} - {e[2]} - {e[4]}": e[0] for e in estudantes}
         selecionado = st.selectbox("Selecione o estudante", list(opcoes.keys()), key="atendimento_estudante")
         estudante_id = opcoes[selecionado]
+        estudante_info = buscar_estudante(estudante_id)
 
         with st.form("form_atendimento"):
             data_atendimento = st.date_input("Data do atendimento", key="at_data")
@@ -1329,18 +1404,69 @@ with tab4:
                 st.rerun()
 
         st.subheader("Histórico de atendimentos")
-        atendimentos = listar_atendimentos(estudante_id)
+        atendimentos = listar_atendimentos_com_id(estudante_id)
 
         if atendimentos:
             for item in atendimentos:
-                with st.expander(f"Atendimento em {item[0]}"):
-                    st.markdown(f"**Objetivo:** {item[1] or 'Não informado.'}")
-                    st.markdown(f"**Atividade:** {item[2] or 'Não informado.'}")
-                    st.markdown(f"**Resposta do estudante:** {item[3] or 'Não informado.'}")
-                    st.markdown(f"**Avanços:** {item[4] or 'Não informado.'}")
-                    st.markdown(f"**Dificuldades:** {item[5] or 'Não informado.'}")
-                    st.markdown(f"**Evolução observada:** {item[6] or 'Não informado.'}")
-                    st.markdown(f"**Encaminhamentos:** {item[7] or 'Não informado.'}")
+                atendimento_id = item[0]
+                data_hist = item[1]
+                objetivo_hist = item[2]
+                atividade_hist = item[3]
+                resposta_hist = item[4]
+                avancos_hist = item[5]
+                dificuldades_hist = item[6]
+                evolucao_hist = item[7]
+                encaminhamentos_hist = item[8]
+
+                with st.expander(f"Atendimento em {data_hist}"):
+                    st.markdown(f"**Objetivo:** {objetivo_hist or 'Não informado.'}")
+                    st.markdown(f"**Atividade:** {atividade_hist or 'Não informado.'}")
+                    st.markdown(f"**Resposta do estudante:** {resposta_hist or 'Não informado.'}")
+                    st.markdown(f"**Avanços:** {avancos_hist or 'Não informado.'}")
+                    st.markdown(f"**Dificuldades:** {dificuldades_hist or 'Não informado.'}")
+                    st.markdown(f"**Evolução observada:** {evolucao_hist or 'Não informado.'}")
+                    st.markdown(f"**Encaminhamentos:** {encaminhamentos_hist or 'Não informado.'}")
+
+                    texto_atendimento = montar_texto_atendimento(
+                        estudante_info,
+                        data_hist,
+                        objetivo_hist,
+                        atividade_hist,
+                        resposta_hist,
+                        avancos_hist,
+                        dificuldades_hist,
+                        evolucao_hist,
+                        encaminhamentos_hist,
+                    )
+
+                    col_txt_at, col_pdf_at = st.columns(2)
+
+                    with col_txt_at:
+                        st.download_button(
+                            "Baixar este atendimento em .txt",
+                            data=texto_atendimento,
+                            file_name=f"Registro_Atendimento_{estudante_info[1]}_{atendimento_id}.txt",
+                            mime="text/plain",
+                            key=f"download_txt_atendimento_{atendimento_id}",
+                        )
+
+                    with col_pdf_at:
+                        if st.button("Gerar PDF deste atendimento", key=f"btn_pdf_atendimento_{atendimento_id}"):
+                            arquivo = gerar_pdf_atendimento(
+                                texto_atendimento,
+                                f"{estudante_info[1]}_{atendimento_id}",
+                            )
+                            st.session_state[f"arquivo_pdf_atendimento_{atendimento_id}"] = arquivo
+
+                        if f"arquivo_pdf_atendimento_{atendimento_id}" in st.session_state:
+                            with open(st.session_state[f"arquivo_pdf_atendimento_{atendimento_id}"], "rb") as f:
+                                st.download_button(
+                                    "Baixar este atendimento em PDF",
+                                    data=f,
+                                    file_name=f"Registro_Atendimento_{estudante_info[1]}_{atendimento_id}.pdf",
+                                    mime="application/pdf",
+                                    key=f"download_pdf_atendimento_{atendimento_id}",
+                                )
         else:
             st.info("Nenhum atendimento registrado para este estudante.")
 
