@@ -177,6 +177,19 @@ def criar_tabelas():
 
     cursor.execute(
         """
+        CREATE TABLE IF NOT EXISTS relatorios (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            estudante_id INTEGER NOT NULL,
+            data_geracao TEXT,
+            titulo TEXT,
+            conteudo TEXT,
+            FOREIGN KEY(estudante_id) REFERENCES estudantes(id)
+        )
+        """
+    )
+
+    cursor.execute(
+        """
         CREATE TABLE IF NOT EXISTS atendimentos (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             estudante_id INTEGER NOT NULL,
@@ -187,7 +200,12 @@ def criar_tabelas():
             avancos TEXT,
             dificuldades TEXT,
             evolucao TEXT,
-            nivel_evolucao INTEGER,
+            qtd_atividades INTEGER DEFAULT 1,
+            nivel_resposta INTEGER DEFAULT 5,
+            nivel_avanco INTEGER DEFAULT 5,
+            nivel_dificuldade INTEGER DEFAULT 5,
+            nivel_engajamento INTEGER DEFAULT 5,
+            nivel_evolucao REAL DEFAULT 5,
             encaminhamentos TEXT,
             FOREIGN KEY(estudante_id) REFERENCES estudantes(id)
         )
@@ -198,8 +216,18 @@ def criar_tabelas():
     colunas = [col[1] for col in cursor.fetchall()]
     if "evolucao" not in colunas:
         cursor.execute("ALTER TABLE atendimentos ADD COLUMN evolucao TEXT")
+    if "qtd_atividades" not in colunas:
+        cursor.execute("ALTER TABLE atendimentos ADD COLUMN qtd_atividades INTEGER DEFAULT 1")
+    if "nivel_resposta" not in colunas:
+        cursor.execute("ALTER TABLE atendimentos ADD COLUMN nivel_resposta INTEGER DEFAULT 5")
+    if "nivel_avanco" not in colunas:
+        cursor.execute("ALTER TABLE atendimentos ADD COLUMN nivel_avanco INTEGER DEFAULT 5")
+    if "nivel_dificuldade" not in colunas:
+        cursor.execute("ALTER TABLE atendimentos ADD COLUMN nivel_dificuldade INTEGER DEFAULT 5")
+    if "nivel_engajamento" not in colunas:
+        cursor.execute("ALTER TABLE atendimentos ADD COLUMN nivel_engajamento INTEGER DEFAULT 5")
     if "nivel_evolucao" not in colunas:
-        cursor.execute("ALTER TABLE atendimentos ADD COLUMN nivel_evolucao INTEGER DEFAULT 5")
+        cursor.execute("ALTER TABLE atendimentos ADD COLUMN nivel_evolucao REAL DEFAULT 5")
 
     conn.commit()
     conn.close()
@@ -276,6 +304,7 @@ def excluir_estudante(estudante_id):
     conn = conectar()
     cursor = conn.cursor()
     cursor.execute("DELETE FROM atendimentos WHERE estudante_id=?", (estudante_id,))
+    cursor.execute("DELETE FROM relatorios WHERE estudante_id=?", (estudante_id,))
     cursor.execute("DELETE FROM paees WHERE estudante_id=?", (estudante_id,))
     cursor.execute("DELETE FROM avaliacoes WHERE estudante_id=?", (estudante_id,))
     cursor.execute("DELETE FROM estudantes WHERE id=?", (estudante_id,))
@@ -366,6 +395,67 @@ def salvar_paee(estudante_id, conteudo):
     conn.close()
 
 
+def salvar_relatorio(estudante_id, titulo, conteudo):
+    conn = conectar()
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        INSERT INTO relatorios (estudante_id, data_geracao, titulo, conteudo)
+        VALUES (?, ?, ?, ?)
+        """,
+        (
+            estudante_id,
+            datetime.now().strftime("%d/%m/%Y %H:%M"),
+            titulo,
+            conteudo,
+        ),
+    )
+    relatorio_id = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    return relatorio_id
+
+
+def listar_relatorios(estudante_id):
+    conn = conectar()
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        SELECT id, data_geracao, titulo, conteudo
+        FROM relatorios
+        WHERE estudante_id = ?
+        ORDER BY id DESC
+        """,
+        (estudante_id,),
+    )
+    dados = cursor.fetchall()
+    conn.close()
+    return dados
+
+
+def atualizar_relatorio(relatorio_id, titulo, conteudo):
+    conn = conectar()
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        UPDATE relatorios
+        SET titulo = ?, conteudo = ?
+        WHERE id = ?
+        """,
+        (titulo, conteudo, relatorio_id),
+    )
+    conn.commit()
+    conn.close()
+
+
+def excluir_relatorio(relatorio_id):
+    conn = conectar()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM relatorios WHERE id = ?", (relatorio_id,))
+    conn.commit()
+    conn.close()
+
+
 def salvar_atendimento(
     estudante_id,
     data_atendimento,
@@ -375,6 +465,11 @@ def salvar_atendimento(
     avancos,
     dificuldades,
     evolucao,
+    qtd_atividades,
+    nivel_resposta,
+    nivel_avanco,
+    nivel_dificuldade,
+    nivel_engajamento,
     nivel_evolucao,
     encaminhamentos,
 ):
@@ -384,8 +479,10 @@ def salvar_atendimento(
         """
         INSERT INTO atendimentos (
             estudante_id, data_atendimento, objetivo, atividade,
-            resposta_estudante, avancos, dificuldades, evolucao, nivel_evolucao, encaminhamentos
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            resposta_estudante, avancos, dificuldades, evolucao,
+            qtd_atividades, nivel_resposta, nivel_avanco, nivel_dificuldade,
+            nivel_engajamento, nivel_evolucao, encaminhamentos
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             estudante_id,
@@ -396,6 +493,11 @@ def salvar_atendimento(
             avancos,
             dificuldades,
             evolucao,
+            qtd_atividades,
+            nivel_resposta,
+            nivel_avanco,
+            nivel_dificuldade,
+            nivel_engajamento,
             nivel_evolucao,
             encaminhamentos,
         ),
@@ -410,7 +512,9 @@ def listar_atendimentos(estudante_id):
     cursor.execute(
         """
         SELECT data_atendimento, objetivo, atividade, resposta_estudante,
-               avancos, dificuldades, evolucao, nivel_evolucao, encaminhamentos
+               avancos, dificuldades, evolucao, qtd_atividades, nivel_resposta,
+               nivel_avanco, nivel_dificuldade, nivel_engajamento,
+               nivel_evolucao, encaminhamentos
         FROM atendimentos
         WHERE estudante_id = ?
         ORDER BY id DESC
@@ -425,6 +529,7 @@ def listar_atendimentos(estudante_id):
 
 
 def calcular_nivel_evolucao(texto_evolucao, avancos, dificuldades):
+    """Compatibilidade com atendimentos antigos sem escala numérica."""
     texto_positivo = f"{texto_evolucao or ''} {avancos or ''}".lower()
     texto_dificuldades = f"{dificuldades or ''}".lower()
     pontos = 0
@@ -464,23 +569,65 @@ def calcular_nivel_evolucao(texto_evolucao, avancos, dificuldades):
         return 5
 
 
+def limitar_escala(valor, padrao=5):
+    try:
+        valor = int(valor)
+    except Exception:
+        valor = padrao
+    return max(1, min(10, valor))
+
+
+def calcular_indice_geral(nivel_resposta, nivel_avanco, nivel_dificuldade, nivel_engajamento):
+    """Calcula índice geral em escala 1 a 10. A dificuldade entra invertida."""
+    resposta = limitar_escala(nivel_resposta)
+    avanco = limitar_escala(nivel_avanco)
+    dificuldade = limitar_escala(nivel_dificuldade)
+    engajamento = limitar_escala(nivel_engajamento)
+    barreira_invertida = 11 - dificuldade
+    indice = (resposta * 0.30) + (avanco * 0.35) + (engajamento * 0.20) + (barreira_invertida * 0.15)
+    return round(max(1, min(10, indice)), 1)
+
+
+def interpretar_indice(indice):
+    if indice <= 3:
+        return "Baixa evolução / necessidade de maior apoio"
+    elif indice <= 6:
+        return "Evolução parcial / acompanhamento em desenvolvimento"
+    elif indice <= 8:
+        return "Boa evolução / resposta positiva"
+    return "Evolução elevada / maior autonomia e participação"
+
+
 def montar_dataframe_evolucao(atendimentos):
     dados_grafico = []
-
     for atendimento in reversed(atendimentos):
         data_atendimento = atendimento[0]
         avancos = atendimento[4]
         dificuldades = atendimento[5]
         evolucao = atendimento[6]
-        nivel_salvo = atendimento[7] if len(atendimento) > 7 else None
+        qtd_atividades = atendimento[7] if len(atendimento) > 7 else 1
+        nivel_resposta = atendimento[8] if len(atendimento) > 8 else None
+        nivel_avanco = atendimento[9] if len(atendimento) > 9 else None
+        nivel_dificuldade = atendimento[10] if len(atendimento) > 10 else None
+        nivel_engajamento = atendimento[11] if len(atendimento) > 11 else None
+        nivel_evolucao_antigo = atendimento[12] if len(atendimento) > 12 else None
+
+        base_antiga = nivel_evolucao_antigo if nivel_evolucao_antigo is not None else calcular_nivel_evolucao(evolucao, avancos, dificuldades)
+        nivel_resposta = nivel_resposta if nivel_resposta is not None else base_antiga
+        nivel_avanco = nivel_avanco if nivel_avanco is not None else base_antiga
+        nivel_dificuldade = nivel_dificuldade if nivel_dificuldade is not None else 5
+        nivel_engajamento = nivel_engajamento if nivel_engajamento is not None else base_antiga
+
+        nivel_resposta = limitar_escala(nivel_resposta)
+        nivel_avanco = limitar_escala(nivel_avanco)
+        nivel_dificuldade = limitar_escala(nivel_dificuldade)
+        nivel_engajamento = limitar_escala(nivel_engajamento)
+        indice_geral = calcular_indice_geral(nivel_resposta, nivel_avanco, nivel_dificuldade, nivel_engajamento)
 
         try:
-            nivel = int(nivel_salvo) if nivel_salvo is not None else calcular_nivel_evolucao(evolucao, avancos, dificuldades)
+            qtd_atividades = int(qtd_atividades)
         except Exception:
-            nivel = calcular_nivel_evolucao(evolucao, avancos, dificuldades)
-
-        nivel = max(1, min(10, nivel))
-
+            qtd_atividades = 1
         try:
             data_ordenacao = datetime.strptime(data_atendimento, "%d/%m/%Y")
         except Exception:
@@ -489,12 +636,18 @@ def montar_dataframe_evolucao(atendimentos):
         dados_grafico.append({
             "Data": data_atendimento,
             "Data ordenação": data_ordenacao,
-            "Nível de evolução": nivel,
+            "Quantidade de atividades": qtd_atividades,
+            "Resposta do estudante": nivel_resposta,
+            "Avanço pedagógico": nivel_avanco,
+            "Nível de dificuldade": nivel_dificuldade,
+            "Dificuldade invertida": 11 - nivel_dificuldade,
+            "Engajamento": nivel_engajamento,
+            "Índice geral de evolução": indice_geral,
+            "Interpretação": interpretar_indice(indice_geral),
             "Avanços": avancos or "Não informado.",
-            "Dificuldades": dificuldades or "Não informado.",
+            "Dificuldades observadas": dificuldades or "Não informado.",
             "Evolução observada": evolucao or "Não informado.",
         })
-
     df = pd.DataFrame(dados_grafico)
     if not df.empty and "Data ordenação" in df.columns:
         df = df.sort_values(by="Data ordenação", na_position="last")
@@ -506,7 +659,9 @@ def listar_atendimentos_com_id(estudante_id):
     cursor.execute(
         """
         SELECT id, data_atendimento, objetivo, atividade, resposta_estudante,
-               avancos, dificuldades, evolucao, encaminhamentos
+               avancos, dificuldades, evolucao, qtd_atividades, nivel_resposta,
+               nivel_avanco, nivel_dificuldade, nivel_engajamento,
+               nivel_evolucao, encaminhamentos
         FROM atendimentos
         WHERE estudante_id = ?
         ORDER BY id DESC
@@ -534,8 +689,13 @@ Resposta do estudante: {a[3] or 'Não informado.'}
 Avanços observados: {a[4] or 'Não informado.'}
 Dificuldades observadas: {a[5] or 'Não informado.'}
 Evolução observada: {a[6] or 'Não informado.'}
-Nível de evolução registrado: {a[7] if len(a) > 7 and a[7] is not None else 'Não informado.'}/10
-Encaminhamentos: {a[8] if len(a) > 8 and a[8] else 'Não informado.'}
+Quantidade de atividades realizadas: {a[7] if len(a) > 7 and a[7] is not None else 'Não informado.'}
+Resposta do estudante: {a[8] if len(a) > 8 and a[8] is not None else 'Não informado.'}/10
+Avanço pedagógico: {a[9] if len(a) > 9 and a[9] is not None else 'Não informado.'}/10
+Nível de dificuldade: {a[10] if len(a) > 10 and a[10] is not None else 'Não informado.'}/10
+Engajamento: {a[11] if len(a) > 11 and a[11] is not None else 'Não informado.'}/10
+Índice geral de evolução: {a[12] if len(a) > 12 and a[12] is not None else 'Não informado.'}/10
+Encaminhamentos: {a[13] if len(a) > 13 and a[13] else 'Não informado.'}
 ---
 """
     return texto.strip()
@@ -588,6 +748,11 @@ def montar_texto_atendimento(
     avancos,
     dificuldades,
     evolucao,
+    qtd_atividades,
+    nivel_resposta,
+    nivel_avanco,
+    nivel_dificuldade,
+    nivel_engajamento,
     nivel_evolucao,
     encaminhamentos,
 ):
@@ -622,7 +787,22 @@ Dificuldades observadas:
 Evolução observada:
 {evolucao or 'Não informado.'}
 
-Nível de evolução registrado:
+Quantidade de atividades realizadas:
+{qtd_atividades if qtd_atividades is not None else 'Não informado.'}
+
+Resposta do estudante:
+{nivel_resposta if nivel_resposta is not None else 'Não informado.'}/10
+
+Avanço pedagógico:
+{nivel_avanco if nivel_avanco is not None else 'Não informado.'}/10
+
+Nível de dificuldade:
+{nivel_dificuldade if nivel_dificuldade is not None else 'Não informado.'}/10
+
+Engajamento:
+{nivel_engajamento if nivel_engajamento is not None else 'Não informado.'}/10
+
+Índice geral de evolução:
 {nivel_evolucao if nivel_evolucao is not None else 'Não informado.'}/10
 
 Encaminhamentos:
@@ -1653,15 +1833,61 @@ elif menu == "Atendimentos":
                 evolucao = st.text_area("Evolução observada", key="at_evolucao")
 
                 st.markdown("#### Avaliação quantitativa do atendimento")
-                st.caption("Informe uma nota de 1 a 10 para alimentar o gráfico de evolução do estudante.")
-                nivel_evolucao = st.slider(
-                    "Nível de evolução observado",
-                    min_value=1,
-                    max_value=10,
-                    value=5,
-                    help="1 a 3: pouca resposta; 4 a 6: resposta parcial; 7 a 8: boa evolução; 9 a 10: evolução excelente.",
-                    key="at_nivel_evolucao",
+                st.caption("Use as escalas para alimentar os gráficos e permitir uma análise longitudinal mais precisa.")
+
+                qtd_atividades = st.number_input(
+                    "Quantidade de atividades realizadas",
+                    min_value=0,
+                    max_value=50,
+                    value=1,
+                    step=1,
+                    help="Informe quantas atividades ou propostas pedagógicas foram realizadas neste atendimento.",
+                    key="at_qtd_atividades",
                 )
+
+                col_escala1, col_escala2 = st.columns(2)
+                with col_escala1:
+                    nivel_resposta = st.slider(
+                        "Resposta do estudante",
+                        min_value=1,
+                        max_value=10,
+                        value=5,
+                        help="1 a 3: pouca resposta; 4 a 6: resposta parcial; 7 a 8: boa resposta; 9 a 10: resposta excelente.",
+                        key="at_nivel_resposta",
+                    )
+                    nivel_avanco = st.slider(
+                        "Avanço pedagógico",
+                        min_value=1,
+                        max_value=10,
+                        value=5,
+                        help="Avalia avanço em aprendizagem, participação, comunicação, autonomia ou objetivo trabalhado.",
+                        key="at_nivel_avanco",
+                    )
+                with col_escala2:
+                    nivel_dificuldade = st.slider(
+                        "Nível de dificuldade",
+                        min_value=1,
+                        max_value=10,
+                        value=5,
+                        help="1 representa pouca dificuldade; 10 representa muita dificuldade/barreira observada.",
+                        key="at_nivel_dificuldade",
+                    )
+                    nivel_engajamento = st.slider(
+                        "Engajamento do estudante",
+                        min_value=1,
+                        max_value=10,
+                        value=5,
+                        help="Avalia interesse, participação, permanência na atividade e envolvimento durante o atendimento.",
+                        key="at_nivel_engajamento",
+                    )
+
+                nivel_evolucao = calcular_indice_geral(
+                    nivel_resposta,
+                    nivel_avanco,
+                    nivel_dificuldade,
+                    nivel_engajamento,
+                )
+                st.info(f"Índice geral calculado automaticamente: {nivel_evolucao}/10")
 
                 encaminhamentos = st.text_area("Encaminhamentos", key="at_encaminhamentos")
                 enviar = st.form_submit_button("Salvar atendimento")
@@ -1676,6 +1902,11 @@ elif menu == "Atendimentos":
                         avancos,
                         dificuldades,
                         evolucao,
+                        qtd_atividades,
+                        nivel_resposta,
+                        nivel_avanco,
+                        nivel_dificuldade,
+                        nivel_engajamento,
                         nivel_evolucao,
                         encaminhamentos,
                     )
@@ -1696,8 +1927,13 @@ elif menu == "Atendimentos":
                     avancos_hist = item[5]
                     dificuldades_hist = item[6]
                     evolucao_hist = item[7]
-                    nivel_evolucao_hist = item[8] if len(item) > 8 else None
-                    encaminhamentos_hist = item[9] if len(item) > 9 else None
+                    qtd_atividades_hist = item[8] if len(item) > 8 else None
+                    nivel_resposta_hist = item[9] if len(item) > 9 else None
+                    nivel_avanco_hist = item[10] if len(item) > 10 else None
+                    nivel_dificuldade_hist = item[11] if len(item) > 11 else None
+                    nivel_engajamento_hist = item[12] if len(item) > 12 else None
+                    nivel_evolucao_hist = item[13] if len(item) > 13 else None
+                    encaminhamentos_hist = item[14] if len(item) > 14 else None
 
                     with st.expander(f"Atendimento em {data_hist}"):
                         st.markdown(f"**Objetivo:** {objetivo_hist or 'Não informado.'}")
@@ -1706,7 +1942,12 @@ elif menu == "Atendimentos":
                         st.markdown(f"**Avanços:** {avancos_hist or 'Não informado.'}")
                         st.markdown(f"**Dificuldades:** {dificuldades_hist or 'Não informado.'}")
                         st.markdown(f"**Evolução observada:** {evolucao_hist or 'Não informado.'}")
-                        st.markdown(f"**Nível de evolução:** {nivel_evolucao_hist if nivel_evolucao_hist is not None else 'Não informado.'}/10")
+                        st.markdown(f"**Quantidade de atividades:** {qtd_atividades_hist if qtd_atividades_hist is not None else 'Não informado.'}")
+                        st.markdown(f"**Resposta do estudante:** {nivel_resposta_hist if nivel_resposta_hist is not None else 'Não informado.'}/10")
+                        st.markdown(f"**Avanço pedagógico:** {nivel_avanco_hist if nivel_avanco_hist is not None else 'Não informado.'}/10")
+                        st.markdown(f"**Nível de dificuldade:** {nivel_dificuldade_hist if nivel_dificuldade_hist is not None else 'Não informado.'}/10")
+                        st.markdown(f"**Engajamento:** {nivel_engajamento_hist if nivel_engajamento_hist is not None else 'Não informado.'}/10")
+                        st.markdown(f"**Índice geral de evolução:** {nivel_evolucao_hist if nivel_evolucao_hist is not None else 'Não informado.'}/10")
                         st.markdown(f"**Encaminhamentos:** {encaminhamentos_hist or 'Não informado.'}")
 
                         texto_atendimento = montar_texto_atendimento(
@@ -1718,6 +1959,11 @@ elif menu == "Atendimentos":
                             avancos_hist,
                             dificuldades_hist,
                             evolucao_hist,
+                            qtd_atividades_hist,
+                            nivel_resposta_hist,
+                            nivel_avanco_hist,
+                            nivel_dificuldade_hist,
+                            nivel_engajamento_hist,
                             nivel_evolucao_hist,
                             encaminhamentos_hist,
                         )
@@ -1780,38 +2026,76 @@ elif menu == "Relatório IA":
             df_evolucao = montar_dataframe_evolucao(atendimentos)
 
             with st.container(border=True):
-                st.markdown("### 📈 Gráfico de evolução do estudante")
+                st.markdown("### 📊 Dashboard de evolução do estudante")
                 st.caption(
-                    "Escala de 1 a 10 informada pelo professor no registro de atendimento. "
-                    "O gráfico é um apoio visual e não substitui a análise pedagógica do professor."
+                    "Análise quantitativa baseada nas escalas preenchidas pelo professor em cada atendimento. "
+                    "A dificuldade é apresentada separadamente e também entra de forma invertida no índice geral."
                 )
 
-                st.bar_chart(
-                    df_evolucao,
-                    x="Data",
-                    y="Nível de evolução",
-                    use_container_width=True,
-                )
-
-                media_evolucao = df_evolucao["Nível de evolução"].mean()
-                ultimo_nivel = df_evolucao["Nível de evolução"].iloc[-1]
-                primeiro_nivel = df_evolucao["Nível de evolução"].iloc[0]
-                variacao = ultimo_nivel - primeiro_nivel
+                media_indice = df_evolucao["Índice geral de evolução"].mean()
+                ultimo_indice = df_evolucao["Índice geral de evolução"].iloc[-1]
+                primeiro_indice = df_evolucao["Índice geral de evolução"].iloc[0]
+                variacao = ultimo_indice - primeiro_indice
+                media_resposta = df_evolucao["Resposta do estudante"].mean()
+                media_avanco = df_evolucao["Avanço pedagógico"].mean()
+                media_dificuldade = df_evolucao["Nível de dificuldade"].mean()
+                total_atividades = int(df_evolucao["Quantidade de atividades"].sum())
 
                 col1, col2, col3, col4 = st.columns(4)
                 col1.metric("Atendimentos analisados", len(df_evolucao))
-                col2.metric("Média de evolução", f"{media_evolucao:.1f}/10")
-                col3.metric("Último nível", f"{ultimo_nivel}/10")
-                col4.metric("Variação", f"{variacao:+d}")
+                col2.metric("Atividades realizadas", total_atividades)
+                col3.metric("Índice médio", f"{media_indice:.1f}/10")
+                col4.metric("Variação", f"{variacao:+.1f}")
 
-                with st.expander("Ver dados usados no gráfico"):
+                col5, col6, col7, col8 = st.columns(4)
+                col5.metric("Média resposta", f"{media_resposta:.1f}/10")
+                col6.metric("Média avanço", f"{media_avanco:.1f}/10")
+                col7.metric("Média dificuldade", f"{media_dificuldade:.1f}/10")
+                col8.metric("Último índice", f"{ultimo_indice:.1f}/10")
+
+                st.markdown("#### Índice geral de evolução")
+                st.bar_chart(
+                    df_evolucao,
+                    x="Data",
+                    y="Índice geral de evolução",
+                    use_container_width=True,
+                )
+
+                st.markdown("#### Indicadores por dimensão")
+                st.line_chart(
+                    df_evolucao,
+                    x="Data",
+                    y=[
+                        "Resposta do estudante",
+                        "Avanço pedagógico",
+                        "Engajamento",
+                        "Nível de dificuldade",
+                    ],
+                    use_container_width=True,
+                )
+
+                st.markdown("#### Quantidade de atividades realizadas")
+                st.bar_chart(
+                    df_evolucao,
+                    x="Data",
+                    y="Quantidade de atividades",
+                    use_container_width=True,
+                )
+
+                with st.expander("Ver dados usados nos gráficos"):
                     st.dataframe(
                         df_evolucao[
                             [
                                 "Data",
-                                "Nível de evolução",
+                                "Quantidade de atividades",
+                                "Resposta do estudante",
+                                "Avanço pedagógico",
+                                "Nível de dificuldade",
+                                "Engajamento",
+                                "Índice geral de evolução",
+                                "Interpretação",
                                 "Avanços",
-                                "Dificuldades",
+                                "Dificuldades observadas",
                                 "Evolução observada",
                             ]
                         ],
@@ -1834,44 +2118,167 @@ elif menu == "Relatório IA":
                 with st.spinner("Analisando atendimentos..."):
                     try:
                         relatorio = gerar_relatorio_evolucao(estudante, avaliacao)
+                        titulo_relatorio = "Relatório de evolução e qualidade do atendimento"
+                        relatorio_id = salvar_relatorio(estudante_id, titulo_relatorio, relatorio)
                         st.session_state["relatorio_evolucao"] = relatorio
+                        st.session_state["relatorio_evolucao_editavel"] = relatorio
                         st.session_state["relatorio_codigo"] = estudante[1]
-                        st.success("Relatório gerado com sucesso.")
+                        st.session_state["relatorio_id"] = relatorio_id
+                        st.success("Relatório gerado e salvo no histórico.")
                     except Exception as erro:
                         st.error(f"Erro ao gerar relatório: {erro}")
 
         if "relatorio_evolucao" in st.session_state:
             with st.container(border=True):
-                relatorio = st.session_state["relatorio_evolucao"]
                 codigo_relatorio = st.session_state.get("relatorio_codigo", estudante[1])
+                relatorio_id_atual = st.session_state.get("relatorio_id")
 
-                st.text_area("Relatório", relatorio, height=500, key="txt_relatorio_evolucao")
+                st.markdown("### ✏️ Relatório gerado para revisão")
+                st.caption("Você pode editar o texto abaixo antes de baixar ou salvar as alterações.")
 
-                col_txt, col_pdf = st.columns(2)
+                if "relatorio_evolucao_editavel" not in st.session_state:
+                    st.session_state["relatorio_evolucao_editavel"] = st.session_state["relatorio_evolucao"]
+
+                relatorio_editado = st.text_area(
+                    "Relatório",
+                    height=500,
+                    key="relatorio_evolucao_editavel",
+                )
+
+                col_salvar, col_excluir, col_txt, col_pdf = st.columns(4)
+
+                with col_salvar:
+                    if st.button("Salvar alterações", key="btn_salvar_relatorio_editado"):
+                        if relatorio_id_atual:
+                            atualizar_relatorio(
+                                relatorio_id_atual,
+                                "Relatório de evolução e qualidade do atendimento",
+                                relatorio_editado,
+                            )
+                            st.session_state["relatorio_evolucao"] = relatorio_editado
+                            st.success("Relatório atualizado com sucesso.")
+                        else:
+                            novo_id = salvar_relatorio(
+                                estudante_id,
+                                "Relatório de evolução e qualidade do atendimento",
+                                relatorio_editado,
+                            )
+                            st.session_state["relatorio_id"] = novo_id
+                            st.session_state["relatorio_evolucao"] = relatorio_editado
+                            st.success("Relatório salvo com sucesso.")
+
+                with col_excluir:
+                    if st.button("Excluir relatório", key="btn_excluir_relatorio_atual"):
+                        if relatorio_id_atual:
+                            excluir_relatorio(relatorio_id_atual)
+                        for chave in [
+                            "relatorio_evolucao",
+                            "relatorio_evolucao_editavel",
+                            "relatorio_codigo",
+                            "relatorio_id",
+                            "arquivo_pdf_relatorio",
+                        ]:
+                            st.session_state.pop(chave, None)
+                        st.success("Relatório excluído com sucesso.")
+                        st.rerun()
 
                 with col_txt:
                     st.download_button(
-                        "Baixar relatório em .txt",
-                        data=relatorio,
+                        "Baixar .txt",
+                        data=relatorio_editado,
                         file_name=f"Relatorio_{codigo_relatorio}.txt",
                         mime="text/plain",
                         key="download_txt_relatorio",
                     )
 
                 with col_pdf:
-                    if st.button("Gerar PDF do relatório", key="btn_pdf_relatorio"):
-                        arquivo = gerar_pdf_relatorio(relatorio, codigo_relatorio)
+                    if st.button("Gerar PDF", key="btn_pdf_relatorio"):
+                        arquivo = gerar_pdf_relatorio(relatorio_editado, codigo_relatorio)
                         st.session_state["arquivo_pdf_relatorio"] = arquivo
 
                     if "arquivo_pdf_relatorio" in st.session_state:
                         with open(st.session_state["arquivo_pdf_relatorio"], "rb") as f:
                             st.download_button(
-                                "Baixar relatório em PDF",
+                                "Baixar PDF",
                                 data=f,
                                 file_name=f"Relatorio_{codigo_relatorio}.pdf",
                                 mime="application/pdf",
                                 key="download_pdf_relatorio",
                             )
+
+        with st.container(border=True):
+            st.markdown("### 📚 Histórico de relatórios salvos")
+            relatorios_salvos = listar_relatorios(estudante_id)
+
+            if relatorios_salvos:
+                for rel_item in relatorios_salvos:
+                    relatorio_id_hist = rel_item[0]
+                    data_geracao_hist = rel_item[1]
+                    titulo_hist = rel_item[2] or "Relatório de evolução e qualidade do atendimento"
+                    conteudo_hist = rel_item[3] or ""
+
+                    with st.expander(f"{titulo_hist} — {data_geracao_hist}"):
+                        titulo_editado = st.text_input(
+                            "Título do relatório",
+                            value=titulo_hist,
+                            key=f"titulo_relatorio_hist_{relatorio_id_hist}",
+                        )
+                        conteudo_editado = st.text_area(
+                            "Conteúdo do relatório",
+                            value=conteudo_hist,
+                            height=420,
+                            key=f"conteudo_relatorio_hist_{relatorio_id_hist}",
+                        )
+
+                        col_hist_salvar, col_hist_excluir, col_hist_txt, col_hist_pdf = st.columns(4)
+
+                        with col_hist_salvar:
+                            if st.button("Salvar edição", key=f"btn_salvar_relatorio_hist_{relatorio_id_hist}"):
+                                atualizar_relatorio(relatorio_id_hist, titulo_editado, conteudo_editado)
+                                st.success("Relatório atualizado com sucesso.")
+                                st.rerun()
+
+                        with col_hist_excluir:
+                            confirmar_exclusao_relatorio = st.checkbox(
+                                "Confirmar exclusão",
+                                key=f"check_excluir_relatorio_hist_{relatorio_id_hist}",
+                            )
+                            if st.button("Excluir", key=f"btn_excluir_relatorio_hist_{relatorio_id_hist}"):
+                                if confirmar_exclusao_relatorio:
+                                    excluir_relatorio(relatorio_id_hist)
+                                    st.success("Relatório excluído com sucesso.")
+                                    st.rerun()
+                                else:
+                                    st.warning("Marque a confirmação antes de excluir.")
+
+                        with col_hist_txt:
+                            st.download_button(
+                                "Baixar .txt",
+                                data=conteudo_editado,
+                                file_name=f"Relatorio_{estudante[1]}_{relatorio_id_hist}.txt",
+                                mime="text/plain",
+                                key=f"download_txt_relatorio_hist_{relatorio_id_hist}",
+                            )
+
+                        with col_hist_pdf:
+                            if st.button("Gerar PDF", key=f"btn_pdf_relatorio_hist_{relatorio_id_hist}"):
+                                arquivo = gerar_pdf_relatorio(
+                                    conteudo_editado,
+                                    f"{estudante[1]}_{relatorio_id_hist}",
+                                )
+                                st.session_state[f"arquivo_pdf_relatorio_hist_{relatorio_id_hist}"] = arquivo
+
+                            if f"arquivo_pdf_relatorio_hist_{relatorio_id_hist}" in st.session_state:
+                                with open(st.session_state[f"arquivo_pdf_relatorio_hist_{relatorio_id_hist}"], "rb") as f:
+                                    st.download_button(
+                                        "Baixar PDF",
+                                        data=f,
+                                        file_name=f"Relatorio_{estudante[1]}_{relatorio_id_hist}.pdf",
+                                        mime="application/pdf",
+                                        key=f"download_pdf_relatorio_hist_{relatorio_id_hist}",
+                                    )
+            else:
+                st.info("Nenhum relatório salvo para este estudante.")
 
 
 # ======================================================
