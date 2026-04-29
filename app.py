@@ -1536,7 +1536,7 @@ with tab5:
 with tab6:
     st.header("Administração")
     st.markdown("---")
-   st.markdown("### ✏️ Editar cadastro do estudante")
+    st.markdown("### ✏️ Editar cadastro do estudante")
 
 estudantes = listar_estudantes()
 
