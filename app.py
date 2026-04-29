@@ -1561,26 +1561,14 @@ if estudantes:
         perfil_atual = estudante_editar[4] if estudante_editar[4] in PERFIS else "Não informado"
 
         with st.form(f"form_editar_estudante_{estudante_id_editar}"):
-
             col1, col2 = st.columns(2)
 
             with col1:
-                codigo_edit = st.text_input(
-                    "Código interno",
-                    value=estudante_editar[1] or "",
-                )
-
-                ano_edit = st.text_input(
-                    "Ano/Série",
-                    value=estudante_editar[2] or "",
-                )
+                codigo_edit = st.text_input("Código interno", value=estudante_editar[1] or "")
+                ano_edit = st.text_input("Ano/Série", value=estudante_editar[2] or "")
 
             with col2:
-                turma_edit = st.text_input(
-                    "Turma",
-                    value=estudante_editar[3] or "",
-                )
-
+                turma_edit = st.text_input("Turma", value=estudante_editar[3] or "")
                 perfil_edit = st.selectbox(
                     "Perfil educacional",
                     PERFIS,
@@ -1612,9 +1600,6 @@ if estudantes:
                     except sqlite3.IntegrityError:
                         st.error("Este código interno já está sendo usado por outro estudante.")
 
-else:
-    st.info("Nenhum estudante cadastrado ainda.")
-
         st.markdown("---")
         st.markdown("### 🗑️ Excluir estudante")
 
@@ -1631,6 +1616,6 @@ else:
             else:
                 st.warning("Marque a confirmação antes de excluir.")
 
-    else:
-        st.info("Nenhum estudante cadastrado ainda.")
+else:
+    st.info("Nenhum estudante cadastrado ainda.")
 
