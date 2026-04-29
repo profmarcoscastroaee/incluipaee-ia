@@ -920,7 +920,6 @@ with tab1:
         st.info("Nenhum estudante cadastrado ainda.")
 
 
-
 with tab2:
     st.header("Avaliação pedagógica inicial")
     estudantes = listar_estudantes()
@@ -931,6 +930,25 @@ with tab2:
         opcoes = {f"{e[1]} - {e[2]} - {e[4]}": e[0] for e in estudantes}
         selecionado = st.selectbox("Selecione o estudante", list(opcoes.keys()), key="avaliacao_estudante")
         estudante_id = opcoes[selecionado]
+        estudante_info = buscar_estudante(estudante_id)
+
+        st.markdown("### 📌 Informações cadastradas do estudante")
+        col_info1, col_info2, col_info3, col_info4 = st.columns(4)
+
+        with col_info1:
+            st.markdown(f"**Código:** {estudante_info[1] or 'Não informado.'}")
+
+        with col_info2:
+            st.markdown(f"**Ano/Série:** {estudante_info[2] or 'Não informado.'}")
+
+        with col_info3:
+            st.markdown(f"**Turma:** {estudante_info[3] or 'Não informado.'}")
+
+        with col_info4:
+            st.markdown(f"**Perfil:** {estudante_info[4] or 'Não informado.'}")
+
+        st.markdown("**Observações pedagógicas iniciais:**")
+        st.info(estudante_info[5] or "Nenhuma observação cadastrada.")
 
         with st.form("form_avaliacao"):
             barreiras = st.text_area("Barreiras enfrentadas pelo estudante", key="av_barreiras")
@@ -1235,6 +1253,8 @@ with tab5:
 
 with tab6:
     st.header("Administração")
+    st.caption("Área para alteração de cadastro e exclusão de estudantes.")
+
     st.markdown("---")
     st.markdown("### ✏️ Editar cadastro do estudante")
 
@@ -1322,4 +1342,3 @@ with tab6:
                 st.rerun()
             else:
                 st.warning("Marque a confirmação antes de excluir.")
-
