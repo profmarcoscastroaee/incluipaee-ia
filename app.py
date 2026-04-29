@@ -7,6 +7,7 @@ from html import escape
 
 import streamlit as st
 import pandas as pd
+import altair as alt
 
 st.set_page_config(
     page_title="IncluiPAEE IA",
@@ -1825,16 +1826,16 @@ elif menu == "Atendimentos":
 
             with st.form("form_atendimento"):
                 data_atendimento = st.date_input("Data do atendimento", key="at_data")
+
+                st.markdown("#### Registro pedagógico e indicadores")
+                st.caption(
+                    "Preencha o texto pedagógico e, logo abaixo, informe a escala correspondente. "
+                    "Assim o relatório mantém a análise qualitativa e o dashboard usa dados quantitativos consistentes."
+                )
+
                 objetivo = st.text_area("Objetivo trabalhado", key="at_objetivo")
+
                 atividade = st.text_area("Atividade realizada", key="at_atividade")
-                resposta_estudante = st.text_area("Resposta do estudante", key="at_resposta")
-                avancos = st.text_area("Avanços observados", key="at_avancos")
-                dificuldades = st.text_area("Dificuldades observadas", key="at_dificuldades")
-                evolucao = st.text_area("Evolução observada", key="at_evolucao")
-
-                st.markdown("#### Avaliação quantitativa do atendimento")
-                st.caption("Use as escalas para alimentar os gráficos e permitir uma análise longitudinal mais precisa.")
-
                 qtd_atividades = st.number_input(
                     "Quantidade de atividades realizadas",
                     min_value=0,
@@ -1845,41 +1846,45 @@ elif menu == "Atendimentos":
                     key="at_qtd_atividades",
                 )
 
-                col_escala1, col_escala2 = st.columns(2)
-                with col_escala1:
-                    nivel_resposta = st.slider(
-                        "Resposta do estudante",
-                        min_value=1,
-                        max_value=10,
-                        value=5,
-                        help="1 a 3: pouca resposta; 4 a 6: resposta parcial; 7 a 8: boa resposta; 9 a 10: resposta excelente.",
-                        key="at_nivel_resposta",
-                    )
-                    nivel_avanco = st.slider(
-                        "Avanço pedagógico",
-                        min_value=1,
-                        max_value=10,
-                        value=5,
-                        help="Avalia avanço em aprendizagem, participação, comunicação, autonomia ou objetivo trabalhado.",
-                        key="at_nivel_avanco",
-                    )
-                with col_escala2:
-                    nivel_dificuldade = st.slider(
-                        "Nível de dificuldade",
-                        min_value=1,
-                        max_value=10,
-                        value=5,
-                        help="1 representa pouca dificuldade; 10 representa muita dificuldade/barreira observada.",
-                        key="at_nivel_dificuldade",
-                    )
-                    nivel_engajamento = st.slider(
-                        "Engajamento do estudante",
-                        min_value=1,
-                        max_value=10,
-                        value=5,
-                        help="Avalia interesse, participação, permanência na atividade e envolvimento durante o atendimento.",
-                        key="at_nivel_engajamento",
-                    )
+                resposta_estudante = st.text_area("Resposta do estudante", key="at_resposta")
+                nivel_resposta = st.slider(
+                    "Escala da resposta do estudante",
+                    min_value=1,
+                    max_value=10,
+                    value=5,
+                    help="1 a 3: pouca resposta; 4 a 6: resposta parcial; 7 a 8: boa resposta; 9 a 10: resposta excelente.",
+                    key="at_nivel_resposta",
+                )
+
+                avancos = st.text_area("Avanços observados", key="at_avancos")
+                nivel_avanco = st.slider(
+                    "Escala do avanço pedagógico",
+                    min_value=1,
+                    max_value=10,
+                    value=5,
+                    help="Avalia avanço em aprendizagem, participação, comunicação, autonomia ou objetivo trabalhado.",
+                    key="at_nivel_avanco",
+                )
+
+                dificuldades = st.text_area("Dificuldades observadas", key="at_dificuldades")
+                nivel_dificuldade = st.slider(
+                    "Escala de dificuldade/barreira observada",
+                    min_value=1,
+                    max_value=10,
+                    value=5,
+                    help="1 representa pouca dificuldade; 10 representa muita dificuldade/barreira observada.",
+                    key="at_nivel_dificuldade",
+                )
+
+                evolucao = st.text_area("Evolução observada", key="at_evolucao")
+                nivel_engajamento = st.slider(
+                    "Escala de engajamento do estudante",
+                    min_value=1,
+                    max_value=10,
+                    value=5,
+                    help="Avalia interesse, participação, permanência na atividade e envolvimento durante o atendimento.",
+                    key="at_nivel_engajamento",
+                )
 
                 nivel_evolucao = calcular_indice_geral(
                     nivel_resposta,
@@ -1887,7 +1892,10 @@ elif menu == "Atendimentos":
                     nivel_dificuldade,
                     nivel_engajamento,
                 )
-                st.info(f"Índice geral calculado automaticamente: {nivel_evolucao}/10")
+                st.info(
+                    f"Índice geral calculado automaticamente: {nivel_evolucao}/10. "
+                    "Esse índice considera resposta, avanço, engajamento e o impacto invertido da dificuldade."
+                )
 
                 encaminhamentos = st.text_area("Encaminhamentos", key="at_encaminhamentos")
                 enviar = st.form_submit_button("Salvar atendimento")
@@ -2053,32 +2061,56 @@ elif menu == "Relatório IA":
                 col7.metric("Média dificuldade", f"{media_dificuldade:.1f}/10")
                 col8.metric("Último índice", f"{ultimo_indice:.1f}/10")
 
-                st.markdown("#### Índice geral de evolução")
-                st.bar_chart(
-                    df_evolucao,
-                    x="Data",
-                    y="Índice geral de evolução",
-                    use_container_width=True,
+                st.markdown("#### Indicadores por atendimento")
+                st.caption(
+                    "Cada data apresenta barras agrupadas com os indicadores registrados no atendimento. "
+                    "A escala dos indicadores vai de 1 a 10."
                 )
+                indicadores = [
+                    "Resposta do estudante",
+                    "Avanço pedagógico",
+                    "Nível de dificuldade",
+                    "Engajamento",
+                    "Índice geral de evolução",
+                ]
+                df_indicadores = df_evolucao[["Data"] + indicadores].melt(
+                    id_vars="Data",
+                    value_vars=indicadores,
+                    var_name="Indicador",
+                    value_name="Pontuação",
+                )
+                grafico_indicadores = (
+                    alt.Chart(df_indicadores)
+                    .mark_bar()
+                    .encode(
+                        x=alt.X("Data:N", title="Data do atendimento", sort=None),
+                        xOffset=alt.XOffset("Indicador:N"),
+                        y=alt.Y("Pontuação:Q", title="Pontuação", scale=alt.Scale(domain=[0, 10])),
+                        color=alt.Color("Indicador:N", title="Indicador"),
+                        tooltip=["Data:N", "Indicador:N", alt.Tooltip("Pontuação:Q", format=".1f")],
+                    )
+                    .properties(height=420)
+                )
+                st.altair_chart(grafico_indicadores, use_container_width=True)
 
-                st.markdown("#### Indicadores por dimensão")
+                st.markdown("#### Quantidade de atividades realizadas por atendimento")
+                grafico_atividades = (
+                    alt.Chart(df_evolucao)
+                    .mark_bar()
+                    .encode(
+                        x=alt.X("Data:N", title="Data do atendimento", sort=None),
+                        y=alt.Y("Quantidade de atividades:Q", title="Quantidade"),
+                        tooltip=["Data:N", alt.Tooltip("Quantidade de atividades:Q", format=".0f")],
+                    )
+                    .properties(height=260)
+                )
+                st.altair_chart(grafico_atividades, use_container_width=True)
+
+                st.markdown("#### Índice geral de evolução")
                 st.line_chart(
                     df_evolucao,
                     x="Data",
-                    y=[
-                        "Resposta do estudante",
-                        "Avanço pedagógico",
-                        "Engajamento",
-                        "Nível de dificuldade",
-                    ],
-                    use_container_width=True,
-                )
-
-                st.markdown("#### Quantidade de atividades realizadas")
-                st.bar_chart(
-                    df_evolucao,
-                    x="Data",
-                    y="Quantidade de atividades",
+                    y="Índice geral de evolução",
                     use_container_width=True,
                 )
 
