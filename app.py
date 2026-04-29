@@ -7,6 +7,91 @@ from html import escape
 
 import streamlit as st
 
+st.set_page_config(
+    page_title="IncluiPAEE IA",
+    page_icon="🧠",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
+
+st.markdown("""
+<style>
+/* Fundo geral */
+.stApp {
+    background-color: #f5f7fb;
+}
+
+/* Espaçamento geral */
+.block-container {
+    padding-top: 1.2rem;
+    padding-bottom: 2rem;
+}
+
+/* Sidebar */
+section[data-testid="stSidebar"] {
+    background-color: #0f172a;
+}
+
+section[data-testid="stSidebar"] * {
+    color: #ffffff !important;
+}
+
+/* Títulos */
+.titulo {
+    font-size: 30px;
+    font-weight: 800;
+    color: #0f172a;
+    margin-bottom: 0px;
+}
+
+.subtitulo {
+    font-size: 19px;
+    font-weight: 700;
+    color: #1e293b;
+    margin-bottom: 8px;
+}
+
+.descricao {
+    color: #64748b;
+    font-size: 15px;
+    margin-bottom: 18px;
+}
+
+/* Botões */
+.stButton > button,
+.stDownloadButton > button {
+    border-radius: 10px;
+    font-weight: 600;
+}
+
+/* Inputs */
+div[data-baseweb="input"],
+div[data-baseweb="select"] {
+    border-radius: 10px;
+}
+
+/* Dataframe */
+[data-testid="stDataFrame"] {
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+/* Métricas */
+[data-testid="stMetric"] {
+    background: white;
+    border: 1px solid #e5e7eb;
+    padding: 16px;
+    border-radius: 14px;
+}
+
+/* Linha divisória suave */
+hr {
+    margin-top: 0.8rem;
+    margin-bottom: 1rem;
+}
+</style>
+""", unsafe_allow_html=True)
+
 try:
     from openai import OpenAI
 except Exception:
@@ -956,48 +1041,8 @@ def gerar_pdf_atendimento(conteudo, codigo):
 def gerar_pdf_relatorio(conteudo, codigo):
     return gerar_pdf_documento(conteudo, codigo, tipo="relatorio")
 
+
 criar_tabelas()
-
-# ======================================================
-# LOGO PRINCIPAL
-# ======================================================
-st.markdown("""
-<style>
-/* reduz espaço abaixo da logo */
-.block-container {
-    padding-top: 1rem;
-}
-
-/* remove espaço extra entre elementos */
-img {
-    margin-bottom: -20px;
-}
-
-/* reduz espaço das tabs */
-.stTabs {
-    margin-top: -20px;
-}
-</style>
-""", unsafe_allow_html=True)
-
-col1, col2, col3 = st.columns([0.2, 8, 0.2])
-
-with col2:
-    st.image("logo.png", use_container_width=True)
-
-# ======================================================
-# ABAS DO SISTEMA
-# ======================================================
-tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(
-    [
-        "1. Cadastro",
-        "2. Avaliação Pedagógica",
-        "3. Gerar PAEE",
-        "4. Atendimentos",
-        "5. Relatório IA",
-        "6. Administração",
-    ]
-)
 
 PERFIS = [
     "Não informado",
@@ -1014,241 +1059,375 @@ PERFIS = [
     "Outro",
 ]
 
-with tab1:
-    st.markdown("### 👤 Cadastro do estudante")
 
-    with st.form("form_cadastro"):
-        codigo = st.text_input("Código interno do estudante", placeholder="Ex.: AEE-001", key="cad_codigo")
-        ano_serie = st.text_input("Ano/Série", placeholder="Ex.: 4º ano", key="cad_ano")
-        turma = st.text_input("Turma", placeholder="Ex.: 4º ano B", key="cad_turma")
-        perfil = st.selectbox("Perfil educacional informado", PERFIS, key="cad_perfil")
-        observacoes = st.text_area("Observações pedagógicas iniciais", key="cad_observacoes")
-        enviar = st.form_submit_button("Cadastrar estudante")
+def opcoes_estudantes_por_id(estudantes):
+    """Retorna lista de IDs e mapa para exibir estudante no selectbox."""
+    ids = [e[0] for e in estudantes]
+    mapa = {e[0]: f"{e[1]} - {e[2] or 'Ano/Série não informado'} - {e[4] or 'Perfil não informado'}" for e in estudantes}
+    return ids, mapa
 
-        if enviar:
-            if not codigo.strip():
-                st.error("Informe um código interno para o estudante.")
-            else:
-                try:
-                    cadastrar_estudante(codigo.strip(), ano_serie, turma, perfil, observacoes)
-                    st.success("Estudante cadastrado com sucesso.")
-                    st.rerun()
-                except sqlite3.IntegrityError:
-                    st.error("Este código já existe. Use outro código interno.")
+
+# ======================================================
+# SIDEBAR PROFISSIONAL
+# ======================================================
+with st.sidebar:
+    try:
+        st.image("logo.png", use_container_width=True)
+    except Exception:
+        st.markdown("## IncluiPAEE IA")
 
     st.markdown("---")
-    st.markdown("### 📋 Estudantes cadastrados")
+
+    menu = st.radio(
+        "Navegação",
+        [
+            "Dashboard",
+            "Cadastro",
+            "Avaliação Pedagógica",
+            "Gerar PAEE",
+            "Atendimentos",
+            "Relatório IA",
+            "Administração",
+        ],
+        index=0,
+    )
+
+    st.markdown("---")
+    st.caption("LabTec3DI – UFRPE")
+    st.caption("Sistema inteligente de apoio ao AEE")
+
+
+st.markdown('<div class="titulo">IncluiPAEE IA</div>', unsafe_allow_html=True)
+st.markdown(
+    '<div class="descricao">Sistema inteligente de apoio à elaboração de PAEE, registros pedagógicos e relatórios de evolução.</div>',
+    unsafe_allow_html=True,
+)
+
+
+# ======================================================
+# DASHBOARD
+# ======================================================
+if menu == "Dashboard":
+    st.markdown('<div class="subtitulo">📊 Painel inicial</div>', unsafe_allow_html=True)
 
     estudantes = listar_estudantes()
+    total_estudantes = len(estudantes)
 
-    if estudantes:
-        st.dataframe(
-            [
-                {
-                    "ID": e[0],
-                    "Código": e[1],
-                    "Ano/Série": e[2],
-                    "Turma": e[3],
-                    "Perfil": e[4],
-                    "Observações": e[5],
-                }
-                for e in estudantes
-            ],
-            use_container_width=True,
-        )
-    else:
-        st.info("Nenhum estudante cadastrado ainda.")
+    total_avaliacoes = 0
+    total_atendimentos = 0
+
+    for estudante in estudantes:
+        total_avaliacoes += len(listar_avaliacoes(estudante[0]))
+        total_atendimentos += len(listar_atendimentos(estudante[0]))
+
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Estudantes cadastrados", total_estudantes)
+    col2.metric("Avaliações registradas", total_avaliacoes)
+    col3.metric("Atendimentos registrados", total_atendimentos)
+
+    st.markdown("---")
+
+    col_esq, col_dir = st.columns([1.2, 1])
+
+    with col_esq:
+        with st.container(border=True):
+            st.markdown("### 👥 Estudantes recentes")
+
+            if estudantes:
+                st.dataframe(
+                    [
+                        {
+                            "Código": e[1],
+                            "Ano/Série": e[2],
+                            "Turma": e[3],
+                            "Perfil": e[4],
+                        }
+                        for e in estudantes
+                    ],
+                    use_container_width=True,
+                    hide_index=True,
+                )
+            else:
+                st.info("Nenhum estudante cadastrado ainda.")
+
+    with col_dir:
+        with st.container(border=True):
+            st.markdown("### 🧭 Fluxo sugerido")
+            st.markdown(
+                """
+                1. Cadastre o estudante com código interno.
+                2. Registre a avaliação pedagógica inicial.
+                3. Gere a sugestão de PAEE.
+                4. Registre os atendimentos.
+                5. Gere o relatório de evolução.
+                """
+            )
 
 
+# ======================================================
+# CADASTRO
+# ======================================================
+elif menu == "Cadastro":
+    st.markdown('<div class="subtitulo">👤 Cadastro do estudante</div>', unsafe_allow_html=True)
 
-with tab2:
-    st.header("Avaliação pedagógica inicial")
+    col_form, col_lista = st.columns([1, 1.2])
+
+    with col_form:
+        with st.container(border=True):
+            st.markdown("### Novo estudante")
+
+            with st.form("form_cadastro"):
+                codigo = st.text_input("Código interno do estudante", placeholder="Ex.: AEE-001", key="cad_codigo")
+                ano_serie = st.text_input("Ano/Série", placeholder="Ex.: 4º ano", key="cad_ano")
+                turma = st.text_input("Turma", placeholder="Ex.: 4º ano B", key="cad_turma")
+                perfil = st.selectbox("Perfil educacional informado", PERFIS, key="cad_perfil")
+                observacoes = st.text_area("Observações pedagógicas iniciais", key="cad_observacoes")
+                enviar = st.form_submit_button("Cadastrar estudante")
+
+                if enviar:
+                    if not codigo.strip():
+                        st.error("Informe um código interno para o estudante.")
+                    else:
+                        try:
+                            cadastrar_estudante(codigo.strip(), ano_serie, turma, perfil, observacoes)
+                            st.success("Estudante cadastrado com sucesso.")
+                            st.rerun()
+                        except sqlite3.IntegrityError:
+                            st.error("Este código já existe. Use outro código interno.")
+
+    with col_lista:
+        with st.container(border=True):
+            st.markdown("### 📋 Estudantes cadastrados")
+
+            estudantes = listar_estudantes()
+
+            if estudantes:
+                st.dataframe(
+                    [
+                        {
+                            "ID": e[0],
+                            "Código": e[1],
+                            "Ano/Série": e[2],
+                            "Turma": e[3],
+                            "Perfil": e[4],
+                            "Observações": e[5],
+                        }
+                        for e in estudantes
+                    ],
+                    use_container_width=True,
+                    hide_index=True,
+                )
+            else:
+                st.info("Nenhum estudante cadastrado ainda.")
+
+
+# ======================================================
+# AVALIAÇÃO PEDAGÓGICA
+# ======================================================
+elif menu == "Avaliação Pedagógica":
+    st.markdown('<div class="subtitulo">📝 Avaliação pedagógica inicial</div>', unsafe_allow_html=True)
     estudantes = listar_estudantes()
 
     if not estudantes:
         st.info("Cadastre um estudante primeiro.")
     else:
-        opcoes = {f"{e[1]} - {e[2]} - {e[4]}": e[0] for e in estudantes}
-        selecionado = st.selectbox("Selecione o estudante", list(opcoes.keys()), key="avaliacao_estudante")
-        estudante_id = opcoes[selecionado]
+        ids, mapa = opcoes_estudantes_por_id(estudantes)
+        estudante_id = st.selectbox(
+            "Selecione o estudante",
+            ids,
+            format_func=lambda x: mapa[x],
+            key="avaliacao_estudante_id",
+        )
         estudante_info = buscar_estudante(estudante_id)
 
-        with st.form("form_avaliacao"):
-            barreiras = st.text_area("Barreiras enfrentadas pelo estudante", key="av_barreiras")
-            potencialidades = st.text_area("Potencialidades e habilidades já desenvolvidas", key="av_potencialidades")
-            comunicacao = st.text_area("Comunicação", key="av_comunicacao")
-            interacao = st.text_area("Interação social", key="av_interacao")
-            autonomia = st.text_area("Autonomia", key="av_autonomia")
-            aprendizagem = st.text_area("Aprendizagem", key="av_aprendizagem")
-            resumo_laudo = st.text_area(
-                "Resumo pedagógico do laudo, sem identificação",
-                placeholder="Ex.: O laudo informa TEA e aponta necessidade de previsibilidade, apoio visual e mediação nas interações.",
-                key="av_resumo",
-            )
-            enviar = st.form_submit_button("Salvar avaliação")
+        with st.container(border=True):
+            st.markdown("### Registro da avaliação")
 
-            if enviar:
-                data_registro_avaliacao = datetime.now().strftime("%d/%m/%Y %H:%M")
-
-                salvar_avaliacao(
-                    estudante_id,
-                    barreiras,
-                    potencialidades,
-                    comunicacao,
-                    interacao,
-                    autonomia,
-                    aprendizagem,
-                    resumo_laudo,
+            with st.form("form_avaliacao"):
+                barreiras = st.text_area("Barreiras enfrentadas pelo estudante", key="av_barreiras")
+                potencialidades = st.text_area("Potencialidades e habilidades já desenvolvidas", key="av_potencialidades")
+                comunicacao = st.text_area("Comunicação", key="av_comunicacao")
+                interacao = st.text_area("Interação social", key="av_interacao")
+                autonomia = st.text_area("Autonomia", key="av_autonomia")
+                aprendizagem = st.text_area("Aprendizagem", key="av_aprendizagem")
+                resumo_laudo = st.text_area(
+                    "Resumo pedagógico do laudo, sem identificação",
+                    placeholder="Ex.: O laudo informa TEA e aponta necessidade de previsibilidade, apoio visual e mediação nas interações.",
+                    key="av_resumo",
                 )
+                enviar = st.form_submit_button("Salvar avaliação")
 
-                texto_avaliacao = montar_texto_avaliacao(
-                    estudante_info,
-                    data_registro_avaliacao,
-                    barreiras,
-                    potencialidades,
-                    comunicacao,
-                    interacao,
-                    autonomia,
-                    aprendizagem,
-                    resumo_laudo,
-                )
+                if enviar:
+                    data_registro_avaliacao = datetime.now().strftime("%d/%m/%Y %H:%M")
 
-                st.session_state["avaliacao_salva_texto"] = texto_avaliacao
-                st.session_state["avaliacao_salva_codigo"] = estudante_info[1]
-                st.success("Avaliação pedagógica salva com sucesso.")
+                    salvar_avaliacao(
+                        estudante_id,
+                        barreiras,
+                        potencialidades,
+                        comunicacao,
+                        interacao,
+                        autonomia,
+                        aprendizagem,
+                        resumo_laudo,
+                    )
+
+                    texto_avaliacao = montar_texto_avaliacao(
+                        estudante_info,
+                        data_registro_avaliacao,
+                        barreiras,
+                        potencialidades,
+                        comunicacao,
+                        interacao,
+                        autonomia,
+                        aprendizagem,
+                        resumo_laudo,
+                    )
+
+                    st.session_state["avaliacao_salva_texto"] = texto_avaliacao
+                    st.session_state["avaliacao_salva_codigo"] = estudante_info[1]
+                    st.success("Avaliação pedagógica salva com sucesso.")
 
         if "avaliacao_salva_texto" in st.session_state:
-            texto_avaliacao = st.session_state["avaliacao_salva_texto"]
-            codigo_avaliacao = st.session_state.get("avaliacao_salva_codigo", estudante_info[1])
+            with st.container(border=True):
+                texto_avaliacao = st.session_state["avaliacao_salva_texto"]
+                codigo_avaliacao = st.session_state.get("avaliacao_salva_codigo", estudante_info[1])
 
-            st.markdown("---")
-            st.subheader("Avaliação salva para download")
+                st.markdown("### Avaliação salva para download")
 
-            st.download_button(
-                "Baixar avaliação em .txt",
-                data=texto_avaliacao,
-                file_name=f"Avaliacao_Pedagogica_{codigo_avaliacao}.txt",
-                mime="text/plain",
-                key="download_txt_avaliacao",
-            )
+                col_txt, col_pdf = st.columns(2)
 
-            if st.button("Gerar PDF da avaliação", key="btn_pdf_avaliacao"):
-                arquivo = gerar_pdf_avaliacao(texto_avaliacao, codigo_avaliacao)
-                st.session_state["arquivo_pdf_avaliacao"] = arquivo
-
-            if "arquivo_pdf_avaliacao" in st.session_state:
-                with open(st.session_state["arquivo_pdf_avaliacao"], "rb") as f:
+                with col_txt:
                     st.download_button(
-                        "Baixar avaliação em PDF",
-                        data=f,
-                        file_name=f"Avaliacao_Pedagogica_{codigo_avaliacao}.pdf",
-                        mime="application/pdf",
-                        key="download_pdf_avaliacao",
-                    )
-
-        st.markdown("---")
-        st.subheader("Histórico de avaliações pedagógicas")
-        avaliacoes = listar_avaliacoes(estudante_id)
-
-        if avaliacoes:
-            for avaliacao_item in avaliacoes:
-                avaliacao_id = avaliacao_item[0]
-                data_registro = avaliacao_item[1]
-                barreiras_hist = avaliacao_item[2]
-                potencialidades_hist = avaliacao_item[3]
-                comunicacao_hist = avaliacao_item[4]
-                interacao_hist = avaliacao_item[5]
-                autonomia_hist = avaliacao_item[6]
-                aprendizagem_hist = avaliacao_item[7]
-                resumo_laudo_hist = avaliacao_item[8]
-
-                with st.expander(f"Avaliação em {data_registro}"):
-                    st.markdown(f"**Barreiras:** {barreiras_hist or 'Não informado.'}")
-                    st.markdown(f"**Potencialidades:** {potencialidades_hist or 'Não informado.'}")
-                    st.markdown(f"**Comunicação:** {comunicacao_hist or 'Não informado.'}")
-                    st.markdown(f"**Interação social:** {interacao_hist or 'Não informado.'}")
-                    st.markdown(f"**Autonomia:** {autonomia_hist or 'Não informado.'}")
-                    st.markdown(f"**Aprendizagem:** {aprendizagem_hist or 'Não informado.'}")
-                    st.markdown(f"**Resumo pedagógico do laudo:** {resumo_laudo_hist or 'Não informado.'}")
-
-                    texto_historico = montar_texto_avaliacao(
-                        estudante_info,
-                        data_registro,
-                        barreiras_hist,
-                        potencialidades_hist,
-                        comunicacao_hist,
-                        interacao_hist,
-                        autonomia_hist,
-                        aprendizagem_hist,
-                        resumo_laudo_hist,
-                    )
-
-                    st.download_button(
-                        "Baixar esta avaliação em .txt",
-                        data=texto_historico,
-                        file_name=f"Avaliacao_Pedagogica_{estudante_info[1]}_{avaliacao_id}.txt",
+                        "Baixar avaliação em .txt",
+                        data=texto_avaliacao,
+                        file_name=f"Avaliacao_Pedagogica_{codigo_avaliacao}.txt",
                         mime="text/plain",
-                        key=f"download_txt_avaliacao_hist_{avaliacao_id}",
+                        key="download_txt_avaliacao",
                     )
 
-                    if st.button("Gerar PDF desta avaliação", key=f"btn_pdf_avaliacao_hist_{avaliacao_id}"):
-                        arquivo = gerar_pdf_avaliacao(texto_historico, f"{estudante_info[1]}_{avaliacao_id}")
-                        st.session_state[f"arquivo_pdf_avaliacao_hist_{avaliacao_id}"] = arquivo
+                with col_pdf:
+                    if st.button("Gerar PDF da avaliação", key="btn_pdf_avaliacao"):
+                        arquivo = gerar_pdf_avaliacao(texto_avaliacao, codigo_avaliacao)
+                        st.session_state["arquivo_pdf_avaliacao"] = arquivo
 
-                    if f"arquivo_pdf_avaliacao_hist_{avaliacao_id}" in st.session_state:
-                        with open(st.session_state[f"arquivo_pdf_avaliacao_hist_{avaliacao_id}"], "rb") as f:
+                    if "arquivo_pdf_avaliacao" in st.session_state:
+                        with open(st.session_state["arquivo_pdf_avaliacao"], "rb") as f:
                             st.download_button(
-                                "Baixar esta avaliação em PDF",
+                                "Baixar avaliação em PDF",
                                 data=f,
-                                file_name=f"Avaliacao_Pedagogica_{estudante_info[1]}_{avaliacao_id}.pdf",
+                                file_name=f"Avaliacao_Pedagogica_{codigo_avaliacao}.pdf",
                                 mime="application/pdf",
-                                key=f"download_pdf_avaliacao_hist_{avaliacao_id}",
+                                key="download_pdf_avaliacao",
                             )
-        else:
-            st.info("Nenhuma avaliação pedagógica registrada para este estudante.")
+
+        with st.container(border=True):
+            st.markdown("### Histórico de avaliações pedagógicas")
+            avaliacoes = listar_avaliacoes(estudante_id)
+
+            if avaliacoes:
+                for avaliacao_item in avaliacoes:
+                    avaliacao_id = avaliacao_item[0]
+                    data_registro = avaliacao_item[1]
+                    barreiras_hist = avaliacao_item[2]
+                    potencialidades_hist = avaliacao_item[3]
+                    comunicacao_hist = avaliacao_item[4]
+                    interacao_hist = avaliacao_item[5]
+                    autonomia_hist = avaliacao_item[6]
+                    aprendizagem_hist = avaliacao_item[7]
+                    resumo_laudo_hist = avaliacao_item[8]
+
+                    with st.expander(f"Avaliação em {data_registro}"):
+                        st.markdown(f"**Barreiras:** {barreiras_hist or 'Não informado.'}")
+                        st.markdown(f"**Potencialidades:** {potencialidades_hist or 'Não informado.'}")
+                        st.markdown(f"**Comunicação:** {comunicacao_hist or 'Não informado.'}")
+                        st.markdown(f"**Interação social:** {interacao_hist or 'Não informado.'}")
+                        st.markdown(f"**Autonomia:** {autonomia_hist or 'Não informado.'}")
+                        st.markdown(f"**Aprendizagem:** {aprendizagem_hist or 'Não informado.'}")
+                        st.markdown(f"**Resumo pedagógico do laudo:** {resumo_laudo_hist or 'Não informado.'}")
+
+                        texto_historico = montar_texto_avaliacao(
+                            estudante_info,
+                            data_registro,
+                            barreiras_hist,
+                            potencialidades_hist,
+                            comunicacao_hist,
+                            interacao_hist,
+                            autonomia_hist,
+                            aprendizagem_hist,
+                            resumo_laudo_hist,
+                        )
+
+                        st.download_button(
+                            "Baixar esta avaliação em .txt",
+                            data=texto_historico,
+                            file_name=f"Avaliacao_Pedagogica_{estudante_info[1]}_{avaliacao_id}.txt",
+                            mime="text/plain",
+                            key=f"download_txt_avaliacao_hist_{avaliacao_id}",
+                        )
+
+                        if st.button("Gerar PDF desta avaliação", key=f"btn_pdf_avaliacao_hist_{avaliacao_id}"):
+                            arquivo = gerar_pdf_avaliacao(texto_historico, f"{estudante_info[1]}_{avaliacao_id}")
+                            st.session_state[f"arquivo_pdf_avaliacao_hist_{avaliacao_id}"] = arquivo
+
+                        if f"arquivo_pdf_avaliacao_hist_{avaliacao_id}" in st.session_state:
+                            with open(st.session_state[f"arquivo_pdf_avaliacao_hist_{avaliacao_id}"], "rb") as f:
+                                st.download_button(
+                                    "Baixar esta avaliação em PDF",
+                                    data=f,
+                                    file_name=f"Avaliacao_Pedagogica_{estudante_info[1]}_{avaliacao_id}.pdf",
+                                    mime="application/pdf",
+                                    key=f"download_pdf_avaliacao_hist_{avaliacao_id}",
+                                )
+            else:
+                st.info("Nenhuma avaliação pedagógica registrada para este estudante.")
 
 
-with tab3:
-    st.header("Gerar PAEE com IA")
+# ======================================================
+# GERAR PAEE
+# ======================================================
+elif menu == "Gerar PAEE":
+    st.markdown('<div class="subtitulo">🧠 Gerar PAEE com IA</div>', unsafe_allow_html=True)
     estudantes = listar_estudantes()
 
     if not estudantes:
         st.info("Cadastre um estudante primeiro.")
     else:
-        opcoes = {f"{e[1]} - {e[2]} - {e[4]}": e[0] for e in estudantes}
-        selecionado = st.selectbox(
+        ids, mapa = opcoes_estudantes_por_id(estudantes)
+        estudante_id = st.selectbox(
             "Selecione o estudante",
-            list(opcoes.keys()),
-            key="paee_estudante",
+            ids,
+            format_func=lambda x: mapa[x],
+            key="paee_estudante_id",
         )
 
-        estudante_id = opcoes[selecionado]
         estudante = buscar_estudante(estudante_id)
         avaliacao = ultima_avaliacao(estudante_id)
 
-        if not avaliacao:
-            st.warning("Este estudante ainda não possui avaliação pedagógica registrada.")
-        else:
-            usar_ia = OpenAI is not None and bool(obter_api_key())
-
-            if usar_ia:
-                st.success("IA pronta para gerar sugestões pedagógicas.")
+        with st.container(border=True):
+            if not avaliacao:
+                st.warning("Este estudante ainda não possui avaliação pedagógica registrada.")
             else:
-                st.info("IA não configurada. O sistema irá gerar um PAEE-base automático sem conexão com IA.")
+                usar_ia = OpenAI is not None and bool(obter_api_key())
 
-            if st.button("Gerar sugestão de PAEE", key="btn_gerar_paee"):
-                with st.spinner("Gerando PAEE..."):
-                    try:
-                        paee = gerar_paee_com_ia(estudante, avaliacao)
-                        st.session_state["paee_gerado"] = paee
-                        st.session_state["paee_codigo"] = estudante[1]
-                        salvar_paee(estudante_id, paee)
-                        st.success("PAEE gerado e salvo no histórico.")
-                    except Exception as erro:
-                        st.error(f"Erro ao gerar PAEE: {erro}")
+                if usar_ia:
+                    st.success("IA pronta para gerar sugestões pedagógicas.")
+                else:
+                    st.info("IA não configurada. O sistema irá gerar um PAEE-base automático sem conexão com IA.")
 
-            if "paee_gerado" in st.session_state:
-                st.subheader("PAEE gerado")
+                if st.button("Gerar sugestão de PAEE", key="btn_gerar_paee"):
+                    with st.spinner("Gerando PAEE..."):
+                        try:
+                            paee = gerar_paee_com_ia(estudante, avaliacao)
+                            st.session_state["paee_gerado"] = paee
+                            st.session_state["paee_codigo"] = estudante[1]
+                            salvar_paee(estudante_id, paee)
+                            st.success("PAEE gerado e salvo no histórico.")
+                        except Exception as erro:
+                            st.error(f"Erro ao gerar PAEE: {erro}")
+
+        if "paee_gerado" in st.session_state:
+            with st.container(border=True):
+                st.markdown("### PAEE gerado")
                 st.text_area(
                     "Conteúdo",
                     st.session_state["paee_gerado"],
@@ -1258,38 +1437,36 @@ with tab3:
 
                 codigo_download = st.session_state.get("paee_codigo", estudante[1])
 
-                st.download_button(
-                    "Baixar PAEE em .txt",
-                    data=st.session_state["paee_gerado"],
-                    file_name=f"PAEE_{codigo_download}.txt",
-                    mime="text/plain",
-                    key="download_txt_paee",
-                )
+                col_txt, col_pdf = st.columns(2)
 
-                if st.button("Gerar PDF do PAEE", key="btn_gerar_pdf_paee"):
-                    arquivo = gerar_pdf_paee(st.session_state["paee_gerado"], codigo_download)
-                    st.session_state["arquivo_pdf_paee"] = arquivo
+                with col_txt:
+                    st.download_button(
+                        "Baixar PAEE em .txt",
+                        data=st.session_state["paee_gerado"],
+                        file_name=f"PAEE_{codigo_download}.txt",
+                        mime="text/plain",
+                        key="download_txt_paee",
+                    )
 
-                if "arquivo_pdf_paee" in st.session_state:
-                    with open(st.session_state["arquivo_pdf_paee"], "rb") as f:
-                        st.download_button(
-                            "Baixar PAEE em PDF",
-                            data=f,
-                            file_name=f"PAEE_{codigo_download}.pdf",
-                            mime="application/pdf",
-                            key="download_pdf_paee",
-                        )
+                with col_pdf:
+                    if st.button("Gerar PDF do PAEE", key="btn_gerar_pdf_paee"):
+                        arquivo = gerar_pdf_paee(st.session_state["paee_gerado"], codigo_download)
+                        st.session_state["arquivo_pdf_paee"] = arquivo
 
-                # ==================================================
-                # BUSCA SEMIAUTOMÁTICA DE MODELOS 3D
-                # IA SUGERE TERMOS + PROFESSOR ESCOLHE
-                # Thingiverse, Printables e MakerWorld abrem por link externo
-                # ==================================================
-                st.markdown("---")
-                st.subheader("🔎 Modelos 3D sugeridos para apoio pedagógico")
+                    if "arquivo_pdf_paee" in st.session_state:
+                        with open(st.session_state["arquivo_pdf_paee"], "rb") as f:
+                            st.download_button(
+                                "Baixar PAEE em PDF",
+                                data=f,
+                                file_name=f"PAEE_{codigo_download}.pdf",
+                                mime="application/pdf",
+                                key="download_pdf_paee",
+                            )
+
+            with st.container(border=True):
+                st.markdown("### 🔎 Modelos 3D sugeridos para apoio pedagógico")
                 st.caption(
-                    "A IA analisa o PAEE e sugere termos de busca. "
-                    "Depois, o professor escolhe onde pesquisar os modelos."
+                    "A IA analisa o PAEE e sugere termos de busca. Depois, o professor escolhe onde pesquisar os modelos."
                 )
 
                 if st.button("Gerar sugestões de busca com IA", key="btn_gerar_termos_3d"):
@@ -1301,9 +1478,9 @@ with tab3:
                         st.success("Sugestões geradas com sucesso.")
 
                 if "termos_3d_sugeridos" in st.session_state:
-                    st.markdown("### Sugestões geradas a partir do PAEE")
+                    st.markdown("#### Sugestões geradas a partir do PAEE")
 
-                    for i, termo in enumerate(st.session_state["termos_3d_sugeridos"]):
+                    for termo in st.session_state["termos_3d_sugeridos"]:
                         col_termo, col_thingiverse, col_printables, col_makerworld = st.columns(
                             [2.5, 1.4, 1.4, 1.4]
                         )
@@ -1312,24 +1489,15 @@ with tab3:
                             st.markdown(f"**{termo}**")
 
                         with col_thingiverse:
-                            st.link_button(
-                                "Thingiverse",
-                                link_busca_thingiverse(termo),
-                            )
+                            st.link_button("Thingiverse", link_busca_thingiverse(termo))
 
                         with col_printables:
-                            st.link_button(
-                                "Printables",
-                                link_busca_printables(termo),
-                            )
+                            st.link_button("Printables", link_busca_printables(termo))
 
                         with col_makerworld:
-                            st.link_button(
-                                "MakerWorld",
-                                link_busca_makerworld(termo),
-                            )
+                            st.link_button("MakerWorld", link_busca_makerworld(termo))
 
-                st.markdown("### Busca manual")
+                st.markdown("#### Busca manual")
                 termo_3d = st.text_input(
                     "Digite outro termo, se desejar",
                     placeholder="Ex.: braille, tactile math, visual schedule",
@@ -1340,282 +1508,310 @@ with tab3:
 
                 with col_thingiverse_manual:
                     if termo_3d.strip():
-                        st.link_button(
-                            "Thingiverse",
-                            link_busca_thingiverse(termo_3d.strip()),
-                        )
+                        st.link_button("Thingiverse", link_busca_thingiverse(termo_3d.strip()))
                     else:
                         st.caption("Digite um termo para buscar no Thingiverse.")
 
                 with col_printables_manual:
                     if termo_3d.strip():
-                        st.link_button(
-                            "Printables",
-                            link_busca_printables(termo_3d.strip()),
-                        )
+                        st.link_button("Printables", link_busca_printables(termo_3d.strip()))
                     else:
                         st.caption("Digite um termo para buscar no Printables.")
 
                 with col_makerworld_manual:
                     if termo_3d.strip():
-                        st.link_button(
-                            "MakerWorld",
-                            link_busca_makerworld(termo_3d.strip()),
-                        )
+                        st.link_button("MakerWorld", link_busca_makerworld(termo_3d.strip()))
                     else:
                         st.caption("Digite um termo para buscar no MakerWorld.")
 
-with tab4:
-    st.header("Registro dos atendimentos")
+
+# ======================================================
+# ATENDIMENTOS
+# ======================================================
+elif menu == "Atendimentos":
+    st.markdown('<div class="subtitulo">📌 Registro dos atendimentos</div>', unsafe_allow_html=True)
     estudantes = listar_estudantes()
 
     if not estudantes:
         st.info("Cadastre um estudante primeiro.")
     else:
-        opcoes = {f"{e[1]} - {e[2]} - {e[4]}": e[0] for e in estudantes}
-        selecionado = st.selectbox("Selecione o estudante", list(opcoes.keys()), key="atendimento_estudante")
-        estudante_id = opcoes[selecionado]
+        ids, mapa = opcoes_estudantes_por_id(estudantes)
+        estudante_id = st.selectbox(
+            "Selecione o estudante",
+            ids,
+            format_func=lambda x: mapa[x],
+            key="atendimento_estudante_id",
+        )
         estudante_info = buscar_estudante(estudante_id)
 
-        with st.form("form_atendimento"):
-            data_atendimento = st.date_input("Data do atendimento", key="at_data")
-            objetivo = st.text_area("Objetivo trabalhado", key="at_objetivo")
-            atividade = st.text_area("Atividade realizada", key="at_atividade")
-            resposta_estudante = st.text_area("Resposta do estudante", key="at_resposta")
-            avancos = st.text_area("Avanços observados", key="at_avancos")
-            dificuldades = st.text_area("Dificuldades observadas", key="at_dificuldades")
-            evolucao = st.text_area("Evolução observada", key="at_evolucao")
-            encaminhamentos = st.text_area("Encaminhamentos", key="at_encaminhamentos")
-            enviar = st.form_submit_button("Salvar atendimento")
+        with st.container(border=True):
+            st.markdown("### Novo atendimento")
 
-            if enviar:
-                salvar_atendimento(
-                    estudante_id,
-                    data_atendimento.strftime("%d/%m/%Y"),
-                    objetivo,
-                    atividade,
-                    resposta_estudante,
-                    avancos,
-                    dificuldades,
-                    evolucao,
-                    encaminhamentos,
-                )
-                st.success("Atendimento registrado com sucesso.")
-                st.rerun()
+            with st.form("form_atendimento"):
+                data_atendimento = st.date_input("Data do atendimento", key="at_data")
+                objetivo = st.text_area("Objetivo trabalhado", key="at_objetivo")
+                atividade = st.text_area("Atividade realizada", key="at_atividade")
+                resposta_estudante = st.text_area("Resposta do estudante", key="at_resposta")
+                avancos = st.text_area("Avanços observados", key="at_avancos")
+                dificuldades = st.text_area("Dificuldades observadas", key="at_dificuldades")
+                evolucao = st.text_area("Evolução observada", key="at_evolucao")
+                encaminhamentos = st.text_area("Encaminhamentos", key="at_encaminhamentos")
+                enviar = st.form_submit_button("Salvar atendimento")
 
-        st.subheader("Histórico de atendimentos")
-        atendimentos = listar_atendimentos_com_id(estudante_id)
-
-        if atendimentos:
-            for item in atendimentos:
-                atendimento_id = item[0]
-                data_hist = item[1]
-                objetivo_hist = item[2]
-                atividade_hist = item[3]
-                resposta_hist = item[4]
-                avancos_hist = item[5]
-                dificuldades_hist = item[6]
-                evolucao_hist = item[7]
-                encaminhamentos_hist = item[8]
-
-                with st.expander(f"Atendimento em {data_hist}"):
-                    st.markdown(f"**Objetivo:** {objetivo_hist or 'Não informado.'}")
-                    st.markdown(f"**Atividade:** {atividade_hist or 'Não informado.'}")
-                    st.markdown(f"**Resposta do estudante:** {resposta_hist or 'Não informado.'}")
-                    st.markdown(f"**Avanços:** {avancos_hist or 'Não informado.'}")
-                    st.markdown(f"**Dificuldades:** {dificuldades_hist or 'Não informado.'}")
-                    st.markdown(f"**Evolução observada:** {evolucao_hist or 'Não informado.'}")
-                    st.markdown(f"**Encaminhamentos:** {encaminhamentos_hist or 'Não informado.'}")
-
-                    texto_atendimento = montar_texto_atendimento(
-                        estudante_info,
-                        data_hist,
-                        objetivo_hist,
-                        atividade_hist,
-                        resposta_hist,
-                        avancos_hist,
-                        dificuldades_hist,
-                        evolucao_hist,
-                        encaminhamentos_hist,
+                if enviar:
+                    salvar_atendimento(
+                        estudante_id,
+                        data_atendimento.strftime("%d/%m/%Y"),
+                        objetivo,
+                        atividade,
+                        resposta_estudante,
+                        avancos,
+                        dificuldades,
+                        evolucao,
+                        encaminhamentos,
                     )
+                    st.success("Atendimento registrado com sucesso.")
+                    st.rerun()
 
-                    col_txt_at, col_pdf_at = st.columns(2)
+        with st.container(border=True):
+            st.markdown("### Histórico de atendimentos")
+            atendimentos = listar_atendimentos_com_id(estudante_id)
 
-                    with col_txt_at:
-                        st.download_button(
-                            "Baixar este atendimento em .txt",
-                            data=texto_atendimento,
-                            file_name=f"Registro_Atendimento_{estudante_info[1]}_{atendimento_id}.txt",
-                            mime="text/plain",
-                            key=f"download_txt_atendimento_{atendimento_id}",
+            if atendimentos:
+                for item in atendimentos:
+                    atendimento_id = item[0]
+                    data_hist = item[1]
+                    objetivo_hist = item[2]
+                    atividade_hist = item[3]
+                    resposta_hist = item[4]
+                    avancos_hist = item[5]
+                    dificuldades_hist = item[6]
+                    evolucao_hist = item[7]
+                    encaminhamentos_hist = item[8]
+
+                    with st.expander(f"Atendimento em {data_hist}"):
+                        st.markdown(f"**Objetivo:** {objetivo_hist or 'Não informado.'}")
+                        st.markdown(f"**Atividade:** {atividade_hist or 'Não informado.'}")
+                        st.markdown(f"**Resposta do estudante:** {resposta_hist or 'Não informado.'}")
+                        st.markdown(f"**Avanços:** {avancos_hist or 'Não informado.'}")
+                        st.markdown(f"**Dificuldades:** {dificuldades_hist or 'Não informado.'}")
+                        st.markdown(f"**Evolução observada:** {evolucao_hist or 'Não informado.'}")
+                        st.markdown(f"**Encaminhamentos:** {encaminhamentos_hist or 'Não informado.'}")
+
+                        texto_atendimento = montar_texto_atendimento(
+                            estudante_info,
+                            data_hist,
+                            objetivo_hist,
+                            atividade_hist,
+                            resposta_hist,
+                            avancos_hist,
+                            dificuldades_hist,
+                            evolucao_hist,
+                            encaminhamentos_hist,
                         )
 
-                    with col_pdf_at:
-                        if st.button("Gerar PDF deste atendimento", key=f"btn_pdf_atendimento_{atendimento_id}"):
-                            arquivo = gerar_pdf_atendimento(
-                                texto_atendimento,
-                                f"{estudante_info[1]}_{atendimento_id}",
+                        col_txt_at, col_pdf_at = st.columns(2)
+
+                        with col_txt_at:
+                            st.download_button(
+                                "Baixar este atendimento em .txt",
+                                data=texto_atendimento,
+                                file_name=f"Registro_Atendimento_{estudante_info[1]}_{atendimento_id}.txt",
+                                mime="text/plain",
+                                key=f"download_txt_atendimento_{atendimento_id}",
                             )
-                            st.session_state[f"arquivo_pdf_atendimento_{atendimento_id}"] = arquivo
 
-                        if f"arquivo_pdf_atendimento_{atendimento_id}" in st.session_state:
-                            with open(st.session_state[f"arquivo_pdf_atendimento_{atendimento_id}"], "rb") as f:
-                                st.download_button(
-                                    "Baixar este atendimento em PDF",
-                                    data=f,
-                                    file_name=f"Registro_Atendimento_{estudante_info[1]}_{atendimento_id}.pdf",
-                                    mime="application/pdf",
-                                    key=f"download_pdf_atendimento_{atendimento_id}",
+                        with col_pdf_at:
+                            if st.button("Gerar PDF deste atendimento", key=f"btn_pdf_atendimento_{atendimento_id}"):
+                                arquivo = gerar_pdf_atendimento(
+                                    texto_atendimento,
+                                    f"{estudante_info[1]}_{atendimento_id}",
                                 )
-        else:
-            st.info("Nenhum atendimento registrado para este estudante.")
+                                st.session_state[f"arquivo_pdf_atendimento_{atendimento_id}"] = arquivo
+
+                            if f"arquivo_pdf_atendimento_{atendimento_id}" in st.session_state:
+                                with open(st.session_state[f"arquivo_pdf_atendimento_{atendimento_id}"], "rb") as f:
+                                    st.download_button(
+                                        "Baixar este atendimento em PDF",
+                                        data=f,
+                                        file_name=f"Registro_Atendimento_{estudante_info[1]}_{atendimento_id}.pdf",
+                                        mime="application/pdf",
+                                        key=f"download_pdf_atendimento_{atendimento_id}",
+                                    )
+            else:
+                st.info("Nenhum atendimento registrado para este estudante.")
 
 
-with tab5:
-    st.header("Relatório de evolução e qualidade do atendimento")
+# ======================================================
+# RELATÓRIO IA
+# ======================================================
+elif menu == "Relatório IA":
+    st.markdown('<div class="subtitulo">📄 Relatório de evolução e qualidade do atendimento</div>', unsafe_allow_html=True)
     estudantes = listar_estudantes()
 
     if not estudantes:
         st.info("Cadastre um estudante primeiro.")
     else:
-        opcoes = {f"{e[1]} - {e[2]} - {e[4]}": e[0] for e in estudantes}
-
-        selecionado = st.selectbox(
+        ids, mapa = opcoes_estudantes_por_id(estudantes)
+        estudante_id = st.selectbox(
             "Selecione o estudante",
-            list(opcoes.keys()),
-            key="relatorio_estudante",
+            ids,
+            format_func=lambda x: mapa[x],
+            key="relatorio_estudante_id",
         )
 
-        estudante_id = opcoes[selecionado]
         estudante = buscar_estudante(estudante_id)
         avaliacao = ultima_avaliacao(estudante_id)
-
         atendimentos = listar_atendimentos(estudante_id)
 
-        if not atendimentos:
-            st.warning("Este estudante ainda não possui atendimentos registrados. O relatório poderá ficar limitado.")
+        with st.container(border=True):
+            if not atendimentos:
+                st.warning("Este estudante ainda não possui atendimentos registrados. O relatório poderá ficar limitado.")
 
-        if st.button("Gerar relatório de evolução", key="btn_relatorio"):
-            with st.spinner("Analisando atendimentos..."):
-                try:
-                    relatorio = gerar_relatorio_evolucao(estudante, avaliacao)
-                    st.session_state["relatorio_evolucao"] = relatorio
-                    st.session_state["relatorio_codigo"] = estudante[1]
-                    st.success("Relatório gerado com sucesso.")
-                except Exception as erro:
-                    st.error(f"Erro ao gerar relatório: {erro}")
+            if st.button("Gerar relatório de evolução", key="btn_relatorio"):
+                with st.spinner("Analisando atendimentos..."):
+                    try:
+                        relatorio = gerar_relatorio_evolucao(estudante, avaliacao)
+                        st.session_state["relatorio_evolucao"] = relatorio
+                        st.session_state["relatorio_codigo"] = estudante[1]
+                        st.success("Relatório gerado com sucesso.")
+                    except Exception as erro:
+                        st.error(f"Erro ao gerar relatório: {erro}")
 
         if "relatorio_evolucao" in st.session_state:
-            relatorio = st.session_state["relatorio_evolucao"]
-            codigo_relatorio = st.session_state.get("relatorio_codigo", estudante[1])
+            with st.container(border=True):
+                relatorio = st.session_state["relatorio_evolucao"]
+                codigo_relatorio = st.session_state.get("relatorio_codigo", estudante[1])
 
-            st.text_area("Relatório", relatorio, height=500, key="txt_relatorio_evolucao")
+                st.text_area("Relatório", relatorio, height=500, key="txt_relatorio_evolucao")
 
-            st.download_button(
-                "Baixar relatório em .txt",
-                data=relatorio,
-                file_name=f"Relatorio_{codigo_relatorio}.txt",
-                mime="text/plain",
-                key="download_txt_relatorio",
-            )
+                col_txt, col_pdf = st.columns(2)
 
-            if st.button("Gerar PDF do relatório", key="btn_pdf_relatorio"):
-                arquivo = gerar_pdf_relatorio(relatorio, codigo_relatorio)
-                st.session_state["arquivo_pdf_relatorio"] = arquivo
-
-            if "arquivo_pdf_relatorio" in st.session_state:
-                with open(st.session_state["arquivo_pdf_relatorio"], "rb") as f:
+                with col_txt:
                     st.download_button(
-                        "Baixar relatório em PDF",
-                        data=f,
-                        file_name=f"Relatorio_{codigo_relatorio}.pdf",
-                        mime="application/pdf",
-                        key="download_pdf_relatorio",
+                        "Baixar relatório em .txt",
+                        data=relatorio,
+                        file_name=f"Relatorio_{codigo_relatorio}.txt",
+                        mime="text/plain",
+                        key="download_txt_relatorio",
                     )
 
-with tab6:
-    st.header("Administração")
-    st.markdown("---")
-    st.markdown("### ✏️ Editar cadastro do estudante")
+                with col_pdf:
+                    if st.button("Gerar PDF do relatório", key="btn_pdf_relatorio"):
+                        arquivo = gerar_pdf_relatorio(relatorio, codigo_relatorio)
+                        st.session_state["arquivo_pdf_relatorio"] = arquivo
 
-estudantes = listar_estudantes()
+                    if "arquivo_pdf_relatorio" in st.session_state:
+                        with open(st.session_state["arquivo_pdf_relatorio"], "rb") as f:
+                            st.download_button(
+                                "Baixar relatório em PDF",
+                                data=f,
+                                file_name=f"Relatorio_{codigo_relatorio}.pdf",
+                                mime="application/pdf",
+                                key="download_pdf_relatorio",
+                            )
 
-if estudantes:
-    ids_estudantes = [e[0] for e in estudantes]
 
-    mapa_estudantes = {
-        e[0]: f"{e[1]} - {e[2]} - {e[4]}"
-        for e in estudantes
-    }
+# ======================================================
+# ADMINISTRAÇÃO
+# ======================================================
+elif menu == "Administração":
+    st.markdown('<div class="subtitulo">⚙️ Administração</div>', unsafe_allow_html=True)
 
-    estudante_id_editar = st.selectbox(
-        "Selecione o estudante para editar",
-        ids_estudantes,
-        format_func=lambda x: mapa_estudantes[x],
-        key="editar_estudante_id",
-    )
+    estudantes = listar_estudantes()
 
-    estudante_editar = buscar_estudante(estudante_id_editar)
+    if estudantes:
+        ids, mapa = opcoes_estudantes_por_id(estudantes)
 
-    if estudante_editar:
-        perfil_atual = estudante_editar[4] if estudante_editar[4] in PERFIS else "Não informado"
-
-        with st.form(f"form_editar_estudante_{estudante_id_editar}"):
-            col1, col2 = st.columns(2)
-
-            with col1:
-                codigo_edit = st.text_input("Código interno", value=estudante_editar[1] or "")
-                ano_edit = st.text_input("Ano/Série", value=estudante_editar[2] or "")
-
-            with col2:
-                turma_edit = st.text_input("Turma", value=estudante_editar[3] or "")
-                perfil_edit = st.selectbox(
-                    "Perfil educacional",
-                    PERFIS,
-                    index=PERFIS.index(perfil_atual),
-                )
-
-            observacoes_edit = st.text_area(
-                "Observações pedagógicas iniciais",
-                value=estudante_editar[5] or "",
-            )
-
-            atualizar = st.form_submit_button("💾 Atualizar cadastro")
-
-            if atualizar:
-                if not codigo_edit.strip():
-                    st.error("O código interno não pode ficar vazio.")
-                else:
-                    try:
-                        atualizar_estudante(
-                            estudante_id_editar,
-                            codigo_edit.strip(),
-                            ano_edit,
-                            turma_edit,
-                            perfil_edit,
-                            observacoes_edit,
-                        )
-                        st.success("Cadastro atualizado com sucesso.")
-                        st.rerun()
-                    except sqlite3.IntegrityError:
-                        st.error("Este código interno já está sendo usado por outro estudante.")
-
-        st.markdown("---")
-        st.markdown("### 🗑️ Excluir estudante")
-
-        confirmar = st.checkbox(
-            "Confirmar exclusão do estudante selecionado",
-            key=f"confirmar_exclusao_estudante_{estudante_id_editar}",
+        estudante_id_editar = st.selectbox(
+            "Selecione o estudante para editar",
+            ids,
+            format_func=lambda x: mapa[x],
+            key="editar_estudante_id",
         )
 
-        if st.button("Excluir estudante", key=f"btn_excluir_estudante_{estudante_id_editar}"):
-            if confirmar:
-                excluir_estudante(estudante_id_editar)
-                st.success("Estudante excluído com sucesso.")
-                st.rerun()
-            else:
-                st.warning("Marque a confirmação antes de excluir.")
+        estudante_editar = buscar_estudante(estudante_id_editar)
 
-else:
-    st.info("Nenhum estudante cadastrado ainda.")
+        if estudante_editar:
+            perfil_atual = estudante_editar[4] if estudante_editar[4] in PERFIS else "Não informado"
 
+            col_edit, col_delete = st.columns([1.4, 0.8])
+
+            with col_edit:
+                with st.container(border=True):
+                    st.markdown("### ✏️ Editar cadastro do estudante")
+
+                    with st.form(f"form_editar_estudante_{estudante_id_editar}"):
+                        col1, col2 = st.columns(2)
+
+                        with col1:
+                            codigo_edit = st.text_input(
+                                "Código interno",
+                                value=estudante_editar[1] or "",
+                                key=f"edit_codigo_{estudante_id_editar}",
+                            )
+                            ano_edit = st.text_input(
+                                "Ano/Série",
+                                value=estudante_editar[2] or "",
+                                key=f"edit_ano_{estudante_id_editar}",
+                            )
+
+                        with col2:
+                            turma_edit = st.text_input(
+                                "Turma",
+                                value=estudante_editar[3] or "",
+                                key=f"edit_turma_{estudante_id_editar}",
+                            )
+                            perfil_edit = st.selectbox(
+                                "Perfil educacional",
+                                PERFIS,
+                                index=PERFIS.index(perfil_atual),
+                                key=f"edit_perfil_{estudante_id_editar}",
+                            )
+
+                        observacoes_edit = st.text_area(
+                            "Observações pedagógicas iniciais",
+                            value=estudante_editar[5] or "",
+                            key=f"edit_observacoes_{estudante_id_editar}",
+                        )
+
+                        atualizar = st.form_submit_button("💾 Atualizar cadastro")
+
+                        if atualizar:
+                            if not codigo_edit.strip():
+                                st.error("O código interno não pode ficar vazio.")
+                            else:
+                                try:
+                                    atualizar_estudante(
+                                        estudante_id_editar,
+                                        codigo_edit.strip(),
+                                        ano_edit,
+                                        turma_edit,
+                                        perfil_edit,
+                                        observacoes_edit,
+                                    )
+                                    st.success("Cadastro atualizado com sucesso.")
+                                    st.rerun()
+                                except sqlite3.IntegrityError:
+                                    st.error("Este código interno já está sendo usado por outro estudante.")
+
+            with col_delete:
+                with st.container(border=True):
+                    st.markdown("### 🗑️ Excluir estudante")
+                    st.warning("A exclusão remove cadastro, avaliações, PAEE e atendimentos vinculados ao estudante.")
+
+                    confirmar = st.checkbox(
+                        "Confirmar exclusão do estudante selecionado",
+                        key=f"confirmar_exclusao_estudante_{estudante_id_editar}",
+                    )
+
+                    if st.button("Excluir estudante", key=f"btn_excluir_estudante_{estudante_id_editar}"):
+                        if confirmar:
+                            excluir_estudante(estudante_id_editar)
+                            st.success("Estudante excluído com sucesso.")
+                            st.rerun()
+                        else:
+                            st.warning("Marque a confirmação antes de excluir.")
+
+    else:
+        st.info("Nenhum estudante cadastrado ainda.")
