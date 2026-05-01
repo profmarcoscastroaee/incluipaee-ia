@@ -2040,48 +2040,288 @@ Engajamento: {a[11] if len(a) > 11 else 'Não informado.'}/10
     return "\n---\n".join(partes)
 
 
-def gerar_estudo_caso_com_ia(estudante, avaliacao, entrevista):
-    api_key = obter_api_key()
-    if OpenAI is None or not api_key:
-        return """
-IA não configurada. Preencha manualmente os campos do Estudo de Caso.
+
+def gerar_paee_sem_ia(estudante, avaliacao=None, entrevista=None, estudo=None):
+    codigo = estudante[1]
+    ano_serie = estudante[2] or "Não informado."
+    turma = estudante[3] or "Não informado."
+    perfil = estudante[4] or "Não informado."
+    observacoes = estudante[5] or "Não informado."
+
+    if avaliacao:
+        avaliacao_txt = texto_avaliacao(estudante, ("", *avaliacao))
+    else:
+        avaliacao_txt = "Nenhuma avaliação pedagógica registrada."
+
+    if entrevista:
+        entrevista_txt = texto_entrevista(estudante, ("", *entrevista))
+    else:
+        entrevista_txt = "Nenhuma entrevista com a família registrada."
+
+    if estudo:
+        estudo_txt = texto_estudo_caso(estudante, ("", *estudo))
+    else:
+        estudo_txt = "Nenhum estudo de caso GRE registrado."
+
+    historico_txt = listar_atendimentos_texto(estudante[0])
+
+    return f"""
+PLANO AEE / PAEE - SUGESTÃO PEDAGÓGICA SEM IA
+
+1. Identificação segura do estudante
+Código interno: {codigo}
+Ano/Série: {ano_serie}
+Turma: {turma}
+Perfil educacional informado: {perfil}
+
+Campos sensíveis para preenchimento manual no Word/PDF:
+Nome completo do(a) estudante: ___________________________________________
+CPF/RG do(a) estudante: _________________________________________________
+Data de nascimento: ____/____/________
+Nome do responsável: _________________________________________________
+CPF/RG do responsável: _______________________________________________
+Telefone: ___________________________________________________________
+Endereço: ___________________________________________________________
+
+2. Caracterização pedagógica inicial
+{observacoes}
+
+3. Base documental utilizada
+3.1 Avaliação pedagógica
+{avaliacao_txt}
+
+3.2 Entrevista com a família
+{entrevista_txt}
+
+3.3 Estudo de caso GRE
+{estudo_txt}
+
+4. Barreiras e necessidades educacionais específicas
+- Organizar as informações da entrevista, avaliação e estudo de caso para identificar barreiras de comunicação, interação, autonomia, aprendizagem, acesso curricular e participação.
+- Evitar qualquer inferência diagnóstica não registrada.
+- Considerar recursos de acessibilidade, tecnologia assistiva e adaptações pedagógicas conforme resposta do estudante.
+
+5. Objetivos gerais do AEE
+- Ampliar as condições de acesso, participação e aprendizagem do estudante nas atividades escolares.
+- Desenvolver estratégias que favoreçam comunicação, autonomia, interação social e organização da rotina escolar.
+- Utilizar recursos pedagógicos acessíveis, materiais concretos, tecnologias educacionais inclusivas e propostas maker quando pertinentes.
+
+6. Objetivos específicos
+- Fortalecer habilidades prioritárias observadas no estudo de caso.
+- Reduzir barreiras identificadas na avaliação pedagógica e nos registros de atendimento.
+- Apoiar o uso de recursos visuais, táteis, manipuláveis, digitais e de comunicação alternativa quando necessário.
+- Acompanhar a evolução do estudante por meio de registros sistemáticos.
+
+7. Estratégias pedagógicas sugeridas
+- Utilizar rotina visual, instruções objetivas e antecipação das atividades.
+- Propor atividades com materiais concretos, jogos pedagógicos, recursos visuais, recursos táteis e tecnologias digitais.
+- Articular as ações do AEE com professores do ensino comum e família.
+- Registrar avanços, dificuldades, engajamento, autonomia e resposta às estratégias em cada atendimento.
+
+8. Sugestões de tecnologias educacionais inclusivas
+- Impressão 3D: letras, números, mapas táteis, peças de associação, jogos de encaixe, pranchas adaptadas e recursos manipuláveis.
+- Robótica educacional: sequências lógicas, comandos simples, causa e efeito, organização espacial e resolução de problemas.
+- Jogos digitais: atividades de atenção, memória, comunicação, raciocínio lógico e reforço de habilidades curriculares.
+- Recursos maker: construção de materiais personalizados, placas, cartões, roletas, jogos de pareamento e recursos sensoriais.
+- Comunicação alternativa e aumentativa: pranchas visuais, cartões de escolha, pictogramas e rotinas estruturadas.
+
+9. Atividades plugadas sugeridas
+- Jogos digitais educativos adaptados ao perfil do estudante.
+- Uso orientado de tablet/computador com recursos visuais e auditivos.
+- Atividades com Scratch, Construct ou jogos simples para trabalhar sequência, escolha, atenção e resposta.
+- Robótica com comandos básicos, sensores simples e atividades de causa e efeito.
+
+10. Atividades desplugadas sugeridas
+- Sequências com cartões de rotina e organização temporal.
+- Pareamento de figuras, objetos, letras, números, formas e cores.
+- Trilhas pedagógicas, jogos de memória, dominós adaptados e bingo de imagens/palavras.
+- Atividades sensoriais com texturas, objetos 3D, encaixes, blocos, massinha, peças táteis e materiais concretos.
+- Jogos de comandos corporais, lateralidade, atenção compartilhada e imitação.
+- Contação de histórias com cartões visuais, personagens concretos e recontagem orientada.
+
+11. Organização do atendimento
+- Definir frequência, duração, formato e objetivos de cada ciclo de atendimento conforme necessidade pedagógica.
+- Registrar cada atendimento no sistema para análise de evolução.
+
+12. Avaliação e acompanhamento
+Histórico de atendimentos registrado:
+{historico_txt}
+
+- Revisar o plano periodicamente com base nos registros reais.
+- Se os registros ainda forem limitados, ampliar o acompanhamento antes de conclusões evolutivas.
+
+13. Responsável pelo AEE
+Nome: ___________________________________________
+Função: Professor(a) do Atendimento Educacional Especializado (AEE)
+Assinatura: _______________________________________
+
+14. Coordenação pedagógica
+Nome: ___________________________________________
+Cargo: Coordenação Pedagógica
+Assinatura: _______________________________________
+
+15. Data de elaboração: ____/____/________
 """.strip()
 
-    prompt = f"""
-Você é especialista em Atendimento Educacional Especializado (AEE).
-Elabore um Estudo de Caso em linguagem formal, pedagógica e objetiva.
-Use apenas código interno, nunca nome real.
 
-DADOS DO ESTUDANTE:
-Código: {estudante[1]}
+def gerar_paee_com_ia(estudante, avaliacao=None, entrevista=None, estudo=None):
+    api_key = obter_api_key()
+
+    if OpenAI is None or not api_key:
+        return gerar_paee_sem_ia(estudante, avaliacao, entrevista, estudo)
+
+    historico_txt = listar_atendimentos_texto(estudante[0])
+
+    estudante_txt = f"""
+Código interno: {estudante[1]}
 Ano/Série: {estudante[2]}
 Turma: {estudante[3]}
-Perfil: {estudante[4]}
-Observações: {estudante[5]}
+Turno: {estudante[6]}
+Perfil educacional informado: {estudante[4]}
+Observações pedagógicas iniciais: {estudante[5]}
+Dias de atendimento preferenciais: {estudante[7]}
+Horário preferencial: {estudante[8]}
+"""
 
-AVALIAÇÃO PEDAGÓGICA:
-{avaliacao or 'Sem avaliação registrada.'}
+    avaliacao_txt = texto_avaliacao(estudante, ("", *avaliacao)) if avaliacao else "Nenhuma avaliação pedagógica registrada."
+    entrevista_txt = texto_entrevista(estudante, ("", *entrevista)) if entrevista else "Nenhuma entrevista com a família registrada."
+    estudo_txt = texto_estudo_caso(estudante, ("", *estudo)) if estudo else "Nenhum estudo de caso GRE registrado."
+
+    prompt = f"""
+Você é um assistente pedagógico especializado em Atendimento Educacional Especializado (AEE), Educação Inclusiva, Sala de Recursos Multifuncionais (SRM), tecnologias educacionais inclusivas e elaboração de Plano AEE/PAEE.
+
+TAREFA:
+Elabore uma sugestão de Plano AEE/PAEE com linguagem formal, técnica, objetiva e pedagógica, cruzando as informações do cadastro, entrevista com a família, avaliação pedagógica, estudo de caso GRE e histórico de atendimentos.
+
+REGRAS DE SEGURANÇA E PRIVACIDADE:
+- Não usar nome real de estudante.
+- Usar somente “Código interno” para identificar o estudante.
+- Não solicitar CPF, RG, endereço, telefone ou dados sensíveis.
+- Quando necessário, deixar campos sensíveis em branco para preenchimento manual no Word/PDF.
+- Não inventar diagnóstico.
+- Não criar condutas médicas.
+- Não afirmar evolução não registrada.
+
+REGRA SOBRE TEA SEM NÍVEL:
+Se o perfil educacional for TEA e o nível de suporte não estiver informado, adotar provisoriamente estratégias compatíveis com suporte moderado, sem afirmar diagnóstico clínico.
+
+REGRA CRÍTICA SOBRE ATENDIMENTOS:
+A análise da evolução deve ser baseada exclusivamente nos dados reais do histórico de atendimentos. Se os registros forem insuficientes, escrever: “Os registros de atendimento ainda são limitados para uma análise evolutiva consistente, sendo necessário ampliar o acompanhamento pedagógico.”
+
+DADOS DO ESTUDANTE:
+{estudante_txt}
 
 ENTREVISTA COM A FAMÍLIA:
-{entrevista or 'Sem entrevista registrada.'}
+{entrevista_txt}
 
-Estruture com:
-1. Identificação
-2. Contextualização
-3. Queixa principal / motivo do acompanhamento
-4. Potencialidades
-5. Dificuldades observadas
-6. Estratégias pedagógicas
-7. Intervenções sugeridas
-8. Avaliação
-9. Considerações finais
+AVALIAÇÃO PEDAGÓGICA:
+{avaliacao_txt}
 
-Não invente diagnóstico. Não faça prescrição médica.
+ESTUDO DE CASO GRE:
+{estudo_txt}
+
+HISTÓRICO DE ATENDIMENTOS:
+{historico_txt}
+
+ESTRUTURE O DOCUMENTO COM:
+1. Identificação segura do estudante
+2. Campos sensíveis para preenchimento manual no Word/PDF
+3. Caracterização pedagógica
+4. Síntese da entrevista com a família
+5. Síntese da avaliação pedagógica
+6. Síntese do estudo de caso GRE
+7. Necessidades educacionais específicas
+8. Barreiras identificadas
+9. Potencialidades
+10. Objetivos gerais do AEE
+11. Objetivos específicos do AEE
+12. Estratégias pedagógicas
+13. Recursos de acessibilidade e tecnologias assistivas
+14. Sugestões de tecnologias educacionais inclusivas
+    - impressão 3D
+    - robótica educacional
+    - jogos digitais
+    - recursos maker
+    - comunicação alternativa e aumentativa
+    - materiais táteis, visuais e manipuláveis
+15. Atividades plugadas sugeridas
+16. Atividades desplugadas sugeridas
+17. Como aplicar as atividades no atendimento da SRM
+18. Organização do atendimento
+19. Articulação com família, professores e gestão
+20. Avaliação e acompanhamento
+21. Evolução do estudante com base nos atendimentos
+22. Recomendações para revisão do plano
+23. Responsável pelo AEE:
+Nome: ___________________________________________
+Função: Professor(a) do Atendimento Educacional Especializado (AEE)
+Assinatura: _______________________________________
+24. Coordenação pedagógica:
+Nome: ___________________________________________
+Cargo: Coordenação Pedagógica
+Assinatura: _______________________________________
+25. Data de elaboração: ____/____/________
+
+Na seção de atividades desplugadas, inclua sugestões concretas e aplicáveis sem computador, como cartões de rotina, pareamento, sequência lógica, jogos de memória, materiais táteis, objetos 3D, trilhas pedagógicas, contação de histórias com apoio visual, atividades de atenção compartilhada e recursos manipuláveis.
 """
+
     client = OpenAI(api_key=api_key)
-    resposta = client.responses.create(model="gpt-4.1-mini", input=prompt)
+    resposta = client.responses.create(
+        model="gpt-4.1-mini",
+        input=prompt,
+    )
     return resposta.output_text
 
+
+def gerar_relatorio_evolucao(estudante, avaliacao=None):
+    api_key = obter_api_key()
+
+    if OpenAI is None or not api_key:
+        return "IA não configurada."
+
+    historico_txt = listar_atendimentos_texto(estudante[0])
+
+    estudante_txt = f"""
+Código interno: {estudante[1]}
+Ano/Série: {estudante[2]}
+Turma: {estudante[3]}
+Perfil educacional: {estudante[4]}
+"""
+
+    prompt = f"""
+Você é um especialista em Educação Inclusiva e AEE.
+
+Analise o histórico de atendimentos e produza um RELATÓRIO PEDAGÓGICO ANALÍTICO.
+
+DADOS DO ESTUDANTE:
+{estudante_txt}
+
+HISTÓRICO DE ATENDIMENTOS:
+{historico_txt}
+
+REGRAS IMPORTANTES:
+- NÃO inventar informações.
+- Usar somente dados reais.
+- Se os dados forem fracos, dizer claramente.
+
+ESTRUTURA DO RELATÓRIO:
+1. Síntese da evolução do estudante
+2. Análise dos avanços
+3. Análise das dificuldades
+4. Qualidade dos registros pedagógicos
+Classificar como: Alta, Média ou Baixa.
+5. Principais problemas identificados nos registros
+6. Recomendações para melhoria dos registros
+7. Recomendações pedagógicas para o AEE
+8. Conclusão técnica
+"""
+
+    client = OpenAI(api_key=api_key)
+    resposta = client.responses.create(
+        model="gpt-4.1-mini",
+        input=prompt,
+    )
+    return resposta.output_text
 
 def gerar_relatorio_gre_texto(estudante):
     avaliacao = ultima_avaliacao(estudante[0])
@@ -2857,17 +3097,6 @@ elif menu == "Estudo de Caso":
         professor_resp = buscar_professor_responsavel()
 
         with st.container(border=True):
-            st.markdown("### Gerar sugestão de estudo de caso com IA")
-            if st.button("Gerar sugestão com IA", key="btn_ia_estudo"):
-                avaliacao = ultima_avaliacao(estudante_id)
-                entrevista = ultima_linha("entrevistas_familia", CAMPOS_ENTREVISTA_FAMILIA, estudante_id)
-                with st.spinner("Gerando sugestão..."):
-                    st.session_state["sugestao_estudo"] = gerar_estudo_caso_com_ia(estudante, avaliacao, entrevista)
-
-            if "sugestao_estudo" in st.session_state:
-                st.text_area("Sugestão gerada", st.session_state["sugestao_estudo"], height=350)
-
-        with st.container(border=True):
             st.markdown("### Novo Estudo de Caso - Campos obrigatórios GRE")
             with st.form("form_estudo_gre"):
                 aba1, aba2, aba3, aba4 = st.tabs([
@@ -3058,7 +3287,62 @@ elif menu == "Plano AEE / PAEE":
         estudante = buscar_estudante(estudante_id)
 
         with st.container(border=True):
-            st.markdown("### Novo plano")
+            st.markdown("### 🤖 AEE IA - Gerar sugestão de Plano AEE / PAEE")
+            st.caption("A IA cruza cadastro, entrevista com a família, avaliação pedagógica, estudo de caso GRE e atendimentos. O texto gerado inclui sugestões de tecnologias inclusivas, atividades plugadas e atividades desplugadas. Dados sensíveis ficam em branco para preenchimento manual no Word/PDF.")
+
+            col_ia1, col_ia2 = st.columns([1, 1])
+            with col_ia1:
+                gerar_ai = st.button("Gerar sugestão AEE IA", key=f"btn_aee_ia_{estudante_id}")
+            with col_ia2:
+                limpar_ai = st.button("Limpar sugestão", key=f"btn_limpar_aee_ia_{estudante_id}")
+
+            if limpar_ai:
+                st.session_state.pop(f"paee_ia_texto_{estudante_id}", None)
+                st.rerun()
+
+            if gerar_ai:
+                avaliacao_ia = ultima_avaliacao(estudante_id)
+                entrevista_ia = ultima_linha("entrevistas_familia", CAMPOS_ENTREVISTA_FAMILIA, estudante_id)
+                estudo_ia = ultima_linha("estudos_caso", CAMPOS_ESTUDO_CASO, estudante_id)
+
+                if not avaliacao_ia:
+                    st.warning("Ainda não há avaliação pedagógica registrada. A sugestão será gerada com dados limitados.")
+                if not entrevista_ia:
+                    st.warning("Ainda não há entrevista com a família registrada. A sugestão será gerada com dados limitados.")
+                if not estudo_ia:
+                    st.warning("Ainda não há estudo de caso GRE registrado. A sugestão será gerada com dados limitados.")
+
+                with st.spinner("Gerando Plano AEE / PAEE com AEE IA..."):
+                    st.session_state[f"paee_ia_texto_{estudante_id}"] = gerar_paee_com_ia(
+                        estudante,
+                        avaliacao_ia,
+                        entrevista_ia,
+                        estudo_ia,
+                    )
+
+            if f"paee_ia_texto_{estudante_id}" in st.session_state:
+                texto_ia = st.text_area(
+                    "Sugestão gerada pela AEE IA",
+                    st.session_state[f"paee_ia_texto_{estudante_id}"],
+                    height=520,
+                    key=f"texto_paee_ia_{estudante_id}",
+                )
+
+                col_exp1, col_exp2 = st.columns([1, 1])
+                with col_exp1:
+                    export_buttons(texto_ia, f"PAEE_AEE_IA_{estudante[1]}", tipo_pdf="plano")
+                with col_exp2:
+                    if st.button("Salvar sugestão AEE IA no histórico", key=f"salvar_paee_ia_{estudante_id}"):
+                        inserir_registro(
+                            "paees",
+                            ["estudante_id", "data_geracao", "conteudo"],
+                            [estudante_id, hoje_str(), texto_ia],
+                        )
+                        st.success("Sugestão AEE IA salva no histórico de PAEE.")
+                        st.rerun()
+
+        with st.container(border=True):
+            st.markdown("### Novo plano manual")
             with st.form("form_plano"):
                 objetivos_gerais = st.text_area("Objetivos gerais")
                 objetivos_especificos = st.text_area("Objetivos específicos")
@@ -3084,7 +3368,7 @@ elif menu == "Plano AEE / PAEE":
             estudante_id,
         )
         with st.container(border=True):
-            st.markdown("### Histórico de planos")
+            st.markdown("### Histórico de planos manuais")
             if planos:
                 for p in planos:
                     with st.expander(f"Plano em {p[1]}"):
@@ -3096,7 +3380,23 @@ elif menu == "Plano AEE / PAEE":
                             st.success("Plano excluído.")
                             st.rerun()
             else:
-                st.info("Nenhum plano registrado.")
+                st.info("Nenhum plano manual registrado.")
+
+        paees_ia = listar_por_estudante("paees", ["data_geracao", "conteudo"], estudante_id)
+        with st.container(border=True):
+            st.markdown("### Histórico de sugestões AEE IA")
+            if paees_ia:
+                for paee in paees_ia:
+                    with st.expander(f"Sugestão AEE IA em {paee[1]}"):
+                        texto_paee = paee[2] or ""
+                        st.text_area("Conteúdo salvo", texto_paee, height=420, key=f"paee_ia_hist_{paee[0]}")
+                        export_buttons(texto_paee, f"PAEE_AEE_IA_{estudante[1]}_{paee[0]}", tipo_pdf="plano")
+                        if st.button("Excluir sugestão AEE IA", key=f"exc_paee_ia_{paee[0]}"):
+                            excluir_registro("paees", paee[0])
+                            st.success("Sugestão AEE IA excluída.")
+                            st.rerun()
+            else:
+                st.info("Nenhuma sugestão AEE IA salva.")
 
 
 # ======================================================
