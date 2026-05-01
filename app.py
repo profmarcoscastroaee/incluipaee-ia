@@ -51,11 +51,15 @@ section[data-testid="stSidebar"] hr {
 }
 
 .sidebar-logo-card {
-    background: #ffffff;
-    border-radius: 18px;
-    padding: 12px;
-    margin: 4px 0 18px 0;
-    box-shadow: 0 12px 30px rgba(0,0,0,0.25);
+    background: transparent;
+    border-radius: 0;
+    padding: 0;
+    margin: 4px 0 14px 0;
+    box-shadow: none;
+}
+
+.sidebar-logo-card img {
+    border-radius: 14px;
 }
 
 .sidebar-title {
@@ -807,7 +811,7 @@ def montar_dataframe_evolucao(atendimentos):
             "Resposta do estudante": nivel_resposta,
             "Avanço pedagógico": nivel_avanco,
             "Nível de dificuldade": nivel_dificuldade,
-            "Dificuldade invertida": 11 - nivel_dificuldade,
+            "Dificuldade invertida": max(1, min(10, 11 - nivel_dificuldade)),
             "Engajamento": nivel_engajamento,
             "Índice geral de evolução": indice_geral,
             "Interpretação": interpretar_indice(indice_geral),
@@ -1534,12 +1538,6 @@ with st.sidebar:
             unsafe_allow_html=True,
         )
 
-    st.markdown('<div class="sidebar-title">INCLUISRM</div>', unsafe_allow_html=True)
-    st.markdown(
-        '<div class="sidebar-subtitle">Sistema de Gestão do Atendimento Educacional Especializado</div>',
-        unsafe_allow_html=True,
-    )
-
     st.markdown("---")
 
     menu = st.radio(
@@ -2200,54 +2198,93 @@ elif menu == "Relatório IA":
             with st.container(border=True):
                 st.markdown("### 📊 Indicadores por atendimento")
                 st.caption(
-                    "Cada data apresenta barras agrupadas com os indicadores registrados no atendimento. "
-                    "A escala vai de 1 a 10. A dificuldade é exibida para identificar barreiras, mas não deve ser lida como evolução positiva."
+                    "Gráfico em barras agrupadas por atendimento. Cada grupo representa uma data/registro, "
+                    "e cada barra apresenta um indicador em escala de 1 a 10. A barra de dificuldade representa barreira observada, não evolução positiva."
                 )
 
-                media_resposta = df_evolucao["Resposta do estudante"].mean()
-                media_avanco = df_evolucao["Avanço pedagógico"].mean()
-                media_dificuldade = df_evolucao["Nível de dificuldade"].mean()
-                media_engajamento = df_evolucao["Engajamento"].mean()
+                df_evolucao = df_evolucao.copy()
+                df_evolucao["Ordem"] = range(1, len(df_evolucao) + 1)
+                contagem_datas = df_evolucao.groupby("Data").cumcount() + 1
+                repetidas = df_evolucao["Data"].duplicated(keep=False)
+                df_evolucao["Atendimento"] = df_evolucao["Data"]
+                df_evolucao.loc[repetidas, "Atendimento"] = (
+                    df_evolucao.loc[repetidas, "Data"] + " #" + contagem_datas.loc[repetidas].astype(str)
+                )
+
+                indicadores_base = [
+                    "Resposta do estudante",
+                    "Avanço pedagógico",
+                    "Nível de dificuldade",
+                    "Engajamento",
+                    "Índice geral de evolução",
+                ]
+                indicadores_base = [c for c in indicadores_base if c in df_evolucao.columns]
+
+                # Garante que nenhum valor do gráfico ultrapasse a escala pedagógica 1 a 10.
+                for coluna in indicadores_base:
+                    df_evolucao[coluna] = pd.to_numeric(df_evolucao[coluna], errors="coerce").fillna(5).clip(1, 10)
+
+                media_resposta = df_evolucao["Resposta do estudante"].mean() if "Resposta do estudante" in df_evolucao else 0
+                media_avanco = df_evolucao["Avanço pedagógico"].mean() if "Avanço pedagógico" in df_evolucao else 0
+                media_dificuldade = df_evolucao["Nível de dificuldade"].mean() if "Nível de dificuldade" in df_evolucao else 0
+                media_engajamento = df_evolucao["Engajamento"].mean() if "Engajamento" in df_evolucao else 0
+                media_indice = df_evolucao["Índice geral de evolução"].mean() if "Índice geral de evolução" in df_evolucao else 0
 
                 col1, col2, col3, col4, col5 = st.columns(5)
                 col1.metric("Atendimentos", len(df_evolucao))
                 col2.metric("Média resposta", f"{media_resposta:.1f}/10")
                 col3.metric("Média avanço", f"{media_avanco:.1f}/10")
-                col4.metric("Média dificuldade", f"{media_dificuldade:.1f}/10")
-                col5.metric("Média engajamento", f"{media_engajamento:.1f}/10")
+                col4.metric("Média barreira", f"{media_dificuldade:.1f}/10")
+                col5.metric("Índice geral", f"{media_indice:.1f}/10")
 
-                indicadores = [
-                    "Resposta do estudante",
-                    "Avanço pedagógico",
-                    "Nível de dificuldade",
-                    "Engajamento",
-                ]
+                nomes_indicadores = {
+                    "Resposta do estudante": "Resposta do estudante",
+                    "Avanço pedagógico": "Avanço pedagógico",
+                    "Nível de dificuldade": "Barreira/Dificuldade",
+                    "Engajamento": "Engajamento",
+                    "Índice geral de evolução": "Índice geral",
+                }
 
-                # Inclui a evolução geral apenas se existir na base de dados.
-                if "Índice geral de evolução" in df_evolucao.columns:
-                    df_evolucao = df_evolucao.rename(columns={"Índice geral de evolução": "Evolução geral"})
-                    indicadores.append("Evolução geral")
-
-                df_indicadores = df_evolucao[["Data"] + indicadores].melt(
-                    id_vars="Data",
-                    value_vars=indicadores,
-                    var_name="Indicador",
+                df_indicadores = df_evolucao[["Atendimento", "Data", "Ordem"] + indicadores_base].melt(
+                    id_vars=["Atendimento", "Data", "Ordem"],
+                    value_vars=indicadores_base,
+                    var_name="Indicador original",
                     value_name="Pontuação",
                 )
+                df_indicadores["Indicador"] = df_indicadores["Indicador original"].map(nomes_indicadores)
+                ordem_atendimentos = df_evolucao.sort_values("Ordem")["Atendimento"].tolist()
 
                 grafico_indicadores = (
                     alt.Chart(df_indicadores)
-                    .mark_bar()
+                    .mark_bar(cornerRadiusTopLeft=4, cornerRadiusTopRight=4)
                     .encode(
-                        x=alt.X("Data:N", title="Data do atendimento", sort=None),
+                        x=alt.X(
+                            "Atendimento:N",
+                            title="Atendimento / data",
+                            sort=ordem_atendimentos,
+                            axis=alt.Axis(labelAngle=-35),
+                        ),
                         xOffset=alt.XOffset("Indicador:N"),
-                        y=alt.Y("Pontuação:Q", title="Pontuação", scale=alt.Scale(domain=[0, 10])),
+                        y=alt.Y(
+                            "Pontuação:Q",
+                            title="Pontuação (1 a 10)",
+                            scale=alt.Scale(domain=[0, 10]),
+                        ),
                         color=alt.Color("Indicador:N", title="Indicador"),
-                        tooltip=["Data:N", "Indicador:N", alt.Tooltip("Pontuação:Q", format=".1f")],
+                        tooltip=[
+                            alt.Tooltip("Data:N", title="Data"),
+                            alt.Tooltip("Indicador:N", title="Indicador"),
+                            alt.Tooltip("Pontuação:Q", title="Pontuação", format=".1f"),
+                        ],
                     )
-                    .properties(height=420)
+                    .properties(height=430)
                 )
                 st.altair_chart(grafico_indicadores, use_container_width=True)
+
+                st.info(
+                    "Leitura do gráfico: resposta, avanço, engajamento e índice geral indicam evolução. "
+                    "A barra de barreira/dificuldade indica intensidade da dificuldade observada no atendimento."
+                )
 
                 with st.expander("Ver dados usados no gráfico"):
                     colunas_tabela = [
@@ -2256,10 +2293,7 @@ elif menu == "Relatório IA":
                         "Avanço pedagógico",
                         "Nível de dificuldade",
                         "Engajamento",
-                    ]
-                    if "Evolução geral" in df_evolucao.columns:
-                        colunas_tabela.append("Evolução geral")
-                    colunas_tabela += [
+                        "Índice geral de evolução",
                         "Interpretação",
                         "Avanços",
                         "Dificuldades observadas",
