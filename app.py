@@ -1,7 +1,7 @@
+
 import os
-import requests
 import sqlite3
-from datetime import datetime
+from datetime import datetime, date, time
 from pathlib import Path
 from html import escape
 
@@ -9,6 +9,15 @@ import streamlit as st
 import pandas as pd
 import altair as alt
 
+try:
+    from openai import OpenAI
+except Exception:
+    OpenAI = None
+
+
+# ======================================================
+# CONFIGURAÇÕES GERAIS
+# ======================================================
 st.set_page_config(
     page_title="INCLUISRM",
     page_icon="📊",
@@ -16,18 +25,27 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-st.markdown("""
+DB_PATH = Path("inclui_paee.db")
+LOGO_PATH = "logosrm.png"
+
+APP_NAME = "INCLUISRM"
+APP_SUBTITLE = "Sistema de Gestão do Atendimento Educacional Especializado"
+
+
+# ======================================================
+# CSS / LAYOUT PROFISSIONAL
+# ======================================================
+st.markdown(
+    """
 <style>
 /* =============================
    INCLUISRM - Layout profissional
    ============================= */
 
-/* Fundo geral */
 .stApp {
     background: linear-gradient(180deg, #f7f9fc 0%, #eef3f9 100%);
 }
 
-/* Área central */
 .block-container {
     padding-top: 2.2rem;
     padding-bottom: 2.5rem;
@@ -47,15 +65,19 @@ section[data-testid="stSidebar"] * {
 }
 
 section[data-testid="stSidebar"] hr {
-    border-color: rgba(255,255,255,0.12);
+    border-color: rgba(255,255,255,0.14);
 }
 
 .sidebar-logo-card {
-    background: #ffffff;
-    border-radius: 18px;
-    padding: 12px;
-    margin: 4px 0 18px 0;
-    box-shadow: 0 12px 30px rgba(0,0,0,0.25);
+    background: transparent;
+    border-radius: 0;
+    padding: 0;
+    margin: 4px 0 14px 0;
+    box-shadow: none;
+}
+
+.sidebar-logo-card img {
+    border-radius: 14px;
 }
 
 .sidebar-title {
@@ -72,7 +94,7 @@ section[data-testid="stSidebar"] hr {
     margin-bottom: 12px;
 }
 
-/* Hero principal */
+/* Hero */
 .app-hero {
     background: linear-gradient(135deg, #ffffff 0%, #edf7ff 100%);
     border: 1px solid #dbeafe;
@@ -110,14 +132,6 @@ section[data-testid="stSidebar"] hr {
     margin-bottom: 10px;
 }
 
-/* Títulos */
-.titulo {
-    font-size: 34px;
-    font-weight: 900;
-    color: #0f172a;
-    margin-bottom: 0px;
-}
-
 .subtitulo {
     font-size: 23px;
     font-weight: 850;
@@ -131,7 +145,7 @@ section[data-testid="stSidebar"] hr {
     margin-bottom: 20px;
 }
 
-/* Cards/containers do Streamlit */
+/* Containers com borda do Streamlit */
 div[data-testid="stVerticalBlock"] div[data-testid="stVerticalBlockBorderWrapper"] {
     border-radius: 20px;
     border: 1px solid #e2e8f0;
@@ -171,56 +185,35 @@ div[data-baseweb="textarea"] {
     border-radius: 12px;
 }
 
-/* Dataframe */
+/* Dataframes */
 [data-testid="stDataFrame"] {
     border-radius: 16px;
     overflow: hidden;
     border: 1px solid #e2e8f0;
 }
 
-/* Alertas */
 div[data-testid="stAlert"] {
     border-radius: 14px;
 }
 
-/* Expanders */
 .streamlit-expanderHeader {
     border-radius: 12px;
     font-weight: 700;
 }
 
-/* Linha divisória suave */
 hr {
     margin-top: 1.1rem;
     margin-bottom: 1.2rem;
     border-color: #e2e8f0;
 }
 
-/* Oculta menu e rodapé padrão */
 #MainMenu {visibility: hidden;}
 footer {visibility: hidden;}
 header {visibility: hidden;}
 </style>
-""", unsafe_allow_html=True)
-
-try:
-    from openai import OpenAI
-except Exception:
-    OpenAI = None
-
-
-DB_PATH = Path("inclui_paee.db")
-
-
-# ======================================================
-# CONFIGURAÇÃO DA API KEY
-# ======================================================
-def obter_api_key():
-    """Busca a chave da OpenAI no ambiente local ou nos Secrets do Streamlit Cloud."""
-    try:
-        return os.getenv("OPENAI_API_KEY") or st.secrets.get("OPENAI_API_KEY")
-    except Exception:
-        return os.getenv("OPENAI_API_KEY")
+""",
+    unsafe_allow_html=True,
+)
 
 
 # ======================================================
@@ -228,6 +221,16 @@ def obter_api_key():
 # ======================================================
 def conectar():
     return sqlite3.connect(DB_PATH)
+
+
+def coluna_existe(cursor, tabela, coluna):
+    cursor.execute(f"PRAGMA table_info({tabela})")
+    return coluna in [c[1] for c in cursor.fetchall()]
+
+
+def adicionar_coluna_se_nao_existe(cursor, tabela, coluna, definicao):
+    if not coluna_existe(cursor, tabela, coluna):
+        cursor.execute(f"ALTER TABLE {tabela} ADD COLUMN {coluna} {definicao}")
 
 
 def criar_tabelas():
@@ -247,6 +250,43 @@ def criar_tabelas():
         )
         """
     )
+    adicionar_coluna_se_nao_existe(cursor, "estudantes", "turno", "TEXT")
+    adicionar_coluna_se_nao_existe(cursor, "estudantes", "dias_atendimento", "TEXT")
+    adicionar_coluna_se_nao_existe(cursor, "estudantes", "horario_preferencial", "TEXT")
+
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS professores (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nome_referencia TEXT,
+            escola TEXT,
+            regional TEXT,
+            formacao TEXT,
+            carga_horaria TEXT,
+            turno_atuacao TEXT,
+            observacoes TEXT,
+            criado_em TEXT
+        )
+        """
+    )
+
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS entrevistas_familia (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            estudante_id INTEGER NOT NULL,
+            data_registro TEXT,
+            rotina TEXT,
+            saude TEXT,
+            comunicacao TEXT,
+            autonomia TEXT,
+            socializacao TEXT,
+            interesses TEXT,
+            observacoes TEXT,
+            FOREIGN KEY(estudante_id) REFERENCES estudantes(id)
+        )
+        """
+    )
 
     cursor.execute(
         """
@@ -261,6 +301,45 @@ def criar_tabelas():
             autonomia TEXT,
             aprendizagem TEXT,
             resumo_laudo TEXT,
+            FOREIGN KEY(estudante_id) REFERENCES estudantes(id)
+        )
+        """
+    )
+
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS estudos_caso (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            estudante_id INTEGER NOT NULL,
+            data_registro TEXT,
+            contextualizacao TEXT,
+            queixa_principal TEXT,
+            potencialidades TEXT,
+            dificuldades TEXT,
+            estrategias TEXT,
+            intervencoes TEXT,
+            avaliacao TEXT,
+            consideracoes TEXT,
+            FOREIGN KEY(estudante_id) REFERENCES estudantes(id)
+        )
+        """
+    )
+
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS planos_aee (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            estudante_id INTEGER NOT NULL,
+            data_registro TEXT,
+            objetivos_gerais TEXT,
+            objetivos_especificos TEXT,
+            habilidades_prioritarias TEXT,
+            recursos_acessibilidade TEXT,
+            estrategias TEXT,
+            organizacao_atendimento TEXT,
+            parcerias TEXT,
+            avaliacao_acompanhamento TEXT,
+            observacoes TEXT,
             FOREIGN KEY(estudante_id) REFERENCES estudantes(id)
         )
         """
@@ -315,43 +394,182 @@ def criar_tabelas():
         """
     )
 
-    cursor.execute("PRAGMA table_info(atendimentos)")
-    colunas = [col[1] for col in cursor.fetchall()]
-    if "evolucao" not in colunas:
-        cursor.execute("ALTER TABLE atendimentos ADD COLUMN evolucao TEXT")
-    if "qtd_atividades" not in colunas:
-        cursor.execute("ALTER TABLE atendimentos ADD COLUMN qtd_atividades INTEGER DEFAULT 1")
-    if "nivel_resposta" not in colunas:
-        cursor.execute("ALTER TABLE atendimentos ADD COLUMN nivel_resposta INTEGER DEFAULT 5")
-    if "nivel_avanco" not in colunas:
-        cursor.execute("ALTER TABLE atendimentos ADD COLUMN nivel_avanco INTEGER DEFAULT 5")
-    if "nivel_dificuldade" not in colunas:
-        cursor.execute("ALTER TABLE atendimentos ADD COLUMN nivel_dificuldade INTEGER DEFAULT 5")
-    if "nivel_engajamento" not in colunas:
-        cursor.execute("ALTER TABLE atendimentos ADD COLUMN nivel_engajamento INTEGER DEFAULT 5")
-    if "nivel_evolucao" not in colunas:
-        cursor.execute("ALTER TABLE atendimentos ADD COLUMN nivel_evolucao REAL DEFAULT 5")
+    for coluna, definicao in [
+        ("evolucao", "TEXT"),
+        ("qtd_atividades", "INTEGER DEFAULT 1"),
+        ("nivel_resposta", "INTEGER DEFAULT 5"),
+        ("nivel_avanco", "INTEGER DEFAULT 5"),
+        ("nivel_dificuldade", "INTEGER DEFAULT 5"),
+        ("nivel_engajamento", "INTEGER DEFAULT 5"),
+        ("nivel_evolucao", "REAL DEFAULT 5"),
+        ("encaminhamentos", "TEXT"),
+    ]:
+        adicionar_coluna_se_nao_existe(cursor, "atendimentos", coluna, definicao)
+
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS agenda (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            estudante_id INTEGER NOT NULL,
+            data_agendamento TEXT,
+            dia_semana TEXT,
+            hora_inicio TEXT,
+            hora_fim TEXT,
+            tipo_atendimento TEXT,
+            observacoes TEXT,
+            criado_em TEXT,
+            FOREIGN KEY(estudante_id) REFERENCES estudantes(id)
+        )
+        """
+    )
 
     conn.commit()
     conn.close()
 
 
-def cadastrar_estudante(codigo, ano_serie, turma, perfil, observacoes):
+criar_tabelas()
+
+
+# ======================================================
+# FUNÇÕES UTILITÁRIAS
+# ======================================================
+PERFIS = [
+    "Não informado",
+    "Deficiência intelectual",
+    "Deficiência visual",
+    "Deficiência auditiva/surdez",
+    "Deficiência física",
+    "TEA",
+    "TEA - Nível I",
+    "TEA - Nível II",
+    "TEA - Nível III",
+    "Altas habilidades/superdotação",
+    "Deficiência múltipla",
+    "Outro",
+]
+
+DIAS_SEMANA = [
+    "Segunda-feira",
+    "Terça-feira",
+    "Quarta-feira",
+    "Quinta-feira",
+    "Sexta-feira",
+]
+
+
+def hoje_str():
+    return datetime.now().strftime("%d/%m/%Y %H:%M")
+
+
+def formatar_data(data_obj):
+    if isinstance(data_obj, (datetime, date)):
+        return data_obj.strftime("%d/%m/%Y")
+    return str(data_obj)
+
+
+def data_para_date(data_texto):
+    try:
+        return datetime.strptime(data_texto, "%d/%m/%Y").date()
+    except Exception:
+        return datetime.now().date()
+
+
+def hora_para_time(hora_texto, padrao="08:00"):
+    try:
+        return datetime.strptime(str(hora_texto)[:5], "%H:%M").time()
+    except Exception:
+        return datetime.strptime(padrao, "%H:%M").time()
+
+
+def limitar_escala(valor, padrao=5):
+    try:
+        valor = int(valor)
+    except Exception:
+        valor = padrao
+    return max(1, min(10, valor))
+
+
+def calcular_indice_geral(nivel_resposta, nivel_avanco, nivel_dificuldade, nivel_engajamento):
+    resposta = limitar_escala(nivel_resposta)
+    avanco = limitar_escala(nivel_avanco)
+    dificuldade = limitar_escala(nivel_dificuldade)
+    engajamento = limitar_escala(nivel_engajamento)
+    barreira_invertida = 11 - dificuldade
+    indice = (resposta * 0.30) + (avanco * 0.35) + (engajamento * 0.20) + (barreira_invertida * 0.15)
+    return round(max(1, min(10, indice)), 1)
+
+
+def interpretar_indice(indice):
+    if indice <= 3:
+        return "Baixa evolução / necessidade de maior apoio"
+    if indice <= 6:
+        return "Evolução parcial / acompanhamento em desenvolvimento"
+    if indice <= 8:
+        return "Boa evolução / resposta positiva"
+    return "Evolução elevada / maior autonomia e participação"
+
+
+def opcoes_estudantes_por_id(estudantes):
+    ids = [e[0] for e in estudantes]
+    mapa = {e[0]: f"{e[1]} - {e[2] or 'Ano/Série não informado'} - {e[4] or 'Perfil não informado'}" for e in estudantes}
+    return ids, mapa
+
+
+def render_app_header():
+    st.markdown(
+        """
+        <div class="app-hero">
+            <span class="app-badge">Gestão do AEE • SRM • Relatórios • Agenda</span>
+            <h1 class="app-title">INCLUISRM</h1>
+            <p class="app-subtitle">Sistema de Gestão do Atendimento Educacional Especializado</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def export_buttons(texto, nome_base, tipo_pdf="documento"):
+    col_txt, col_pdf = st.columns(2)
+
+    with col_txt:
+        st.download_button(
+            "Baixar em .txt",
+            data=texto,
+            file_name=f"{nome_base}.txt",
+            mime="text/plain",
+            key=f"txt_{nome_base}_{tipo_pdf}",
+        )
+
+    with col_pdf:
+        if st.button("Gerar PDF", key=f"gerar_pdf_{nome_base}_{tipo_pdf}"):
+            arquivo = gerar_pdf_documento(texto, nome_base, tipo=tipo_pdf)
+            st.session_state[f"pdf_{nome_base}_{tipo_pdf}"] = arquivo
+
+        if f"pdf_{nome_base}_{tipo_pdf}" in st.session_state:
+            with open(st.session_state[f"pdf_{nome_base}_{tipo_pdf}"], "rb") as f:
+                st.download_button(
+                    "Baixar PDF",
+                    data=f,
+                    file_name=f"{nome_base}.pdf",
+                    mime="application/pdf",
+                    key=f"download_pdf_{nome_base}_{tipo_pdf}",
+                )
+
+
+# ======================================================
+# CRUD - ESTUDANTES
+# ======================================================
+def cadastrar_estudante(codigo, ano_serie, turma, turno, perfil, observacoes, dias_atendimento, horario_preferencial):
     conn = conectar()
     cursor = conn.cursor()
     cursor.execute(
         """
-        INSERT INTO estudantes (codigo, ano_serie, turma, perfil, observacoes, criado_em)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO estudantes (
+            codigo, ano_serie, turma, turno, perfil, observacoes,
+            dias_atendimento, horario_preferencial, criado_em
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
-        (
-            codigo,
-            ano_serie,
-            turma,
-            perfil,
-            observacoes,
-            datetime.now().strftime("%d/%m/%Y %H:%M"),
-        ),
+        (codigo, ano_serie, turma, turno, perfil, observacoes, dias_atendimento, horario_preferencial, hoje_str()),
     )
     conn.commit()
     conn.close()
@@ -362,7 +580,7 @@ def listar_estudantes():
     cursor = conn.cursor()
     cursor.execute(
         """
-        SELECT id, codigo, ano_serie, turma, perfil, observacoes
+        SELECT id, codigo, ano_serie, turma, perfil, observacoes, turno, dias_atendimento, horario_preferencial
         FROM estudantes
         ORDER BY codigo
         """
@@ -377,7 +595,7 @@ def buscar_estudante(estudante_id):
     cursor = conn.cursor()
     cursor.execute(
         """
-        SELECT id, codigo, ano_serie, turma, perfil, observacoes
+        SELECT id, codigo, ano_serie, turma, perfil, observacoes, turno, dias_atendimento, horario_preferencial
         FROM estudantes
         WHERE id = ?
         """,
@@ -388,16 +606,17 @@ def buscar_estudante(estudante_id):
     return dado
 
 
-def atualizar_estudante(estudante_id, codigo, ano_serie, turma, perfil, observacoes):
+def atualizar_estudante(estudante_id, codigo, ano_serie, turma, turno, perfil, observacoes, dias_atendimento, horario_preferencial):
     conn = conectar()
     cursor = conn.cursor()
     cursor.execute(
         """
         UPDATE estudantes
-        SET codigo=?, ano_serie=?, turma=?, perfil=?, observacoes=?
+        SET codigo=?, ano_serie=?, turma=?, turno=?, perfil=?, observacoes=?,
+            dias_atendimento=?, horario_preferencial=?
         WHERE id=?
         """,
-        (codigo, ano_serie, turma, perfil, observacoes, estudante_id),
+        (codigo, ano_serie, turma, turno, perfil, observacoes, dias_atendimento, horario_preferencial, estudante_id),
     )
     conn.commit()
     conn.close()
@@ -406,62 +625,123 @@ def atualizar_estudante(estudante_id, codigo, ano_serie, turma, perfil, observac
 def excluir_estudante(estudante_id):
     conn = conectar()
     cursor = conn.cursor()
-    cursor.execute("DELETE FROM atendimentos WHERE estudante_id=?", (estudante_id,))
-    cursor.execute("DELETE FROM relatorios WHERE estudante_id=?", (estudante_id,))
-    cursor.execute("DELETE FROM paees WHERE estudante_id=?", (estudante_id,))
-    cursor.execute("DELETE FROM avaliacoes WHERE estudante_id=?", (estudante_id,))
+    for tabela in [
+        "agenda", "atendimentos", "relatorios", "paees", "planos_aee",
+        "estudos_caso", "avaliacoes", "entrevistas_familia"
+    ]:
+        cursor.execute(f"DELETE FROM {tabela} WHERE estudante_id=?", (estudante_id,))
     cursor.execute("DELETE FROM estudantes WHERE id=?", (estudante_id,))
     conn.commit()
     conn.close()
 
 
-def salvar_avaliacao(
-    estudante_id,
-    barreiras,
-    potencialidades,
-    comunicacao,
-    interacao,
-    autonomia,
-    aprendizagem,
-    resumo_laudo,
-):
+# ======================================================
+# CRUD - PROFESSOR
+# ======================================================
+def salvar_professor(nome_referencia, escola, regional, formacao, carga_horaria, turno_atuacao, observacoes):
     conn = conectar()
     cursor = conn.cursor()
     cursor.execute(
         """
-        INSERT INTO avaliacoes (
-            estudante_id, data_registro, barreiras, potencialidades, comunicacao,
-            interacao, autonomia, aprendizagem, resumo_laudo
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO professores (
+            nome_referencia, escola, regional, formacao, carga_horaria,
+            turno_atuacao, observacoes, criado_em
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """,
-        (
-            estudante_id,
-            datetime.now().strftime("%d/%m/%Y %H:%M"),
-            barreiras,
-            potencialidades,
-            comunicacao,
-            interacao,
-            autonomia,
-            aprendizagem,
-            resumo_laudo,
-        ),
+        (nome_referencia, escola, regional, formacao, carga_horaria, turno_atuacao, observacoes, hoje_str()),
     )
     conn.commit()
     conn.close()
 
 
-def ultima_avaliacao(estudante_id):
+def listar_professores():
     conn = conectar()
     cursor = conn.cursor()
     cursor.execute(
         """
-        SELECT data_registro, barreiras, potencialidades, comunicacao, interacao,
-               autonomia, aprendizagem, resumo_laudo
-        FROM avaliacoes
-        WHERE estudante_id = ?
+        SELECT id, nome_referencia, escola, regional, formacao, carga_horaria, turno_atuacao, observacoes, criado_em
+        FROM professores
         ORDER BY id DESC
-        LIMIT 1
+        """
+    )
+    dados = cursor.fetchall()
+    conn.close()
+    return dados
+
+
+def atualizar_professor(professor_id, nome_referencia, escola, regional, formacao, carga_horaria, turno_atuacao, observacoes):
+    conn = conectar()
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        UPDATE professores
+        SET nome_referencia=?, escola=?, regional=?, formacao=?,
+            carga_horaria=?, turno_atuacao=?, observacoes=?
+        WHERE id=?
         """,
+        (nome_referencia, escola, regional, formacao, carga_horaria, turno_atuacao, observacoes, professor_id),
+    )
+    conn.commit()
+    conn.close()
+
+
+def excluir_professor(professor_id):
+    conn = conectar()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM professores WHERE id=?", (professor_id,))
+    conn.commit()
+    conn.close()
+
+
+# ======================================================
+# CRUD - ENTREVISTA, AVALIAÇÃO, ESTUDO, PLANO
+# ======================================================
+def inserir_registro(tabela, campos, valores):
+    conn = conectar()
+    cursor = conn.cursor()
+    placeholders = ", ".join(["?"] * len(valores))
+    cursor.execute(
+        f"INSERT INTO {tabela} ({', '.join(campos)}) VALUES ({placeholders})",
+        valores,
+    )
+    conn.commit()
+    conn.close()
+
+
+def listar_por_estudante(tabela, campos, estudante_id):
+    conn = conectar()
+    cursor = conn.cursor()
+    cursor.execute(
+        f"SELECT id, {', '.join(campos)} FROM {tabela} WHERE estudante_id=? ORDER BY id DESC",
+        (estudante_id,),
+    )
+    dados = cursor.fetchall()
+    conn.close()
+    return dados
+
+
+def excluir_registro(tabela, registro_id):
+    conn = conectar()
+    cursor = conn.cursor()
+    cursor.execute(f"DELETE FROM {tabela} WHERE id=?", (registro_id,))
+    conn.commit()
+    conn.close()
+
+
+def atualizar_registro(tabela, campos, valores, registro_id):
+    conn = conectar()
+    cursor = conn.cursor()
+    sets = ", ".join([f"{campo}=?" for campo in campos])
+    cursor.execute(f"UPDATE {tabela} SET {sets} WHERE id=?", list(valores) + [registro_id])
+    conn.commit()
+    conn.close()
+
+
+def ultima_linha(tabela, campos, estudante_id):
+    conn = conectar()
+    cursor = conn.cursor()
+    cursor.execute(
+        f"SELECT {', '.join(campos)} FROM {tabela} WHERE estudante_id=? ORDER BY id DESC LIMIT 1",
         (estudante_id,),
     )
     dado = cursor.fetchone()
@@ -469,209 +749,58 @@ def ultima_avaliacao(estudante_id):
     return dado
 
 
+# ======================================================
+# CRUD - AVALIAÇÃO
+# ======================================================
+def salvar_avaliacao(estudante_id, barreiras, potencialidades, comunicacao, interacao, autonomia, aprendizagem, resumo_laudo):
+    inserir_registro(
+        "avaliacoes",
+        ["estudante_id", "data_registro", "barreiras", "potencialidades", "comunicacao", "interacao", "autonomia", "aprendizagem", "resumo_laudo"],
+        [estudante_id, hoje_str(), barreiras, potencialidades, comunicacao, interacao, autonomia, aprendizagem, resumo_laudo],
+    )
+
+
 def listar_avaliacoes(estudante_id):
-    conn = conectar()
-    cursor = conn.cursor()
-    cursor.execute(
-        """
-        SELECT id, data_registro, barreiras, potencialidades, comunicacao, interacao,
-               autonomia, aprendizagem, resumo_laudo
-        FROM avaliacoes
-        WHERE estudante_id = ?
-        ORDER BY id DESC
-        """,
-        (estudante_id,),
+    return listar_por_estudante(
+        "avaliacoes",
+        ["data_registro", "barreiras", "potencialidades", "comunicacao", "interacao", "autonomia", "aprendizagem", "resumo_laudo"],
+        estudante_id,
     )
-    dados = cursor.fetchall()
-    conn.close()
-    return dados
 
 
-def salvar_paee(estudante_id, conteudo):
-    conn = conectar()
-    cursor = conn.cursor()
-    cursor.execute(
-        "INSERT INTO paees (estudante_id, data_geracao, conteudo) VALUES (?, ?, ?)",
-        (estudante_id, datetime.now().strftime("%d/%m/%Y %H:%M"), conteudo),
+def ultima_avaliacao(estudante_id):
+    return ultima_linha(
+        "avaliacoes",
+        ["data_registro", "barreiras", "potencialidades", "comunicacao", "interacao", "autonomia", "aprendizagem", "resumo_laudo"],
+        estudante_id,
     )
-    conn.commit()
-    conn.close()
 
 
-def salvar_relatorio(estudante_id, titulo, conteudo):
-    conn = conectar()
-    cursor = conn.cursor()
-    cursor.execute(
-        """
-        INSERT INTO relatorios (estudante_id, data_geracao, titulo, conteudo)
-        VALUES (?, ?, ?, ?)
-        """,
-        (
-            estudante_id,
-            datetime.now().strftime("%d/%m/%Y %H:%M"),
-            titulo,
-            conteudo,
-        ),
-    )
-    relatorio_id = cursor.lastrowid
-    conn.commit()
-    conn.close()
-    return relatorio_id
-
-
-def listar_relatorios(estudante_id):
-    conn = conectar()
-    cursor = conn.cursor()
-    cursor.execute(
-        """
-        SELECT id, data_geracao, titulo, conteudo
-        FROM relatorios
-        WHERE estudante_id = ?
-        ORDER BY id DESC
-        """,
-        (estudante_id,),
-    )
-    dados = cursor.fetchall()
-    conn.close()
-    return dados
-
-
-def atualizar_relatorio(relatorio_id, titulo, conteudo):
-    conn = conectar()
-    cursor = conn.cursor()
-    cursor.execute(
-        """
-        UPDATE relatorios
-        SET titulo = ?, conteudo = ?
-        WHERE id = ?
-        """,
-        (titulo, conteudo, relatorio_id),
-    )
-    conn.commit()
-    conn.close()
-
-
-def excluir_relatorio(relatorio_id):
-    conn = conectar()
-    cursor = conn.cursor()
-    cursor.execute("DELETE FROM relatorios WHERE id = ?", (relatorio_id,))
-    conn.commit()
-    conn.close()
-
-
+# ======================================================
+# CRUD - ATENDIMENTOS
+# ======================================================
 def salvar_atendimento(
-    estudante_id,
-    data_atendimento,
-    objetivo,
-    atividade,
-    resposta_estudante,
-    avancos,
-    dificuldades,
-    evolucao,
-    qtd_atividades,
-    nivel_resposta,
-    nivel_avanco,
-    nivel_dificuldade,
-    nivel_engajamento,
-    nivel_evolucao,
+    estudante_id, data_atendimento, objetivo, atividade, resposta_estudante,
+    avancos, dificuldades, evolucao, qtd_atividades, nivel_resposta,
+    nivel_avanco, nivel_dificuldade, nivel_engajamento, nivel_evolucao,
     encaminhamentos,
 ):
-    conn = conectar()
-    cursor = conn.cursor()
-    cursor.execute(
-        """
-        INSERT INTO atendimentos (
-            estudante_id, data_atendimento, objetivo, atividade,
-            resposta_estudante, avancos, dificuldades, evolucao,
-            qtd_atividades, nivel_resposta, nivel_avanco, nivel_dificuldade,
-            nivel_engajamento, nivel_evolucao, encaminhamentos
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """,
-        (
-            estudante_id,
-            data_atendimento,
-            objetivo,
-            atividade,
-            resposta_estudante,
-            avancos,
-            dificuldades,
-            evolucao,
-            qtd_atividades,
-            nivel_resposta,
-            nivel_avanco,
-            nivel_dificuldade,
-            nivel_engajamento,
-            nivel_evolucao,
+    inserir_registro(
+        "atendimentos",
+        [
+            "estudante_id", "data_atendimento", "objetivo", "atividade", "resposta_estudante",
+            "avancos", "dificuldades", "evolucao", "qtd_atividades", "nivel_resposta",
+            "nivel_avanco", "nivel_dificuldade", "nivel_engajamento", "nivel_evolucao",
+            "encaminhamentos",
+        ],
+        [
+            estudante_id, data_atendimento, objetivo, atividade, resposta_estudante,
+            avancos, dificuldades, evolucao, qtd_atividades, nivel_resposta,
+            nivel_avanco, nivel_dificuldade, nivel_engajamento, nivel_evolucao,
             encaminhamentos,
-        ),
+        ],
     )
-    conn.commit()
-    conn.close()
 
-
-
-
-def atualizar_atendimento(
-    atendimento_id,
-    data_atendimento,
-    objetivo,
-    atividade,
-    resposta_estudante,
-    avancos,
-    dificuldades,
-    evolucao,
-    qtd_atividades,
-    nivel_resposta,
-    nivel_avanco,
-    nivel_dificuldade,
-    nivel_engajamento,
-    nivel_evolucao,
-    encaminhamentos,
-):
-    conn = conectar()
-    cursor = conn.cursor()
-    cursor.execute(
-        """
-        UPDATE atendimentos
-        SET data_atendimento = ?,
-            objetivo = ?,
-            atividade = ?,
-            resposta_estudante = ?,
-            avancos = ?,
-            dificuldades = ?,
-            evolucao = ?,
-            qtd_atividades = ?,
-            nivel_resposta = ?,
-            nivel_avanco = ?,
-            nivel_dificuldade = ?,
-            nivel_engajamento = ?,
-            nivel_evolucao = ?,
-            encaminhamentos = ?
-        WHERE id = ?
-        """,
-        (
-            data_atendimento, objetivo, atividade, resposta_estudante, avancos, dificuldades, evolucao,
-            qtd_atividades, nivel_resposta, nivel_avanco, nivel_dificuldade, nivel_engajamento,
-            nivel_evolucao, encaminhamentos, atendimento_id,
-        ),
-    )
-    conn.commit()
-    conn.close()
-
-
-def excluir_atendimento(atendimento_id):
-    conn = conectar()
-    cursor = conn.cursor()
-    cursor.execute("DELETE FROM atendimentos WHERE id = ?", (atendimento_id,))
-    conn.commit()
-    conn.close()
-
-
-def data_para_date(data_texto):
-    try:
-        return datetime.strptime(data_texto, "%d/%m/%Y").date()
-    except Exception:
-        return datetime.now().date()
 
 def listar_atendimentos(estudante_id):
     conn = conectar()
@@ -693,133 +822,6 @@ def listar_atendimentos(estudante_id):
     return dados
 
 
-
-
-def calcular_nivel_evolucao(texto_evolucao, avancos, dificuldades):
-    """Compatibilidade com atendimentos antigos sem escala numérica."""
-    texto_positivo = f"{texto_evolucao or ''} {avancos or ''}".lower()
-    texto_dificuldades = f"{dificuldades or ''}".lower()
-    pontos = 0
-
-    palavras_positivas = [
-        "melhorou", "avançou", "evoluiu", "participou", "realizou",
-        "conseguiu", "interagiu", "compreendeu", "autonomia",
-        "progresso", "positivo", "bom desempenho", "maior interesse",
-        "engajamento", "atenção", "comunicação", "iniciativa",
-        "independência", "colaborou", "respondeu bem"
-    ]
-
-    palavras_dificuldade = [
-        "dificuldade", "não conseguiu", "resistência", "recusou",
-        "limitação", "necessita apoio", "necessitou apoio", "dependência",
-        "desatenção", "não realizou", "não participou", "crise",
-        "agitação", "dispersão", "baixa interação"
-    ]
-
-    for palavra in palavras_positivas:
-        if palavra in texto_positivo:
-            pontos += 1
-
-    for palavra in palavras_dificuldade:
-        if palavra in texto_dificuldades:
-            pontos -= 1
-
-    if pontos <= 0:
-        return 1
-    elif pontos == 1:
-        return 2
-    elif pontos == 2:
-        return 3
-    elif pontos == 3:
-        return 4
-    else:
-        return 5
-
-
-def limitar_escala(valor, padrao=5):
-    try:
-        valor = int(valor)
-    except Exception:
-        valor = padrao
-    return max(1, min(10, valor))
-
-
-def calcular_indice_geral(nivel_resposta, nivel_avanco, nivel_dificuldade, nivel_engajamento):
-    """Calcula índice geral em escala 1 a 10. A dificuldade entra invertida."""
-    resposta = limitar_escala(nivel_resposta)
-    avanco = limitar_escala(nivel_avanco)
-    dificuldade = limitar_escala(nivel_dificuldade)
-    engajamento = limitar_escala(nivel_engajamento)
-    barreira_invertida = 11 - dificuldade
-    indice = (resposta * 0.30) + (avanco * 0.35) + (engajamento * 0.20) + (barreira_invertida * 0.15)
-    return round(max(1, min(10, indice)), 1)
-
-
-def interpretar_indice(indice):
-    if indice <= 3:
-        return "Baixa evolução / necessidade de maior apoio"
-    elif indice <= 6:
-        return "Evolução parcial / acompanhamento em desenvolvimento"
-    elif indice <= 8:
-        return "Boa evolução / resposta positiva"
-    return "Evolução elevada / maior autonomia e participação"
-
-
-def montar_dataframe_evolucao(atendimentos):
-    dados_grafico = []
-    for atendimento in reversed(atendimentos):
-        data_atendimento = atendimento[0]
-        avancos = atendimento[4]
-        dificuldades = atendimento[5]
-        evolucao = atendimento[6]
-        qtd_atividades = atendimento[7] if len(atendimento) > 7 else 1
-        nivel_resposta = atendimento[8] if len(atendimento) > 8 else None
-        nivel_avanco = atendimento[9] if len(atendimento) > 9 else None
-        nivel_dificuldade = atendimento[10] if len(atendimento) > 10 else None
-        nivel_engajamento = atendimento[11] if len(atendimento) > 11 else None
-        nivel_evolucao_antigo = atendimento[12] if len(atendimento) > 12 else None
-
-        base_antiga = nivel_evolucao_antigo if nivel_evolucao_antigo is not None else calcular_nivel_evolucao(evolucao, avancos, dificuldades)
-        nivel_resposta = nivel_resposta if nivel_resposta is not None else base_antiga
-        nivel_avanco = nivel_avanco if nivel_avanco is not None else base_antiga
-        nivel_dificuldade = nivel_dificuldade if nivel_dificuldade is not None else 5
-        nivel_engajamento = nivel_engajamento if nivel_engajamento is not None else base_antiga
-
-        nivel_resposta = limitar_escala(nivel_resposta)
-        nivel_avanco = limitar_escala(nivel_avanco)
-        nivel_dificuldade = limitar_escala(nivel_dificuldade)
-        nivel_engajamento = limitar_escala(nivel_engajamento)
-        indice_geral = calcular_indice_geral(nivel_resposta, nivel_avanco, nivel_dificuldade, nivel_engajamento)
-
-        try:
-            qtd_atividades = int(qtd_atividades)
-        except Exception:
-            qtd_atividades = 1
-        try:
-            data_ordenacao = datetime.strptime(data_atendimento, "%d/%m/%Y")
-        except Exception:
-            data_ordenacao = None
-
-        dados_grafico.append({
-            "Data": data_atendimento,
-            "Data ordenação": data_ordenacao,
-            "Quantidade de atividades": qtd_atividades,
-            "Resposta do estudante": nivel_resposta,
-            "Avanço pedagógico": nivel_avanco,
-            "Nível de dificuldade": nivel_dificuldade,
-            "Dificuldade invertida": 11 - nivel_dificuldade,
-            "Engajamento": nivel_engajamento,
-            "Índice geral de evolução": indice_geral,
-            "Interpretação": interpretar_indice(indice_geral),
-            "Avanços": avancos or "Não informado.",
-            "Dificuldades observadas": dificuldades or "Não informado.",
-            "Evolução observada": evolucao or "Não informado.",
-        })
-    df = pd.DataFrame(dados_grafico)
-    if not df.empty and "Data ordenação" in df.columns:
-        df = df.sort_values(by="Data ordenação", na_position="last")
-    return df
-
 def listar_atendimentos_com_id(estudante_id):
     conn = conectar()
     cursor = conn.cursor()
@@ -840,535 +842,353 @@ def listar_atendimentos_com_id(estudante_id):
     return dados
 
 
-def listar_atendimentos_texto(estudante_id):
-    atendimentos = listar_atendimentos(estudante_id)
-
-    if not atendimentos:
-        return "Nenhum atendimento registrado."
-
-    texto = ""
-    for a in atendimentos[:10]:
-        texto += f"""
-Data do atendimento: {a[0]}
-Objetivo trabalhado: {a[1] or 'Não informado.'}
-Atividade realizada: {a[2] or 'Não informado.'}
-Resposta do estudante: {a[3] or 'Não informado.'}
-Avanços observados: {a[4] or 'Não informado.'}
-Dificuldades observadas: {a[5] or 'Não informado.'}
-Evolução observada: {a[6] or 'Não informado.'}
-Resposta do estudante: {a[8] if len(a) > 8 and a[8] is not None else 'Não informado.'}/10
-Avanço pedagógico: {a[9] if len(a) > 9 and a[9] is not None else 'Não informado.'}/10
-Nível de dificuldade: {a[10] if len(a) > 10 and a[10] is not None else 'Não informado.'}/10
-Engajamento: {a[11] if len(a) > 11 and a[11] is not None else 'Não informado.'}/10
-Índice geral de evolução: {a[12] if len(a) > 12 and a[12] is not None else 'Não informado.'}/10
-Encaminhamentos: {a[13] if len(a) > 13 and a[13] else 'Não informado.'}
----
-"""
-    return texto.strip()
+def atualizar_atendimento(atendimento_id, data_atendimento, objetivo, atividade, resposta_estudante, avancos, dificuldades, evolucao, qtd_atividades, nivel_resposta, nivel_avanco, nivel_dificuldade, nivel_engajamento, nivel_evolucao, encaminhamentos):
+    atualizar_registro(
+        "atendimentos",
+        [
+            "data_atendimento", "objetivo", "atividade", "resposta_estudante", "avancos",
+            "dificuldades", "evolucao", "qtd_atividades", "nivel_resposta", "nivel_avanco",
+            "nivel_dificuldade", "nivel_engajamento", "nivel_evolucao", "encaminhamentos",
+        ],
+        [
+            data_atendimento, objetivo, atividade, resposta_estudante, avancos, dificuldades,
+            evolucao, qtd_atividades, nivel_resposta, nivel_avanco, nivel_dificuldade,
+            nivel_engajamento, nivel_evolucao, encaminhamentos,
+        ],
+        atendimento_id,
+    )
 
 
-def montar_texto_avaliacao(estudante, data_registro, barreiras, potencialidades, comunicacao, interacao, autonomia, aprendizagem, resumo_laudo):
-    """Monta um texto simples para download após salvar a avaliação pedagógica."""
+def excluir_atendimento(atendimento_id):
+    excluir_registro("atendimentos", atendimento_id)
+
+
+# ======================================================
+# CRUD - AGENDA
+# ======================================================
+def salvar_agendamento(estudante_id, data_agendamento, dia_semana, hora_inicio, hora_fim, tipo_atendimento, observacoes):
+    inserir_registro(
+        "agenda",
+        ["estudante_id", "data_agendamento", "dia_semana", "hora_inicio", "hora_fim", "tipo_atendimento", "observacoes", "criado_em"],
+        [estudante_id, data_agendamento, dia_semana, hora_inicio, hora_fim, tipo_atendimento, observacoes, hoje_str()],
+    )
+
+
+def listar_agenda():
+    conn = conectar()
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        SELECT agenda.id, estudantes.codigo, estudantes.ano_serie, estudantes.perfil,
+               agenda.data_agendamento, agenda.dia_semana, agenda.hora_inicio,
+               agenda.hora_fim, agenda.tipo_atendimento, agenda.observacoes
+        FROM agenda
+        JOIN estudantes ON estudantes.id = agenda.estudante_id
+        ORDER BY agenda.data_agendamento, agenda.hora_inicio
+        """
+    )
+    dados = cursor.fetchall()
+    conn.close()
+    return dados
+
+
+def listar_agenda_com_id():
+    return listar_agenda()
+
+
+def excluir_agendamento(agenda_id):
+    excluir_registro("agenda", agenda_id)
+
+
+# ======================================================
+# TEXTOS PARA EXPORTAÇÃO
+# ======================================================
+def texto_cadastro_estudante(estudante):
     return f"""
-AVALIAÇÃO PEDAGÓGICA INICIAL
+CADASTRO DO ESTUDANTE - INCLUISRM
 
-Data do registro: {data_registro}
-
-1. Identificação do estudante
 Código interno: {estudante[1] or 'Não informado.'}
 Ano/Série: {estudante[2] or 'Não informado.'}
 Turma: {estudante[3] or 'Não informado.'}
-Perfil educacional informado: {estudante[4] or 'Não informado.'}
-Observações pedagógicas iniciais: {estudante[5] or 'Não informado.'}
+Turno: {estudante[6] or 'Não informado.'}
+Perfil educacional: {estudante[4] or 'Não informado.'}
+Dias de atendimento: {estudante[7] or 'Não informado.'}
+Horário preferencial: {estudante[8] or 'Não informado.'}
 
-2. Informações lançadas na avaliação
-Barreiras enfrentadas pelo estudante:
-{barreiras or 'Não informado.'}
+Campos sensíveis para preenchimento manual:
+Nome completo: ___________________________________________
+CPF/RG: _________________________________________________
+Data de nascimento: ______________________________________
+Responsável: ____________________________________________
+Telefone: _______________________________________________
+Endereço: _______________________________________________
 
-Potencialidades e habilidades já desenvolvidas:
-{potencialidades or 'Não informado.'}
+Observações pedagógicas:
+{estudante[5] or 'Não informado.'}
+""".strip()
+
+
+def texto_professor(p):
+    return f"""
+FICHA DE IDENTIFICAÇÃO DO(A) PROFESSOR(A) AEE - INCLUISRM
+
+Referência/Nome profissional: {p[1] or 'Não informado.'}
+Escola: {p[2] or 'Não informado.'}
+Regional/GRE: {p[3] or 'Não informado.'}
+Formação: {p[4] or 'Não informado.'}
+Carga horária: {p[5] or 'Não informado.'}
+Turno de atuação: {p[6] or 'Não informado.'}
+Data de cadastro: {p[8] or 'Não informado.'}
+
+Observações:
+{p[7] or 'Não informado.'}
+
+Assinatura do(a) Professor(a) AEE:
+________________________________________________________
+""".strip()
+
+
+def texto_avaliacao(estudante, a):
+    return f"""
+AVALIAÇÃO PEDAGÓGICA INICIAL - INCLUISRM
+
+Código interno do estudante: {estudante[1]}
+Data do registro: {a[1]}
+
+Barreiras enfrentadas:
+{a[2] or 'Não informado.'}
+
+Potencialidades e habilidades:
+{a[3] or 'Não informado.'}
 
 Comunicação:
-{comunicacao or 'Não informado.'}
+{a[4] or 'Não informado.'}
 
 Interação social:
-{interacao or 'Não informado.'}
+{a[5] or 'Não informado.'}
 
 Autonomia:
-{autonomia or 'Não informado.'}
+{a[6] or 'Não informado.'}
 
 Aprendizagem:
-{aprendizagem or 'Não informado.'}
+{a[7] or 'Não informado.'}
 
 Resumo pedagógico do laudo, sem identificação:
-{resumo_laudo or 'Não informado.'}
+{a[8] or 'Não informado.'}
 """.strip()
 
 
-def montar_texto_atendimento(
-    estudante,
-    data_atendimento,
-    objetivo,
-    atividade,
-    resposta_estudante,
-    avancos,
-    dificuldades,
-    evolucao,
-    qtd_atividades,
-    nivel_resposta,
-    nivel_avanco,
-    nivel_dificuldade,
-    nivel_engajamento,
-    nivel_evolucao,
-    encaminhamentos,
-):
-    """Monta um texto simples para download de um registro de atendimento."""
+def texto_entrevista(estudante, e):
     return f"""
-REGISTRO DE ATENDIMENTO DO AEE
+ENTREVISTA COM A FAMÍLIA - INCLUISRM
 
-1. Identificação do estudante
-Código interno: {estudante[1] or 'Não informado.'}
+Código interno do estudante: {estudante[1]}
+Data do registro: {e[1]}
+
+Campos sensíveis para preenchimento manual:
+Nome do estudante: _______________________________________
+Responsável: ____________________________________________
+Contato: ________________________________________________
+
+Rotina familiar:
+{e[2] or 'Não informado.'}
+
+Saúde/desenvolvimento em termos pedagógicos:
+{e[3] or 'Não informado.'}
+
+Comunicação:
+{e[4] or 'Não informado.'}
+
+Autonomia:
+{e[5] or 'Não informado.'}
+
+Socialização:
+{e[6] or 'Não informado.'}
+
+Interesses:
+{e[7] or 'Não informado.'}
+
+Observações familiares:
+{e[8] or 'Não informado.'}
+
+Assinatura do responsável:
+________________________________________________________
+""".strip()
+
+
+def texto_estudo_caso(estudante, e):
+    return f"""
+ESTUDO DE CASO - INCLUISRM
+
+Código interno do estudante: {estudante[1]}
 Ano/Série: {estudante[2] or 'Não informado.'}
 Turma: {estudante[3] or 'Não informado.'}
-Perfil educacional informado: {estudante[4] or 'Não informado.'}
+Perfil educacional: {estudante[4] or 'Não informado.'}
+Data do registro: {e[1]}
 
-2. Dados do atendimento
-Data do atendimento: {data_atendimento or 'Não informado.'}
+1. Contextualização
+{e[2] or 'Não informado.'}
+
+2. Queixa principal / motivo do acompanhamento
+{e[3] or 'Não informado.'}
+
+3. Potencialidades
+{e[4] or 'Não informado.'}
+
+4. Dificuldades observadas
+{e[5] or 'Não informado.'}
+
+5. Estratégias pedagógicas
+{e[6] or 'Não informado.'}
+
+6. Intervenções / encaminhamentos sugeridos
+{e[7] or 'Não informado.'}
+
+7. Avaliação
+{e[8] or 'Não informado.'}
+
+8. Considerações finais
+{e[9] or 'Não informado.'}
+
+Assinaturas:
+Professor(a) AEE: _______________________________________
+Coordenação/Gestão: _____________________________________
+""".strip()
+
+
+def texto_plano_aee(estudante, p):
+    return f"""
+PLANO AEE / PAEE - INCLUISRM
+
+Código interno do estudante: {estudante[1]}
+Ano/Série: {estudante[2] or 'Não informado.'}
+Turma: {estudante[3] or 'Não informado.'}
+Perfil educacional: {estudante[4] or 'Não informado.'}
+Data do registro: {p[1]}
+
+1. Objetivos gerais
+{p[2] or 'Não informado.'}
+
+2. Objetivos específicos
+{p[3] or 'Não informado.'}
+
+3. Habilidades prioritárias
+{p[4] or 'Não informado.'}
+
+4. Recursos de acessibilidade
+{p[5] or 'Não informado.'}
+
+5. Estratégias pedagógicas
+{p[6] or 'Não informado.'}
+
+6. Organização do atendimento
+{p[7] or 'Não informado.'}
+
+7. Parcerias
+{p[8] or 'Não informado.'}
+
+8. Avaliação e acompanhamento
+{p[9] or 'Não informado.'}
+
+9. Observações
+{p[10] or 'Não informado.'}
+
+Assinaturas:
+Professor(a) AEE: _______________________________________
+Coordenação/Gestão: _____________________________________
+Responsável: ____________________________________________
+""".strip()
+
+
+def texto_atendimento(estudante, a):
+    return f"""
+REGISTRO DE ATENDIMENTO DO AEE - INCLUISRM
+
+Código interno: {estudante[1]}
+Data do atendimento: {a[1]}
 
 Objetivo trabalhado:
-{objetivo or 'Não informado.'}
+{a[2] or 'Não informado.'}
 
 Atividade realizada:
-{atividade or 'Não informado.'}
+{a[3] or 'Não informado.'}
 
 Resposta do estudante:
-{resposta_estudante or 'Não informado.'}
+{a[4] or 'Não informado.'}
 
 Avanços observados:
-{avancos or 'Não informado.'}
+{a[5] or 'Não informado.'}
 
 Dificuldades observadas:
-{dificuldades or 'Não informado.'}
+{a[6] or 'Não informado.'}
 
 Evolução observada:
-{evolucao or 'Não informado.'}
+{a[7] or 'Não informado.'}
 
-Resposta do estudante:
-{nivel_resposta if nivel_resposta is not None else 'Não informado.'}/10
-
-Avanço pedagógico:
-{nivel_avanco if nivel_avanco is not None else 'Não informado.'}/10
-
-Nível de dificuldade:
-{nivel_dificuldade if nivel_dificuldade is not None else 'Não informado.'}/10
-
-Engajamento:
-{nivel_engajamento if nivel_engajamento is not None else 'Não informado.'}/10
-
-Índice geral de evolução:
-{nivel_evolucao if nivel_evolucao is not None else 'Não informado.'}/10
+Indicadores:
+Resposta do estudante: {a[9]}/10
+Avanço pedagógico: {a[10]}/10
+Nível de dificuldade/barreira: {a[11]}/10
+Engajamento: {a[12]}/10
+Índice geral de evolução: {a[13]}/10
 
 Encaminhamentos:
-{encaminhamentos or 'Não informado.'}
+{a[14] or 'Não informado.'}
 """.strip()
 
 
-# ======================================================
-# BUSCA DE MODELOS 3D
-# ======================================================
-def link_busca_thingiverse(termo):
-    """Gera link de busca no Thingiverse sem depender da API."""
-    termo_formatado = termo.replace(" ", "%20")
-    return f"https://www.thingiverse.com/search?q={termo_formatado}&type=things"
-
-def link_busca_printables(termo):
-    termo_formatado = termo.replace(" ", "%20")
-    return f"https://www.printables.com/search/models?q={termo_formatado}"
-
-
-def link_busca_makerworld(termo):
-    """Gera link de busca no MakerWorld sem depender de API."""
-    termo_formatado = termo.replace(" ", "%20")
-    return f"https://makerworld.com/pt/search/models?keyword={termo_formatado}"
-
-
-def gerar_termos_3d_com_ia(conteudo_paee):
-    """Gera termos curtos para busca de modelos 3D a partir do PAEE."""
-    api_key = obter_api_key()
-
-    termos_padrao = [
-        "braille",
-        "tactile math",
-        "visual schedule",
-        "communication cards",
-        "sensory toys",
-    ]
-
-    if OpenAI is None or not api_key or not conteudo_paee:
-        return termos_padrao
-
-    prompt = f"""
-Analise o PAEE abaixo e gere exatamente 5 termos curtos para busca de modelos 3D pedagógicos
-em sites como Thingiverse, Printables e MakerWorld.
-
-Use termos preferencialmente em inglês, pois retornam mais modelos.
-Priorize recursos inclusivos, táteis, manipuláveis, visuais, sensoriais ou de comunicação alternativa.
-Não explique. Retorne apenas uma lista, um termo por linha.
-
-PAEE:
-{conteudo_paee}
-"""
-
-    try:
-        client = OpenAI(api_key=api_key)
-        resposta = client.responses.create(
-            model="gpt-4.1-mini",
-            input=prompt,
-        )
-
-        termos = []
-        for linha in resposta.output_text.split("\n"):
-            termo = linha.strip().strip("-•0123456789. )(").strip()
-            if termo and termo not in termos:
-                termos.append(termo)
-
-        return termos[:5] if termos else termos_padrao
-
-    except Exception:
-        return termos_padrao
-
-# ======================================================
-# IA
-# ======================================================
-def gerar_paee_sem_ia(estudante, avaliacao):
-    codigo = estudante[1]
-    ano_serie = estudante[2]
-    turma = estudante[3]
-    perfil = estudante[4]
-    observacoes = estudante[5]
-
-    (
-        data_registro,
-        barreiras,
-        potencialidades,
-        comunicacao,
-        interacao,
-        autonomia,
-        aprendizagem,
-        resumo_laudo,
-    ) = avaliacao
-
-    return f"""
-1. Identificação do estudante
-Código interno: {codigo}
-Ano/Série: {ano_serie}
-Turma: {turma}
-Perfil educacional informado: {perfil}
-
-2. Caracterização pedagógica inicial
-{observacoes or 'Não informado.'}
-
-3. Síntese pedagógica do laudo ou informações complementares
-{resumo_laudo or 'Não informado.'}
-
-4. Barreiras identificadas
-{barreiras or 'Não informado.'}
-
-5. Potencialidades do estudante
-{potencialidades or 'Não informado.'}
-
-6. Comunicação
-{comunicacao or 'Não informado.'}
-
-7. Interação social
-{interacao or 'Não informado.'}
-
-8. Autonomia
-{autonomia or 'Não informado.'}
-
-9. Aprendizagem
-{aprendizagem or 'Não informado.'}
-
-10. Objetivos do AEE
-Ampliar as condições de acesso, participação e aprendizagem do estudante nas atividades escolares.
-Desenvolver estratégias que favoreçam comunicação, autonomia, interação e organização da rotina escolar.
-Utilizar recursos pedagógicos acessíveis, materiais concretos e tecnologias educacionais inclusivas.
-
-11. Estratégias pedagógicas sugeridas
-Utilizar rotina visual, instruções objetivas e organização antecipada das atividades.
-Propor atividades com materiais concretos, jogos pedagógicos, recursos visuais e tecnologias digitais.
-Articular as ações do AEE com os professores do ensino comum.
-Registrar os avanços e dificuldades após cada atendimento.
-
-12. Recursos de acessibilidade e tecnologia assistiva
-Pranchas visuais, cartões de comunicação, materiais táteis, objetos 3D, jogos adaptados e recursos digitais.
-
-13. Avaliação e acompanhamento
-Registrar avanços, dificuldades, participação, autonomia e resposta às estratégias utilizadas.
-Revisar o PAEE periodicamente, considerando a evolução do estudante.
-
-Data da avaliação utilizada: {data_registro}
-""".strip()
-
-
-def gerar_paee_com_ia(estudante, avaliacao):
-    api_key = obter_api_key()
-
-    if OpenAI is None or not api_key:
-        return gerar_paee_sem_ia(estudante, avaliacao)
-
-    historico_txt = listar_atendimentos_texto(estudante[0])
-
-    estudante_txt = f"""
-Código interno: {estudante[1]}
-Ano/Série: {estudante[2]}
-Turma: {estudante[3]}
-Perfil educacional informado: {estudante[4]}
-Observações pedagógicas: {estudante[5]}
-"""
-
-    avaliacao_txt = f"""
-Data do registro: {avaliacao[0]}
-Barreiras: {avaliacao[1]}
-Potencialidades: {avaliacao[2]}
-Comunicação: {avaliacao[3]}
-Interação: {avaliacao[4]}
-Autonomia: {avaliacao[5]}
-Aprendizagem: {avaliacao[6]}
-Resumo pedagógico do laudo: {avaliacao[7]}
-"""
-
-    prompt = f"""
-Você é um assistente pedagógico especializado em Atendimento Educacional Especializado (AEE), Educação Inclusiva e elaboração de PAEE.
-
-Elabore uma sugestão de PAEE com linguagem formal, técnica, objetiva e pedagógica.
-Não invente diagnóstico. Não use nome de estudante. Use apenas o código interno.
-Não apresente condutas médicas. Foque em barreiras, potencialidades, objetivos, estratégias pedagógicas, acessibilidade, tecnologia assistiva, acompanhamento e evolução.
-
-PADRÕES DE LINGUAGEM:
-- Utilizar exclusivamente a expressão “Código interno” para identificação do estudante.
-- Usar “Data de elaboração” como referência temporal do documento.
-- Evitar termos imprecisos, ambiguidades de gênero e repetições desnecessárias.
-- Não incluir título principal do documento.
-
-REGRA SOBRE TEA SEM NÍVEL:
-Se o perfil educacional for TEA e o nível de suporte não estiver informado, adotar provisoriamente abordagem equivalente ao nível II, sem afirmar diagnóstico clínico.
-
-REGRA CRÍTICA SOBRE O USO DOS ATENDIMENTOS:
-A análise da evolução deve ser baseada EXCLUSIVAMENTE nos dados reais do histórico de atendimentos.
-É proibido inventar avanços, inferir melhorias não registradas ou criar evolução genérica.
-A IA deve citar os avanços, dificuldades e evolução observada exatamente como foram registrados.
-Se os dados forem insuficientes, escrever claramente:
-“Os registros de atendimento ainda são limitados para uma análise evolutiva consistente, sendo necessário ampliar o acompanhamento pedagógico.”
-
-DADOS DO ESTUDANTE:
-{estudante_txt}
-
-AVALIAÇÃO PEDAGÓGICA:
-{avaliacao_txt}
-
-HISTÓRICO DE ATENDIMENTOS:
-{historico_txt}
-
-Estruture o documento com:
-1. Identificação do estudante
-2. Caracterização pedagógica
-3. Necessidades educacionais específicas
-4. Barreiras identificadas
-5. Potencialidades
-6. Objetivos gerais e específicos do AEE
-7. Estratégias pedagógicas
-8. Recursos de acessibilidade e tecnologias assistivas
-9. Sugestões de tecnologias educacionais inclusivas
-10. Como aplicar essas tecnologias no atendimento
-11. Organização do atendimento
-12. Articulação com família e professores
-13. Avaliação e acompanhamento
-14. Recomendações para revisão do plano
-15. Adaptação automática conforme o perfil educacional
-16. Evolução do estudante com base nos atendimentos
-17. Assinaturas
-
-Na seção de tecnologias educacionais inclusivas, considere:
-- impressão 3D;
-- robótica educacional;
-- jogos digitais;
-- recursos maker;
-- comunicação alternativa e aumentativa;
-- materiais táteis, visuais e manipuláveis;
-- atividades plugadas e desplugadas.
-
-Na seção 16, descrever:
-- principais avanços observados;
-- dificuldades que permanecem;
-- estratégias que funcionaram melhor;
-- tecnologias que tiveram melhor resposta;
-- ajustes recomendados para os próximos atendimentos;
-- indicativos de autonomia, comunicação, interação e aprendizagem.
-
-Não inventar evolução. Usar apenas os dados registrados nos atendimentos.
-
-Responsável pelo AEE:
-Nome: ___________________________________________
-Função: Professor(a) do Atendimento Educacional Especializado (AEE)
-Assinatura: _______________________________________
-
-Coordenação pedagógica:
-Nome: ___________________________________________
-Cargo: Coordenação Pedagógica
-Assinatura: _______________________________________
-
-Data de elaboração: {datetime.now().strftime("%d/%m/%Y")}
-"""
-
-    client = OpenAI(api_key=api_key)
-    resposta = client.responses.create(
-        model="gpt-4.1-mini",
-        input=prompt,
-    )
-    return resposta.output_text
-
-
-def gerar_relatorio_evolucao(estudante, avaliacao):
-    api_key = obter_api_key()
-
-    if OpenAI is None or not api_key:
-        return """
-Relatório de evolução e qualidade do atendimento
-
-IA não configurada.
-
-Para gerar o relatório analítico com IA, configure a variável OPENAI_API_KEY nos Secrets do Streamlit Cloud.
-""".strip()
-
-    historico_txt = listar_atendimentos_texto(estudante[0])
-
-    estudante_txt = f"""
-Código interno: {estudante[1]}
-Ano/Série: {estudante[2]}
-Turma: {estudante[3]}
-Perfil educacional: {estudante[4]}
-"""
-
-    avaliacao_txt = "Avaliação pedagógica não localizada."
-    if avaliacao:
-        avaliacao_txt = f"""
-Data do registro: {avaliacao[0]}
-Barreiras: {avaliacao[1]}
-Potencialidades: {avaliacao[2]}
-Comunicação: {avaliacao[3]}
-Interação: {avaliacao[4]}
-Autonomia: {avaliacao[5]}
-Aprendizagem: {avaliacao[6]}
-Resumo pedagógico do laudo: {avaliacao[7]}
-"""
-
-    prompt = f"""
-Você é um especialista em Educação Inclusiva e Atendimento Educacional Especializado (AEE).
-
-Analise o histórico de atendimentos e produza um documento com o seguinte título:
-Relatório de evolução e qualidade do atendimento
-
-DADOS DO ESTUDANTE:
-{estudante_txt}
-
-AVALIAÇÃO PEDAGÓGICA:
-{avaliacao_txt}
-
-HISTÓRICO DE ATENDIMENTOS:
-{historico_txt}
-
-REGRAS IMPORTANTES:
-- Não inventar informações.
-- Usar somente dados reais registrados.
-- Se os dados forem insuficientes, dizer claramente.
-- Não usar nome real de estudante.
-- Usar somente “Código interno” como identificação.
-
-ESTRUTURA DO RELATÓRIO:
-1. Identificação
-2. Síntese da evolução do estudante
-3. Análise dos avanços
-4. Análise das dificuldades
-5. Qualidade dos registros pedagógicos
-6. Classificação da qualidade dos registros: Alta, Média ou Baixa
-7. Principais problemas identificados nos registros
-8. Recomendações para melhoria dos registros
-9. Recomendações pedagógicas para o AEE
-10. Conclusão técnica
-
-IMPORTANTE:
-Se os registros forem fracos, dizer explicitamente isso.
-"""
-
-    client = OpenAI(api_key=api_key)
-    resposta = client.responses.create(
-        model="gpt-4.1-mini",
-        input=prompt,
-    )
-    return resposta.output_text
+def texto_agenda(df):
+    if df.empty:
+        return "AGENDA DE ATENDIMENTOS - INCLUISRM\n\nNenhum agendamento registrado."
+    return "AGENDA DE ATENDIMENTOS - INCLUISRM\n\n" + df.to_string(index=False)
 
 
 # ======================================================
 # PDF
 # ======================================================
-def gerar_pdf_documento(conteudo, codigo, tipo="paee"):
+def gerar_pdf_documento(conteudo, codigo, tipo="documento"):
     from reportlab.lib import colors
     from reportlab.lib.enums import TA_CENTER
     from reportlab.lib.pagesizes import A4
     from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
-    from reportlab.platypus import (
-        HRFlowable,
-        Paragraph,
-        SimpleDocTemplate,
-        Spacer,
-        Image,
-    )
+    from reportlab.platypus import HRFlowable, Paragraph, SimpleDocTemplate, Spacer, Image
 
-    if tipo == "relatorio":
-        nome_arquivo = f"Relatorio_{codigo}.pdf"
-        titulo_doc = "RELATÓRIO DE EVOLUÇÃO E QUALIDADE DO ATENDIMENTO"
-    elif tipo == "avaliacao":
-        nome_arquivo = f"Avaliacao_Pedagogica_{codigo}.pdf"
-        titulo_doc = "AVALIAÇÃO PEDAGÓGICA INICIAL"
-    elif tipo == "atendimento":
-        nome_arquivo = f"Registro_Atendimento_{codigo}.pdf"
-        titulo_doc = "REGISTRO DE ATENDIMENTO DO AEE"
-    else:
-        nome_arquivo = f"PAEE_{codigo}.pdf"
-        titulo_doc = "PLANO DE ATENDIMENTO EDUCACIONAL ESPECIALIZADO (PAEE)"
+    nomes = {
+        "cadastro": ("Cadastro_Estudante", "CADASTRO DO ESTUDANTE"),
+        "professor": ("Ficha_Professor_AEE", "FICHA DE IDENTIFICAÇÃO DO(A) PROFESSOR(A) AEE"),
+        "entrevista": ("Entrevista_Familia", "ENTREVISTA COM A FAMÍLIA"),
+        "avaliacao": ("Avaliacao_Pedagogica", "AVALIAÇÃO PEDAGÓGICA INICIAL"),
+        "estudo": ("Estudo_Caso", "ESTUDO DE CASO"),
+        "plano": ("Plano_AEE_PAEE", "PLANO AEE / PAEE"),
+        "atendimento": ("Registro_Atendimento", "REGISTRO DE ATENDIMENTO DO AEE"),
+        "agenda": ("Agenda_Atendimentos", "AGENDA DE ATENDIMENTOS"),
+        "relatorio": ("Relatorio_GRE", "RELATÓRIO GRE"),
+        "documento": ("Documento", "DOCUMENTO"),
+    }
+    prefixo, titulo_doc = nomes.get(tipo, nomes["documento"])
+    nome_arquivo = f"{prefixo}_{codigo}.pdf".replace("/", "-").replace("\\", "-")
 
-    doc = SimpleDocTemplate(
-        nome_arquivo,
-        pagesize=A4,
-        rightMargin=40,
-        leftMargin=40,
-        topMargin=40,
-        bottomMargin=40,
-    )
-
+    doc = SimpleDocTemplate(nome_arquivo, pagesize=A4, rightMargin=40, leftMargin=40, topMargin=40, bottomMargin=40)
     styles = getSampleStyleSheet()
 
     titulo_style = ParagraphStyle(
         name="Titulo",
         parent=styles["Title"],
         alignment=TA_CENTER,
-        fontSize=16,
+        fontSize=15,
         leading=20,
-        spaceAfter=16,
+        spaceAfter=14,
         textColor=colors.black,
     )
-
     secao_style = ParagraphStyle(
         name="Secao",
         parent=styles["Heading2"],
         fontSize=12,
         leading=15,
-        spaceBefore=10,
-        spaceAfter=6,
+        spaceBefore=9,
+        spaceAfter=5,
         textColor=colors.darkblue,
     )
-
     normal_style = ParagraphStyle(
         name="NormalCustom",
         parent=styles["Normal"],
@@ -1376,169 +1196,298 @@ def gerar_pdf_documento(conteudo, codigo, tipo="paee"):
         leading=14,
         spaceAfter=6,
     )
-
     rodape_style = ParagraphStyle(
         name="Rodape",
         parent=styles["Normal"],
         fontSize=9,
         alignment=TA_CENTER,
         textColor=colors.grey,
-        spaceBefore=20,
+        spaceBefore=18,
     )
 
     elementos = []
-
-    # LOGO
     try:
-        logo = Image("logosrm.png", width=160, height=80)
+        logo = Image(LOGO_PATH, width=160, height=80)
         logo.hAlign = "CENTER"
         elementos.append(logo)
         elementos.append(Spacer(1, 8))
     except Exception:
-        pass
+        elementos.append(Paragraph("<b>INCLUISRM</b>", titulo_style))
 
-    # NOME INSTITUCIONAL
-    elementos.append(
-        Paragraph(
-            "<b>Universidade Federal Rural de Pernambuco<br/>"
-            "LabTec3DI – Laboratório de Tecnologias 3D e Inclusivas</b>",
-            normal_style,
-        )
-    )
-
+    elementos.append(Paragraph("<b>INCLUISRM<br/>Sistema de Gestão do Atendimento Educacional Especializado</b>", normal_style))
     elementos.append(Spacer(1, 8))
     elementos.append(HRFlowable(width="100%", thickness=1, color=colors.grey))
     elementos.append(Spacer(1, 12))
-
-    # TÍTULO
     elementos.append(Paragraph(titulo_doc, titulo_style))
     elementos.append(Spacer(1, 12))
 
-    # CONTEÚDO
     for linha in conteudo.split("\n"):
         linha = linha.strip()
-
         if not linha:
             elementos.append(Spacer(1, 6))
             continue
-
-        linha_lower = linha.lower()
-
-        if "plano de atendimento educacional especializado" in linha_lower:
-            continue
-        if "relatório de evolução e qualidade do atendimento" in linha_lower:
-            continue
-        if "avaliação pedagógica inicial" in linha_lower:
-            continue
-        if "registro de atendimento do aee" in linha_lower:
-            continue
-        if linha in ["--", "• --", "---"]:
-            continue
-
         linha_html = escape(linha)
-
         if linha.startswith("#"):
-            texto = escape(linha.replace("#", "").strip())
-            elementos.append(Paragraph(f"<b>{texto}</b>", secao_style))
-
-        elif linha.startswith("**") and linha.endswith("**"):
-            texto = escape(linha.replace("**", "").strip())
-            elementos.append(Paragraph(f"<b>{texto}</b>", secao_style))
-
+            elementos.append(Paragraph(f"<b>{escape(linha.replace('#','').strip())}</b>", secao_style))
         elif linha[:2].isdigit() and "." in linha[:4]:
             elementos.append(Paragraph(f"<b>{linha_html}</b>", secao_style))
-
         elif linha.startswith("-"):
             elementos.append(Paragraph(f"• {escape(linha[1:].strip())}", normal_style))
-
         else:
             elementos.append(Paragraph(linha_html, normal_style))
 
-    elementos.append(Spacer(1, 20))
-    elementos.append(
-        Paragraph(
-            "Elaborado com apoio do LabTec3DI – UFRPE",
-            rodape_style,
-        )
-    )
-
+    elementos.append(Spacer(1, 18))
+    elementos.append(Paragraph(f"Gerado em {datetime.now().strftime('%d/%m/%Y %H:%M')} pelo INCLUISRM.", rodape_style))
     doc.build(elementos)
     return nome_arquivo
 
-def gerar_pdf_paee(conteudo, codigo):
-    return gerar_pdf_documento(conteudo, codigo, tipo="paee")
-
-
-def gerar_pdf_avaliacao(conteudo, codigo):
-    return gerar_pdf_documento(conteudo, codigo, tipo="avaliacao")
-
-
-def gerar_pdf_atendimento(conteudo, codigo):
-    return gerar_pdf_documento(conteudo, codigo, tipo="atendimento")
-
-
-def gerar_pdf_relatorio(conteudo, codigo):
-    return gerar_pdf_documento(conteudo, codigo, tipo="relatorio")
-
-
-criar_tabelas()
-
-PERFIS = [
-    "Não informado",
-    "Deficiência intelectual",
-    "Deficiência visual",
-    "Deficiência auditiva/surdez",
-    "Deficiência física",
-    "TEA",
-    "TEA - Nível I",
-    "TEA - Nível II",
-    "TEA - Nível III",
-    "Altas habilidades/superdotação",
-    "Deficiência múltipla",
-    "Outro",
-]
-
-
-def opcoes_estudantes_por_id(estudantes):
-    """Retorna lista de IDs e mapa para exibir estudante no selectbox."""
-    ids = [e[0] for e in estudantes]
-    mapa = {e[0]: f"{e[1]} - {e[2] or 'Ano/Série não informado'} - {e[4] or 'Perfil não informado'}" for e in estudantes}
-    return ids, mapa
-
-
-
-def render_app_header():
-    st.markdown(
-        """
-        <div class="app-hero">
-            <span class="app-badge">Gestão do AEE • SRM • Relatórios</span>
-            <h1 class="app-title">INCLUISRM</h1>
-            <p class="app-subtitle">Sistema de Gestão do Atendimento Educacional Especializado</p>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
 
 # ======================================================
-# SIDEBAR PROFISSIONAL
+# IA
+# ======================================================
+def obter_api_key():
+    try:
+        return os.getenv("OPENAI_API_KEY") or st.secrets.get("OPENAI_API_KEY")
+    except Exception:
+        return os.getenv("OPENAI_API_KEY")
+
+
+def listar_atendimentos_texto(estudante_id):
+    atendimentos = listar_atendimentos(estudante_id)
+    if not atendimentos:
+        return "Nenhum atendimento registrado."
+    partes = []
+    for a in atendimentos[:10]:
+        partes.append(
+            f"""
+Data: {a[0]}
+Objetivo: {a[1] or 'Não informado.'}
+Atividade: {a[2] or 'Não informado.'}
+Resposta: {a[3] or 'Não informado.'}
+Avanços: {a[4] or 'Não informado.'}
+Dificuldades: {a[5] or 'Não informado.'}
+Evolução: {a[6] or 'Não informado.'}
+Resposta: {a[8] if len(a) > 8 else 'Não informado.'}/10
+Avanço: {a[9] if len(a) > 9 else 'Não informado.'}/10
+Dificuldade: {a[10] if len(a) > 10 else 'Não informado.'}/10
+Engajamento: {a[11] if len(a) > 11 else 'Não informado.'}/10
+Índice: {a[12] if len(a) > 12 else 'Não informado.'}/10
+"""
+        )
+    return "\n---\n".join(partes)
+
+
+def gerar_estudo_caso_com_ia(estudante, avaliacao, entrevista):
+    api_key = obter_api_key()
+    if OpenAI is None or not api_key:
+        return """
+IA não configurada. Preencha manualmente os campos do Estudo de Caso.
+""".strip()
+
+    prompt = f"""
+Você é especialista em Atendimento Educacional Especializado (AEE).
+Elabore um Estudo de Caso em linguagem formal, pedagógica e objetiva.
+Use apenas código interno, nunca nome real.
+
+DADOS DO ESTUDANTE:
+Código: {estudante[1]}
+Ano/Série: {estudante[2]}
+Turma: {estudante[3]}
+Perfil: {estudante[4]}
+Observações: {estudante[5]}
+
+AVALIAÇÃO PEDAGÓGICA:
+{avaliacao or 'Sem avaliação registrada.'}
+
+ENTREVISTA COM A FAMÍLIA:
+{entrevista or 'Sem entrevista registrada.'}
+
+Estruture com:
+1. Identificação
+2. Contextualização
+3. Queixa principal / motivo do acompanhamento
+4. Potencialidades
+5. Dificuldades observadas
+6. Estratégias pedagógicas
+7. Intervenções sugeridas
+8. Avaliação
+9. Considerações finais
+
+Não invente diagnóstico. Não faça prescrição médica.
+"""
+    client = OpenAI(api_key=api_key)
+    resposta = client.responses.create(model="gpt-4.1-mini", input=prompt)
+    return resposta.output_text
+
+
+def gerar_relatorio_gre_texto(estudante):
+    avaliacao = ultima_avaliacao(estudante[0])
+    entrevista = ultima_linha(
+        "entrevistas_familia",
+        ["data_registro", "rotina", "saude", "comunicacao", "autonomia", "socializacao", "interesses", "observacoes"],
+        estudante[0],
+    )
+    estudo = ultima_linha(
+        "estudos_caso",
+        ["data_registro", "contextualizacao", "queixa_principal", "potencialidades", "dificuldades", "estrategias", "intervencoes", "avaliacao", "consideracoes"],
+        estudante[0],
+    )
+    plano = ultima_linha(
+        "planos_aee",
+        ["data_registro", "objetivos_gerais", "objetivos_especificos", "habilidades_prioritarias", "recursos_acessibilidade", "estrategias", "organizacao_atendimento", "parcerias", "avaliacao_acompanhamento", "observacoes"],
+        estudante[0],
+    )
+    atendimentos = listar_atendimentos(estudante[0])
+
+    return f"""
+RELATÓRIO CONSOLIDADO GRE - INCLUISRM
+
+1. Identificação segura
+Código interno: {estudante[1]}
+Ano/Série: {estudante[2] or 'Não informado.'}
+Turma: {estudante[3] or 'Não informado.'}
+Turno: {estudante[6] or 'Não informado.'}
+Perfil educacional: {estudante[4] or 'Não informado.'}
+
+Campos sensíveis para preenchimento manual:
+Nome completo: ___________________________________________
+CPF/RG: _________________________________________________
+Responsável: ____________________________________________
+
+2. Cadastro pedagógico
+{estudante[5] or 'Não informado.'}
+
+3. Entrevista com a família
+{texto_entrevista(estudante, ('', *entrevista)) if entrevista else 'Nenhuma entrevista registrada.'}
+
+4. Avaliação pedagógica
+{texto_avaliacao(estudante, ('', *avaliacao)) if avaliacao else 'Nenhuma avaliação registrada.'}
+
+5. Estudo de caso
+{texto_estudo_caso(estudante, ('', *estudo)) if estudo else 'Nenhum estudo de caso registrado.'}
+
+6. Plano AEE / PAEE
+{texto_plano_aee(estudante, ('', *plano)) if plano else 'Nenhum plano AEE / PAEE registrado.'}
+
+7. Síntese dos atendimentos
+Total de atendimentos registrados: {len(atendimentos)}
+
+{listar_atendimentos_texto(estudante[0])}
+
+8. Assinaturas
+Professor(a) AEE: _______________________________________
+Coordenação/Gestão: _____________________________________
+Responsável: ____________________________________________
+""".strip()
+
+
+# ======================================================
+# DATAFRAMES / GRÁFICOS
+# ======================================================
+def montar_dataframe_evolucao(atendimentos):
+    dados = []
+    for atendimento in reversed(atendimentos):
+        data_atendimento = atendimento[0]
+        avancos = atendimento[4]
+        dificuldades = atendimento[5]
+        evolucao = atendimento[6]
+        nivel_resposta = limitar_escala(atendimento[8] if len(atendimento) > 8 else 5)
+        nivel_avanco = limitar_escala(atendimento[9] if len(atendimento) > 9 else 5)
+        nivel_dificuldade = limitar_escala(atendimento[10] if len(atendimento) > 10 else 5)
+        nivel_engajamento = limitar_escala(atendimento[11] if len(atendimento) > 11 else 5)
+        indice = calcular_indice_geral(nivel_resposta, nivel_avanco, nivel_dificuldade, nivel_engajamento)
+
+        try:
+            data_ordenacao = datetime.strptime(data_atendimento, "%d/%m/%Y")
+        except Exception:
+            data_ordenacao = None
+
+        dados.append(
+            {
+                "Data": data_atendimento,
+                "Data ordenação": data_ordenacao,
+                "Resposta do estudante": nivel_resposta,
+                "Avanço pedagógico": nivel_avanco,
+                "Nível de dificuldade": nivel_dificuldade,
+                "Engajamento": nivel_engajamento,
+                "Índice geral de evolução": indice,
+                "Interpretação": interpretar_indice(indice),
+                "Avanços": avancos or "Não informado.",
+                "Dificuldades observadas": dificuldades or "Não informado.",
+                "Evolução observada": evolucao or "Não informado.",
+            }
+        )
+    df = pd.DataFrame(dados)
+    if not df.empty and "Data ordenação" in df.columns:
+        df = df.sort_values(by="Data ordenação", na_position="last")
+    return df
+
+
+def render_grafico_evolucao(atendimentos):
+    df = montar_dataframe_evolucao(atendimentos)
+    if df.empty:
+        st.warning("Este estudante ainda não possui atendimentos registrados.")
+        return
+
+    df = df.copy()
+    df["Ordem"] = range(1, len(df) + 1)
+    contagem_datas = df.groupby("Data").cumcount() + 1
+    repetidas = df["Data"].duplicated(keep=False)
+    df["Atendimento"] = df["Data"]
+    df.loc[repetidas, "Atendimento"] = df.loc[repetidas, "Data"] + " #" + contagem_datas.loc[repetidas].astype(str)
+
+    indicadores = [
+        "Resposta do estudante",
+        "Avanço pedagógico",
+        "Nível de dificuldade",
+        "Engajamento",
+        "Índice geral de evolução",
+    ]
+    for col in indicadores:
+        df[col] = pd.to_numeric(df[col], errors="coerce").fillna(5).clip(1, 10)
+
+    df_long = df.melt(
+        id_vars=["Atendimento", "Data", "Interpretação"],
+        value_vars=indicadores,
+        var_name="Indicador",
+        value_name="Pontuação",
+    )
+
+    grafico = (
+        alt.Chart(df_long)
+        .mark_bar()
+        .encode(
+            x=alt.X("Atendimento:N", title="Data / atendimento", sort=None),
+            xOffset=alt.XOffset("Indicador:N"),
+            y=alt.Y("Pontuação:Q", title="Pontuação", scale=alt.Scale(domain=[0, 10])),
+            color=alt.Color("Indicador:N", title="Indicador"),
+            tooltip=["Data", "Indicador", "Pontuação", "Interpretação"],
+        )
+        .properties(height=360)
+    )
+    st.altair_chart(grafico, use_container_width=True)
+
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("Atendimentos", len(df))
+    col2.metric("Média do índice", f"{df['Índice geral de evolução'].mean():.1f}/10")
+    col3.metric("Último índice", f"{df['Índice geral de evolução'].iloc[-1]:.1f}/10")
+    col4.metric("Variação", f"{df['Índice geral de evolução'].iloc[-1] - df['Índice geral de evolução'].iloc[0]:+.1f}")
+
+    with st.expander("Ver dados usados no gráfico"):
+        st.dataframe(df, use_container_width=True, hide_index=True)
+
+
+# ======================================================
+# SIDEBAR
 # ======================================================
 with st.sidebar:
     try:
         st.markdown('<div class="sidebar-logo-card">', unsafe_allow_html=True)
-        st.image("logosrm.png", use_container_width=True)
-        st.markdown('</div>', unsafe_allow_html=True)
+        st.image(LOGO_PATH, use_container_width=True)
+        st.markdown("</div>", unsafe_allow_html=True)
     except Exception:
         st.markdown('<div class="sidebar-title">INCLUISRM</div>', unsafe_allow_html=True)
-        st.markdown(
-            '<div class="sidebar-subtitle">Sistema de Gestão do Atendimento Educacional Especializado</div>',
-            unsafe_allow_html=True,
-        )
-
-    st.markdown('<div class="sidebar-title">INCLUISRM</div>', unsafe_allow_html=True)
-    st.markdown(
-        '<div class="sidebar-subtitle">Sistema de Gestão do Atendimento Educacional Especializado</div>',
-        unsafe_allow_html=True,
-    )
+        st.markdown(f'<div class="sidebar-subtitle">{APP_SUBTITLE}</div>', unsafe_allow_html=True)
 
     st.markdown("---")
 
@@ -1546,11 +1495,15 @@ with st.sidebar:
         "Navegação",
         [
             "Dashboard",
-            "Cadastro",
+            "Cadastro do Estudante",
+            "Cadastro do Professor AEE",
+            "Entrevista com a Família",
             "Avaliação Pedagógica",
-            "Gerar PAEE",
+            "Estudo de Caso",
+            "Plano AEE / PAEE",
             "Atendimentos",
-            "Relatório IA",
+            "Agenda de Atendimentos",
+            "Relatórios GRE",
             "Administração",
         ],
         index=0,
@@ -1558,7 +1511,7 @@ with st.sidebar:
 
     st.markdown("---")
     st.caption("LabTec3DI – UFRPE")
-    st.caption("Sistema de Gestão do Atendimento Educacional Especializado")
+    st.caption(APP_SUBTITLE)
 
 
 render_app_header()
@@ -1572,38 +1525,25 @@ if menu == "Dashboard":
 
     estudantes = listar_estudantes()
     total_estudantes = len(estudantes)
+    total_avaliacoes = sum(len(listar_avaliacoes(e[0])) for e in estudantes)
+    total_atendimentos = sum(len(listar_atendimentos(e[0])) for e in estudantes)
+    total_agenda = len(listar_agenda())
 
-    total_avaliacoes = 0
-    total_atendimentos = 0
-
-    for estudante in estudantes:
-        total_avaliacoes += len(listar_avaliacoes(estudante[0]))
-        total_atendimentos += len(listar_atendimentos(estudante[0]))
-
-    col1, col2, col3 = st.columns(3)
-    col1.metric("Estudantes cadastrados", total_estudantes)
-    col2.metric("Avaliações registradas", total_avaliacoes)
-    col3.metric("Atendimentos registrados", total_atendimentos)
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("Estudantes", total_estudantes)
+    col2.metric("Avaliações", total_avaliacoes)
+    col3.metric("Atendimentos", total_atendimentos)
+    col4.metric("Agendamentos", total_agenda)
 
     st.markdown("---")
 
-    col_esq, col_dir = st.columns([1.2, 1])
-
+    col_esq, col_dir = st.columns([1.25, 1])
     with col_esq:
         with st.container(border=True):
             st.markdown("### 👥 Estudantes recentes")
-
             if estudantes:
                 st.dataframe(
-                    [
-                        {
-                            "Código": e[1],
-                            "Ano/Série": e[2],
-                            "Turma": e[3],
-                            "Perfil": e[4],
-                        }
-                        for e in estudantes
-                    ],
+                    [{"Código": e[1], "Ano/Série": e[2], "Turma": e[3], "Perfil": e[4], "Dias": e[7]} for e in estudantes],
                     use_container_width=True,
                     hide_index=True,
                 )
@@ -1616,32 +1556,34 @@ if menu == "Dashboard":
             st.markdown(
                 """
                 1. Cadastre o estudante com código interno.
-                2. Registre a avaliação pedagógica inicial.
-                3. Gere a sugestão de PAEE.
-                4. Registre os atendimentos.
-                5. Gere o relatório de evolução.
+                2. Registre entrevista, avaliação e estudo de caso.
+                3. Crie o Plano AEE / PAEE.
+                4. Lance os atendimentos e acompanhe os gráficos.
+                5. Organize a agenda semanal.
+                6. Gere os relatórios GRE para impressão e pasta física.
                 """
             )
 
 
 # ======================================================
-# CADASTRO
+# CADASTRO DO ESTUDANTE
 # ======================================================
-elif menu == "Cadastro":
+elif menu == "Cadastro do Estudante":
     st.markdown('<div class="subtitulo">👤 Cadastro do estudante</div>', unsafe_allow_html=True)
 
     col_form, col_lista = st.columns([1, 1.2])
-
     with col_form:
         with st.container(border=True):
             st.markdown("### Novo estudante")
-
-            with st.form("form_cadastro"):
-                codigo = st.text_input("Código interno do estudante", placeholder="Ex.: AEE-001", key="cad_codigo")
-                ano_serie = st.text_input("Ano/Série", placeholder="Ex.: 4º ano", key="cad_ano")
-                turma = st.text_input("Turma", placeholder="Ex.: 4º ano B", key="cad_turma")
-                perfil = st.selectbox("Perfil educacional informado", PERFIS, key="cad_perfil")
-                observacoes = st.text_area("Observações pedagógicas iniciais", key="cad_observacoes")
+            with st.form("form_cadastro_estudante"):
+                codigo = st.text_input("Código interno / matrícula segura", placeholder="Ex.: AEE-2026-001")
+                ano_serie = st.text_input("Ano/Série", placeholder="Ex.: 8º ano")
+                turma = st.text_input("Turma", placeholder="Ex.: 8º ano A")
+                turno = st.selectbox("Turno", ["Não informado", "Manhã", "Tarde", "Noite", "Integral"])
+                perfil = st.selectbox("Perfil educacional informado", PERFIS)
+                dias = st.multiselect("Dias preferenciais de atendimento", DIAS_SEMANA)
+                horario = st.text_input("Horário preferencial", placeholder="Ex.: 08:00 às 08:50")
+                observacoes = st.text_area("Observações pedagógicas iniciais")
                 enviar = st.form_submit_button("Cadastrar estudante")
 
                 if enviar:
@@ -1649,7 +1591,7 @@ elif menu == "Cadastro":
                         st.error("Informe um código interno para o estudante.")
                     else:
                         try:
-                            cadastrar_estudante(codigo.strip(), ano_serie, turma, perfil, observacoes)
+                            cadastrar_estudante(codigo.strip(), ano_serie, turma, turno, perfil, observacoes, ", ".join(dias), horario)
                             st.success("Estudante cadastrado com sucesso.")
                             st.rerun()
                         except sqlite3.IntegrityError:
@@ -1658,19 +1600,13 @@ elif menu == "Cadastro":
     with col_lista:
         with st.container(border=True):
             st.markdown("### 📋 Estudantes cadastrados")
-
             estudantes = listar_estudantes()
-
             if estudantes:
                 st.dataframe(
                     [
                         {
-                            "ID": e[0],
-                            "Código": e[1],
-                            "Ano/Série": e[2],
-                            "Turma": e[3],
-                            "Perfil": e[4],
-                            "Observações": e[5],
+                            "ID": e[0], "Código": e[1], "Ano/Série": e[2], "Turma": e[3],
+                            "Turno": e[6], "Perfil": e[4], "Dias": e[7], "Horário": e[8],
                         }
                         for e in estudantes
                     ],
@@ -1680,6 +1616,150 @@ elif menu == "Cadastro":
             else:
                 st.info("Nenhum estudante cadastrado ainda.")
 
+    with st.container(border=True):
+        st.markdown("### ✏️ Editar, excluir ou exportar cadastro")
+        estudantes = listar_estudantes()
+        if estudantes:
+            ids, mapa = opcoes_estudantes_por_id(estudantes)
+            estudante_id = st.selectbox("Selecione o estudante", ids, format_func=lambda x: mapa[x], key="edit_estudante")
+            estudante = buscar_estudante(estudante_id)
+            with st.expander("Editar cadastro"):
+                with st.form(f"form_edit_estudante_{estudante_id}"):
+                    codigo_e = st.text_input("Código interno", value=estudante[1] or "")
+                    ano_e = st.text_input("Ano/Série", value=estudante[2] or "")
+                    turma_e = st.text_input("Turma", value=estudante[3] or "")
+                    turno_e = st.selectbox("Turno", ["Não informado", "Manhã", "Tarde", "Noite", "Integral"], index=["Não informado", "Manhã", "Tarde", "Noite", "Integral"].index(estudante[6]) if estudante[6] in ["Não informado", "Manhã", "Tarde", "Noite", "Integral"] else 0)
+                    perfil_e = st.selectbox("Perfil", PERFIS, index=PERFIS.index(estudante[4]) if estudante[4] in PERFIS else 0)
+                    dias_e = st.text_input("Dias de atendimento", value=estudante[7] or "")
+                    horario_e = st.text_input("Horário preferencial", value=estudante[8] or "")
+                    obs_e = st.text_area("Observações", value=estudante[5] or "")
+                    if st.form_submit_button("Salvar alterações"):
+                        atualizar_estudante(estudante_id, codigo_e, ano_e, turma_e, turno_e, perfil_e, obs_e, dias_e, horario_e)
+                        st.success("Cadastro atualizado.")
+                        st.rerun()
+
+            texto = texto_cadastro_estudante(estudante)
+            export_buttons(texto, f"Cadastro_Estudante_{estudante[1]}", tipo_pdf="cadastro")
+
+            confirmar = st.checkbox("Confirmar exclusão do estudante e de todos os registros vinculados", key="conf_excluir_est")
+            if st.button("Excluir estudante", key="btn_excluir_est"):
+                if confirmar:
+                    excluir_estudante(estudante_id)
+                    st.success("Estudante excluído.")
+                    st.rerun()
+                else:
+                    st.warning("Marque a confirmação antes de excluir.")
+
+
+# ======================================================
+# CADASTRO DO PROFESSOR AEE
+# ======================================================
+elif menu == "Cadastro do Professor AEE":
+    st.markdown('<div class="subtitulo">👨‍🏫 Cadastro do Professor AEE</div>', unsafe_allow_html=True)
+
+    with st.container(border=True):
+        st.markdown("### Novo cadastro profissional")
+        with st.form("form_professor"):
+            nome_ref = st.text_input("Nome de referência / nome profissional")
+            escola = st.text_input("Escola")
+            regional = st.text_input("Regional / GRE")
+            formacao = st.text_area("Formação")
+            carga = st.text_input("Carga horária")
+            turno = st.text_input("Turno de atuação")
+            obs = st.text_area("Observações")
+            if st.form_submit_button("Salvar cadastro do professor"):
+                salvar_professor(nome_ref, escola, regional, formacao, carga, turno, obs)
+                st.success("Cadastro do professor salvo.")
+                st.rerun()
+
+    with st.container(border=True):
+        st.markdown("### Histórico")
+        professores = listar_professores()
+        if professores:
+            st.dataframe(
+                [
+                    {"ID": p[0], "Nome referência": p[1], "Escola": p[2], "Regional": p[3], "Carga horária": p[5], "Turno": p[6]}
+                    for p in professores
+                ],
+                use_container_width=True,
+                hide_index=True,
+            )
+            for p in professores:
+                with st.expander(f"Professor(a) #{p[0]} - {p[1] or 'Sem nome'}"):
+                    st.text(texto_professor(p))
+                    export_buttons(texto_professor(p), f"Ficha_Professor_AEE_{p[0]}", tipo_pdf="professor")
+                    with st.form(f"edit_professor_{p[0]}"):
+                        nome_e = st.text_input("Nome referência", value=p[1] or "", key=f"prof_nome_{p[0]}")
+                        escola_e = st.text_input("Escola", value=p[2] or "", key=f"prof_escola_{p[0]}")
+                        regional_e = st.text_input("Regional/GRE", value=p[3] or "", key=f"prof_regional_{p[0]}")
+                        formacao_e = st.text_area("Formação", value=p[4] or "", key=f"prof_formacao_{p[0]}")
+                        carga_e = st.text_input("Carga horária", value=p[5] or "", key=f"prof_carga_{p[0]}")
+                        turno_e = st.text_input("Turno", value=p[6] or "", key=f"prof_turno_{p[0]}")
+                        obs_e = st.text_area("Observações", value=p[7] or "", key=f"prof_obs_{p[0]}")
+                        if st.form_submit_button("Atualizar"):
+                            atualizar_professor(p[0], nome_e, escola_e, regional_e, formacao_e, carga_e, turno_e, obs_e)
+                            st.success("Atualizado.")
+                            st.rerun()
+                    if st.button("Excluir professor", key=f"exc_prof_{p[0]}"):
+                        excluir_professor(p[0])
+                        st.success("Excluído.")
+                        st.rerun()
+        else:
+            st.info("Nenhum professor cadastrado.")
+
+
+# ======================================================
+# ENTREVISTA COM A FAMÍLIA
+# ======================================================
+elif menu == "Entrevista com a Família":
+    st.markdown('<div class="subtitulo">👪 Entrevista com a Família</div>', unsafe_allow_html=True)
+    estudantes = listar_estudantes()
+    if not estudantes:
+        st.info("Cadastre um estudante primeiro.")
+    else:
+        ids, mapa = opcoes_estudantes_por_id(estudantes)
+        estudante_id = st.selectbox("Selecione o estudante", ids, format_func=lambda x: mapa[x], key="entrevista_estudante")
+        estudante = buscar_estudante(estudante_id)
+
+        with st.container(border=True):
+            st.markdown("### Nova entrevista")
+            with st.form("form_entrevista"):
+                rotina = st.text_area("Rotina familiar")
+                saude = st.text_area("Saúde/desenvolvimento em termos pedagógicos")
+                comunicacao = st.text_area("Comunicação")
+                autonomia = st.text_area("Autonomia")
+                socializacao = st.text_area("Socialização")
+                interesses = st.text_area("Interesses")
+                observacoes = st.text_area("Observações familiares")
+                if st.form_submit_button("Salvar entrevista"):
+                    inserir_registro(
+                        "entrevistas_familia",
+                        ["estudante_id", "data_registro", "rotina", "saude", "comunicacao", "autonomia", "socializacao", "interesses", "observacoes"],
+                        [estudante_id, hoje_str(), rotina, saude, comunicacao, autonomia, socializacao, interesses, observacoes],
+                    )
+                    st.success("Entrevista salva.")
+                    st.rerun()
+
+        registros = listar_por_estudante(
+            "entrevistas_familia",
+            ["data_registro", "rotina", "saude", "comunicacao", "autonomia", "socializacao", "interesses", "observacoes"],
+            estudante_id,
+        )
+        with st.container(border=True):
+            st.markdown("### Histórico de entrevistas")
+            if registros:
+                for r in registros:
+                    with st.expander(f"Entrevista em {r[1]}"):
+                        texto = texto_entrevista(estudante, r)
+                        st.text(texto)
+                        export_buttons(texto, f"Entrevista_Familia_{estudante[1]}_{r[0]}", tipo_pdf="entrevista")
+                        if st.button("Excluir entrevista", key=f"exc_ent_{r[0]}"):
+                            excluir_registro("entrevistas_familia", r[0])
+                            st.success("Entrevista excluída.")
+                            st.rerun()
+            else:
+                st.info("Nenhuma entrevista registrada.")
+
 
 # ======================================================
 # AVALIAÇÃO PEDAGÓGICA
@@ -1687,302 +1767,163 @@ elif menu == "Cadastro":
 elif menu == "Avaliação Pedagógica":
     st.markdown('<div class="subtitulo">📝 Avaliação pedagógica inicial</div>', unsafe_allow_html=True)
     estudantes = listar_estudantes()
-
     if not estudantes:
         st.info("Cadastre um estudante primeiro.")
     else:
         ids, mapa = opcoes_estudantes_por_id(estudantes)
-        estudante_id = st.selectbox(
-            "Selecione o estudante",
-            ids,
-            format_func=lambda x: mapa[x],
-            key="avaliacao_estudante_id",
-        )
-        estudante_info = buscar_estudante(estudante_id)
+        estudante_id = st.selectbox("Selecione o estudante", ids, format_func=lambda x: mapa[x], key="avaliacao_estudante")
+        estudante = buscar_estudante(estudante_id)
 
         with st.container(border=True):
             st.markdown("### Registro da avaliação")
-
             with st.form("form_avaliacao"):
-                barreiras = st.text_area("Barreiras enfrentadas pelo estudante", key="av_barreiras")
-                potencialidades = st.text_area("Potencialidades e habilidades já desenvolvidas", key="av_potencialidades")
-                comunicacao = st.text_area("Comunicação", key="av_comunicacao")
-                interacao = st.text_area("Interação social", key="av_interacao")
-                autonomia = st.text_area("Autonomia", key="av_autonomia")
-                aprendizagem = st.text_area("Aprendizagem", key="av_aprendizagem")
-                resumo_laudo = st.text_area(
-                    "Resumo pedagógico do laudo, sem identificação",
-                    placeholder="Ex.: O laudo informa TEA e aponta necessidade de previsibilidade, apoio visual e mediação nas interações.",
-                    key="av_resumo",
-                )
-                enviar = st.form_submit_button("Salvar avaliação")
+                barreiras = st.text_area("Barreiras enfrentadas pelo estudante")
+                potencialidades = st.text_area("Potencialidades e habilidades já desenvolvidas")
+                comunicacao = st.text_area("Comunicação")
+                interacao = st.text_area("Interação social")
+                autonomia = st.text_area("Autonomia")
+                aprendizagem = st.text_area("Aprendizagem")
+                resumo_laudo = st.text_area("Resumo pedagógico do laudo, sem identificação")
+                if st.form_submit_button("Salvar avaliação"):
+                    salvar_avaliacao(estudante_id, barreiras, potencialidades, comunicacao, interacao, autonomia, aprendizagem, resumo_laudo)
+                    st.success("Avaliação salva.")
+                    st.rerun()
 
-                if enviar:
-                    data_registro_avaliacao = datetime.now().strftime("%d/%m/%Y %H:%M")
-
-                    salvar_avaliacao(
-                        estudante_id,
-                        barreiras,
-                        potencialidades,
-                        comunicacao,
-                        interacao,
-                        autonomia,
-                        aprendizagem,
-                        resumo_laudo,
-                    )
-
-                    texto_avaliacao = montar_texto_avaliacao(
-                        estudante_info,
-                        data_registro_avaliacao,
-                        barreiras,
-                        potencialidades,
-                        comunicacao,
-                        interacao,
-                        autonomia,
-                        aprendizagem,
-                        resumo_laudo,
-                    )
-
-                    st.session_state["avaliacao_salva_texto"] = texto_avaliacao
-                    st.session_state["avaliacao_salva_codigo"] = estudante_info[1]
-                    st.success("Avaliação pedagógica salva com sucesso.")
-
-        if "avaliacao_salva_texto" in st.session_state:
-            with st.container(border=True):
-                texto_avaliacao = st.session_state["avaliacao_salva_texto"]
-                codigo_avaliacao = st.session_state.get("avaliacao_salva_codigo", estudante_info[1])
-
-                st.markdown("### Avaliação salva para download")
-
-                col_txt, col_pdf = st.columns(2)
-
-                with col_txt:
-                    st.download_button(
-                        "Baixar avaliação em .txt",
-                        data=texto_avaliacao,
-                        file_name=f"Avaliacao_Pedagogica_{codigo_avaliacao}.txt",
-                        mime="text/plain",
-                        key="download_txt_avaliacao",
-                    )
-
-                with col_pdf:
-                    if st.button("Gerar PDF da avaliação", key="btn_pdf_avaliacao"):
-                        arquivo = gerar_pdf_avaliacao(texto_avaliacao, codigo_avaliacao)
-                        st.session_state["arquivo_pdf_avaliacao"] = arquivo
-
-                    if "arquivo_pdf_avaliacao" in st.session_state:
-                        with open(st.session_state["arquivo_pdf_avaliacao"], "rb") as f:
-                            st.download_button(
-                                "Baixar avaliação em PDF",
-                                data=f,
-                                file_name=f"Avaliacao_Pedagogica_{codigo_avaliacao}.pdf",
-                                mime="application/pdf",
-                                key="download_pdf_avaliacao",
-                            )
-
+        avaliacoes = listar_avaliacoes(estudante_id)
         with st.container(border=True):
-            st.markdown("### Histórico de avaliações pedagógicas")
-            avaliacoes = listar_avaliacoes(estudante_id)
-
+            st.markdown("### Histórico de avaliações")
             if avaliacoes:
-                for avaliacao_item in avaliacoes:
-                    avaliacao_id = avaliacao_item[0]
-                    data_registro = avaliacao_item[1]
-                    barreiras_hist = avaliacao_item[2]
-                    potencialidades_hist = avaliacao_item[3]
-                    comunicacao_hist = avaliacao_item[4]
-                    interacao_hist = avaliacao_item[5]
-                    autonomia_hist = avaliacao_item[6]
-                    aprendizagem_hist = avaliacao_item[7]
-                    resumo_laudo_hist = avaliacao_item[8]
-
-                    with st.expander(f"Avaliação em {data_registro}"):
-                        st.markdown(f"**Barreiras:** {barreiras_hist or 'Não informado.'}")
-                        st.markdown(f"**Potencialidades:** {potencialidades_hist or 'Não informado.'}")
-                        st.markdown(f"**Comunicação:** {comunicacao_hist or 'Não informado.'}")
-                        st.markdown(f"**Interação social:** {interacao_hist or 'Não informado.'}")
-                        st.markdown(f"**Autonomia:** {autonomia_hist or 'Não informado.'}")
-                        st.markdown(f"**Aprendizagem:** {aprendizagem_hist or 'Não informado.'}")
-                        st.markdown(f"**Resumo pedagógico do laudo:** {resumo_laudo_hist or 'Não informado.'}")
-
-                        texto_historico = montar_texto_avaliacao(
-                            estudante_info,
-                            data_registro,
-                            barreiras_hist,
-                            potencialidades_hist,
-                            comunicacao_hist,
-                            interacao_hist,
-                            autonomia_hist,
-                            aprendizagem_hist,
-                            resumo_laudo_hist,
-                        )
-
-                        st.download_button(
-                            "Baixar esta avaliação em .txt",
-                            data=texto_historico,
-                            file_name=f"Avaliacao_Pedagogica_{estudante_info[1]}_{avaliacao_id}.txt",
-                            mime="text/plain",
-                            key=f"download_txt_avaliacao_hist_{avaliacao_id}",
-                        )
-
-                        if st.button("Gerar PDF desta avaliação", key=f"btn_pdf_avaliacao_hist_{avaliacao_id}"):
-                            arquivo = gerar_pdf_avaliacao(texto_historico, f"{estudante_info[1]}_{avaliacao_id}")
-                            st.session_state[f"arquivo_pdf_avaliacao_hist_{avaliacao_id}"] = arquivo
-
-                        if f"arquivo_pdf_avaliacao_hist_{avaliacao_id}" in st.session_state:
-                            with open(st.session_state[f"arquivo_pdf_avaliacao_hist_{avaliacao_id}"], "rb") as f:
-                                st.download_button(
-                                    "Baixar esta avaliação em PDF",
-                                    data=f,
-                                    file_name=f"Avaliacao_Pedagogica_{estudante_info[1]}_{avaliacao_id}.pdf",
-                                    mime="application/pdf",
-                                    key=f"download_pdf_avaliacao_hist_{avaliacao_id}",
-                                )
+                for a in avaliacoes:
+                    with st.expander(f"Avaliação em {a[1]}"):
+                        texto = texto_avaliacao(estudante, a)
+                        st.text(texto)
+                        export_buttons(texto, f"Avaliacao_Pedagogica_{estudante[1]}_{a[0]}", tipo_pdf="avaliacao")
+                        if st.button("Excluir avaliação", key=f"exc_av_{a[0]}"):
+                            excluir_registro("avaliacoes", a[0])
+                            st.success("Avaliação excluída.")
+                            st.rerun()
             else:
-                st.info("Nenhuma avaliação pedagógica registrada para este estudante.")
+                st.info("Nenhuma avaliação registrada.")
 
 
 # ======================================================
-# GERAR PAEE
+# ESTUDO DE CASO
 # ======================================================
-elif menu == "Gerar PAEE":
-    st.markdown('<div class="subtitulo">🧠 Gerar PAEE com IA</div>', unsafe_allow_html=True)
+elif menu == "Estudo de Caso":
+    st.markdown('<div class="subtitulo">📚 Estudo de Caso</div>', unsafe_allow_html=True)
     estudantes = listar_estudantes()
-
     if not estudantes:
         st.info("Cadastre um estudante primeiro.")
     else:
         ids, mapa = opcoes_estudantes_por_id(estudantes)
-        estudante_id = st.selectbox(
-            "Selecione o estudante",
-            ids,
-            format_func=lambda x: mapa[x],
-            key="paee_estudante_id",
-        )
-
+        estudante_id = st.selectbox("Selecione o estudante", ids, format_func=lambda x: mapa[x], key="estudo_estudante")
         estudante = buscar_estudante(estudante_id)
-        avaliacao = ultima_avaliacao(estudante_id)
 
         with st.container(border=True):
-            if not avaliacao:
-                st.warning("Este estudante ainda não possui avaliação pedagógica registrada.")
-            else:
-                usar_ia = OpenAI is not None and bool(obter_api_key())
+            st.markdown("### Gerar sugestão de estudo de caso com IA")
+            if st.button("Gerar sugestão com IA", key="btn_ia_estudo"):
+                avaliacao = ultima_avaliacao(estudante_id)
+                entrevista = ultima_linha("entrevistas_familia", ["data_registro", "rotina", "saude", "comunicacao", "autonomia", "socializacao", "interesses", "observacoes"], estudante_id)
+                with st.spinner("Gerando sugestão..."):
+                    st.session_state["sugestao_estudo"] = gerar_estudo_caso_com_ia(estudante, avaliacao, entrevista)
 
-                if usar_ia:
-                    st.success("IA pronta para gerar sugestões pedagógicas.")
-                else:
-                    st.info("IA não configurada. O sistema irá gerar um PAEE-base automático sem conexão com IA.")
+            if "sugestao_estudo" in st.session_state:
+                st.text_area("Sugestão gerada", st.session_state["sugestao_estudo"], height=350)
 
-                if st.button("Gerar sugestão de PAEE", key="btn_gerar_paee"):
-                    with st.spinner("Gerando PAEE..."):
-                        try:
-                            paee = gerar_paee_com_ia(estudante, avaliacao)
-                            st.session_state["paee_gerado"] = paee
-                            st.session_state["paee_codigo"] = estudante[1]
-                            salvar_paee(estudante_id, paee)
-                            st.success("PAEE gerado e salvo no histórico.")
-                        except Exception as erro:
-                            st.error(f"Erro ao gerar PAEE: {erro}")
-
-        if "paee_gerado" in st.session_state:
-            with st.container(border=True):
-                st.markdown("### PAEE gerado")
-                st.text_area(
-                    "Conteúdo",
-                    st.session_state["paee_gerado"],
-                    height=600,
-                    key="txt_paee_gerado",
-                )
-
-                codigo_download = st.session_state.get("paee_codigo", estudante[1])
-
-                col_txt, col_pdf = st.columns(2)
-
-                with col_txt:
-                    st.download_button(
-                        "Baixar PAEE em .txt",
-                        data=st.session_state["paee_gerado"],
-                        file_name=f"PAEE_{codigo_download}.txt",
-                        mime="text/plain",
-                        key="download_txt_paee",
+        with st.container(border=True):
+            st.markdown("### Novo estudo de caso")
+            with st.form("form_estudo"):
+                contextualizacao = st.text_area("Contextualização")
+                queixa = st.text_area("Queixa principal / motivo do acompanhamento")
+                potencialidades = st.text_area("Potencialidades")
+                dificuldades = st.text_area("Dificuldades observadas")
+                estrategias = st.text_area("Estratégias pedagógicas")
+                intervencoes = st.text_area("Intervenções / encaminhamentos sugeridos")
+                avaliacao = st.text_area("Avaliação")
+                consideracoes = st.text_area("Considerações finais")
+                if st.form_submit_button("Salvar estudo de caso"):
+                    inserir_registro(
+                        "estudos_caso",
+                        ["estudante_id", "data_registro", "contextualizacao", "queixa_principal", "potencialidades", "dificuldades", "estrategias", "intervencoes", "avaliacao", "consideracoes"],
+                        [estudante_id, hoje_str(), contextualizacao, queixa, potencialidades, dificuldades, estrategias, intervencoes, avaliacao, consideracoes],
                     )
+                    st.success("Estudo de caso salvo.")
+                    st.rerun()
 
-                with col_pdf:
-                    if st.button("Gerar PDF do PAEE", key="btn_gerar_pdf_paee"):
-                        arquivo = gerar_pdf_paee(st.session_state["paee_gerado"], codigo_download)
-                        st.session_state["arquivo_pdf_paee"] = arquivo
+        estudos = listar_por_estudante(
+            "estudos_caso",
+            ["data_registro", "contextualizacao", "queixa_principal", "potencialidades", "dificuldades", "estrategias", "intervencoes", "avaliacao", "consideracoes"],
+            estudante_id,
+        )
+        with st.container(border=True):
+            st.markdown("### Histórico de estudos de caso")
+            if estudos:
+                for e in estudos:
+                    with st.expander(f"Estudo em {e[1]}"):
+                        texto = texto_estudo_caso(estudante, e)
+                        st.text(texto)
+                        export_buttons(texto, f"Estudo_Caso_{estudante[1]}_{e[0]}", tipo_pdf="estudo")
+                        if st.button("Excluir estudo de caso", key=f"exc_estudo_{e[0]}"):
+                            excluir_registro("estudos_caso", e[0])
+                            st.success("Estudo excluído.")
+                            st.rerun()
+            else:
+                st.info("Nenhum estudo de caso registrado.")
 
-                    if "arquivo_pdf_paee" in st.session_state:
-                        with open(st.session_state["arquivo_pdf_paee"], "rb") as f:
-                            st.download_button(
-                                "Baixar PAEE em PDF",
-                                data=f,
-                                file_name=f"PAEE_{codigo_download}.pdf",
-                                mime="application/pdf",
-                                key="download_pdf_paee",
-                            )
 
-            with st.container(border=True):
-                st.markdown("### 🔎 Modelos 3D sugeridos para apoio pedagógico")
-                st.caption(
-                    "A IA analisa o PAEE e sugere termos de busca. Depois, o professor escolhe onde pesquisar os modelos."
-                )
+# ======================================================
+# PLANO AEE / PAEE
+# ======================================================
+elif menu == "Plano AEE / PAEE":
+    st.markdown('<div class="subtitulo">🧩 Plano AEE / PAEE</div>', unsafe_allow_html=True)
+    estudantes = listar_estudantes()
+    if not estudantes:
+        st.info("Cadastre um estudante primeiro.")
+    else:
+        ids, mapa = opcoes_estudantes_por_id(estudantes)
+        estudante_id = st.selectbox("Selecione o estudante", ids, format_func=lambda x: mapa[x], key="plano_estudante")
+        estudante = buscar_estudante(estudante_id)
 
-                if st.button("Gerar sugestões de busca com IA", key="btn_gerar_termos_3d"):
-                    with st.spinner("Gerando termos de busca a partir do PAEE..."):
-                        termos_sugeridos = gerar_termos_3d_com_ia(
-                            st.session_state["paee_gerado"]
-                        )
-                        st.session_state["termos_3d_sugeridos"] = termos_sugeridos
-                        st.success("Sugestões geradas com sucesso.")
+        with st.container(border=True):
+            st.markdown("### Novo plano")
+            with st.form("form_plano"):
+                objetivos_gerais = st.text_area("Objetivos gerais")
+                objetivos_especificos = st.text_area("Objetivos específicos")
+                habilidades = st.text_area("Habilidades prioritárias")
+                recursos = st.text_area("Recursos de acessibilidade")
+                estrategias = st.text_area("Estratégias pedagógicas")
+                organizacao = st.text_area("Organização do atendimento")
+                parcerias = st.text_area("Parcerias")
+                avaliacao = st.text_area("Avaliação e acompanhamento")
+                observacoes = st.text_area("Observações")
+                if st.form_submit_button("Salvar Plano AEE / PAEE"):
+                    inserir_registro(
+                        "planos_aee",
+                        ["estudante_id", "data_registro", "objetivos_gerais", "objetivos_especificos", "habilidades_prioritarias", "recursos_acessibilidade", "estrategias", "organizacao_atendimento", "parcerias", "avaliacao_acompanhamento", "observacoes"],
+                        [estudante_id, hoje_str(), objetivos_gerais, objetivos_especificos, habilidades, recursos, estrategias, organizacao, parcerias, avaliacao, observacoes],
+                    )
+                    st.success("Plano salvo.")
+                    st.rerun()
 
-                if "termos_3d_sugeridos" in st.session_state:
-                    st.markdown("#### Sugestões geradas a partir do PAEE")
-
-                    for termo in st.session_state["termos_3d_sugeridos"]:
-                        col_termo, col_thingiverse, col_printables, col_makerworld = st.columns(
-                            [2.5, 1.4, 1.4, 1.4]
-                        )
-
-                        with col_termo:
-                            st.markdown(f"**{termo}**")
-
-                        with col_thingiverse:
-                            st.link_button("Thingiverse", link_busca_thingiverse(termo))
-
-                        with col_printables:
-                            st.link_button("Printables", link_busca_printables(termo))
-
-                        with col_makerworld:
-                            st.link_button("MakerWorld", link_busca_makerworld(termo))
-
-                st.markdown("#### Busca manual")
-                termo_3d = st.text_input(
-                    "Digite outro termo, se desejar",
-                    placeholder="Ex.: braille, tactile math, visual schedule",
-                    key="termo_3d_paee",
-                )
-
-                col_thingiverse_manual, col_printables_manual, col_makerworld_manual = st.columns(3)
-
-                with col_thingiverse_manual:
-                    if termo_3d.strip():
-                        st.link_button("Thingiverse", link_busca_thingiverse(termo_3d.strip()))
-                    else:
-                        st.caption("Digite um termo para buscar no Thingiverse.")
-
-                with col_printables_manual:
-                    if termo_3d.strip():
-                        st.link_button("Printables", link_busca_printables(termo_3d.strip()))
-                    else:
-                        st.caption("Digite um termo para buscar no Printables.")
-
-                with col_makerworld_manual:
-                    if termo_3d.strip():
-                        st.link_button("MakerWorld", link_busca_makerworld(termo_3d.strip()))
-                    else:
-                        st.caption("Digite um termo para buscar no MakerWorld.")
+        planos = listar_por_estudante(
+            "planos_aee",
+            ["data_registro", "objetivos_gerais", "objetivos_especificos", "habilidades_prioritarias", "recursos_acessibilidade", "estrategias", "organizacao_atendimento", "parcerias", "avaliacao_acompanhamento", "observacoes"],
+            estudante_id,
+        )
+        with st.container(border=True):
+            st.markdown("### Histórico de planos")
+            if planos:
+                for p in planos:
+                    with st.expander(f"Plano em {p[1]}"):
+                        texto = texto_plano_aee(estudante, p)
+                        st.text(texto)
+                        export_buttons(texto, f"Plano_AEE_PAEE_{estudante[1]}_{p[0]}", tipo_pdf="plano")
+                        if st.button("Excluir plano", key=f"exc_plano_{p[0]}"):
+                            excluir_registro("planos_aee", p[0])
+                            st.success("Plano excluído.")
+                            st.rerun()
+            else:
+                st.info("Nenhum plano registrado.")
 
 
 # ======================================================
@@ -1991,566 +1932,227 @@ elif menu == "Gerar PAEE":
 elif menu == "Atendimentos":
     st.markdown('<div class="subtitulo">📌 Registro dos atendimentos</div>', unsafe_allow_html=True)
     estudantes = listar_estudantes()
-
     if not estudantes:
         st.info("Cadastre um estudante primeiro.")
     else:
         ids, mapa = opcoes_estudantes_por_id(estudantes)
-        estudante_id = st.selectbox(
-            "Selecione o estudante",
-            ids,
-            format_func=lambda x: mapa[x],
-            key="atendimento_estudante_id",
-        )
-        estudante_info = buscar_estudante(estudante_id)
+        estudante_id = st.selectbox("Selecione o estudante", ids, format_func=lambda x: mapa[x], key="atendimento_estudante")
+        estudante = buscar_estudante(estudante_id)
 
         with st.container(border=True):
             st.markdown("### Novo atendimento")
-
             with st.form("form_atendimento"):
-                data_atendimento = st.date_input("Data do atendimento", key="at_data")
-
-                st.markdown("#### Registro pedagógico e indicadores")
-                st.caption(
-                    "Preencha o texto pedagógico e, logo abaixo de cada dimensão, informe a escala correspondente. "
-                    "O gráfico será alimentado pelos indicadores numéricos e o relatório pela descrição pedagógica."
-                )
-
-                objetivo = st.text_area("Objetivo trabalhado", key="at_objetivo")
-                atividade = st.text_area("Atividade realizada", key="at_atividade")
-
-                resposta_estudante = st.text_area("Resposta do estudante", key="at_resposta")
-                nivel_resposta = st.slider(
-                    "Escala da resposta do estudante",
-                    min_value=1, max_value=10, value=5,
-                    help="1 a 3: pouca resposta; 4 a 6: resposta parcial; 7 a 8: boa resposta; 9 a 10: resposta excelente.",
-                    key="at_nivel_resposta",
-                )
-
-                avancos = st.text_area("Avanços observados", key="at_avancos")
-                nivel_avanco = st.slider(
-                    "Escala do avanço pedagógico",
-                    min_value=1, max_value=10, value=5,
-                    help="Avalia avanço em aprendizagem, participação, comunicação, autonomia ou objetivo trabalhado.",
-                    key="at_nivel_avanco",
-                )
-
-                dificuldades = st.text_area("Dificuldades observadas", key="at_dificuldades")
-                nivel_dificuldade = st.slider(
-                    "Escala de dificuldade/barreira observada",
-                    min_value=1, max_value=10, value=5,
-                    help="1 representa pouca dificuldade; 10 representa muita dificuldade/barreira observada.",
-                    key="at_nivel_dificuldade",
-                )
-
-                evolucao = st.text_area("Evolução observada", key="at_evolucao")
-                nivel_engajamento = st.slider(
-                    "Escala de engajamento/participação",
-                    min_value=1, max_value=10, value=5,
-                    help="Avalia interesse, participação, permanência na atividade e envolvimento durante o atendimento.",
-                    key="at_nivel_engajamento",
-                )
-
-                nivel_evolucao = calcular_indice_geral(nivel_resposta, nivel_avanco, nivel_dificuldade, nivel_engajamento)
-                st.info(
-                    f"Índice geral calculado automaticamente: {nivel_evolucao}/10. "
-                    "Esse índice considera resposta, avanço, engajamento e o impacto invertido da dificuldade."
-                )
-
-                encaminhamentos = st.text_area("Encaminhamentos", key="at_encaminhamentos")
-                enviar = st.form_submit_button("Salvar atendimento")
-
-                if enviar:
+                data_atendimento = st.date_input("Data do atendimento")
+                objetivo = st.text_area("Objetivo trabalhado")
+                atividade = st.text_area("Atividade realizada")
+                resposta = st.text_area("Resposta do estudante")
+                nivel_resposta = st.slider("Escala da resposta do estudante", 1, 10, 5)
+                avancos = st.text_area("Avanços observados")
+                nivel_avanco = st.slider("Escala do avanço pedagógico", 1, 10, 5)
+                dificuldades = st.text_area("Dificuldades observadas")
+                nivel_dificuldade = st.slider("Escala de dificuldade/barreira observada", 1, 10, 5)
+                evolucao = st.text_area("Evolução observada")
+                nivel_engajamento = st.slider("Escala de engajamento/participação", 1, 10, 5)
+                indice = calcular_indice_geral(nivel_resposta, nivel_avanco, nivel_dificuldade, nivel_engajamento)
+                st.info(f"Índice geral calculado automaticamente: {indice}/10")
+                encaminhamentos = st.text_area("Encaminhamentos")
+                if st.form_submit_button("Salvar atendimento"):
                     salvar_atendimento(
-                        estudante_id, data_atendimento.strftime("%d/%m/%Y"), objetivo, atividade,
-                        resposta_estudante, avancos, dificuldades, evolucao, 1, nivel_resposta, nivel_avanco,
-                        nivel_dificuldade, nivel_engajamento, nivel_evolucao, encaminhamentos,
+                        estudante_id, data_atendimento.strftime("%d/%m/%Y"), objetivo, atividade, resposta,
+                        avancos, dificuldades, evolucao, 1, nivel_resposta, nivel_avanco,
+                        nivel_dificuldade, nivel_engajamento, indice, encaminhamentos,
                     )
-                    st.success("Atendimento registrado com sucesso.")
+                    st.success("Atendimento registrado.")
                     st.rerun()
+
+        atendimentos = listar_atendimentos_com_id(estudante_id)
+
+        with st.container(border=True):
+            st.markdown("### 📊 Indicadores por atendimento")
+            render_grafico_evolucao(listar_atendimentos(estudante_id))
 
         with st.container(border=True):
             st.markdown("### Histórico de atendimentos")
-            atendimentos = listar_atendimentos_com_id(estudante_id)
-
             if atendimentos:
-                for item in atendimentos:
-                    atendimento_id = item[0]
-                    data_hist = item[1]
-                    objetivo_hist = item[2]
-                    atividade_hist = item[3]
-                    resposta_hist = item[4]
-                    avancos_hist = item[5]
-                    dificuldades_hist = item[6]
-                    evolucao_hist = item[7]
-                    qtd_atividades_hist = item[8] if len(item) > 8 and item[8] is not None else 1
-                    nivel_resposta_hist = limitar_escala(item[9] if len(item) > 9 else 5)
-                    nivel_avanco_hist = limitar_escala(item[10] if len(item) > 10 else 5)
-                    nivel_dificuldade_hist = limitar_escala(item[11] if len(item) > 11 else 5)
-                    nivel_engajamento_hist = limitar_escala(item[12] if len(item) > 12 else 5)
-                    nivel_evolucao_hist = item[13] if len(item) > 13 and item[13] is not None else calcular_indice_geral(nivel_resposta_hist, nivel_avanco_hist, nivel_dificuldade_hist, nivel_engajamento_hist)
-                    encaminhamentos_hist = item[14] if len(item) > 14 else None
-
-                    with st.expander(f"Atendimento em {data_hist}"):
-                        st.markdown("#### Visualização do atendimento")
-                        st.markdown(f"**Objetivo:** {objetivo_hist or 'Não informado.'}")
-                        st.markdown(f"**Atividade:** {atividade_hist or 'Não informado.'}")
-                        st.markdown(f"**Resposta do estudante:** {resposta_hist or 'Não informado.'}")
-                        st.markdown(f"**Avanços:** {avancos_hist or 'Não informado.'}")
-                        st.markdown(f"**Dificuldades:** {dificuldades_hist or 'Não informado.'}")
-                        st.markdown(f"**Evolução observada:** {evolucao_hist or 'Não informado.'}")
-                        st.markdown(f"**Resposta do estudante:** {nivel_resposta_hist}/10")
-                        st.markdown(f"**Avanço pedagógico:** {nivel_avanco_hist}/10")
-                        st.markdown(f"**Nível de dificuldade:** {nivel_dificuldade_hist}/10")
-                        st.markdown(f"**Engajamento:** {nivel_engajamento_hist}/10")
-                        st.markdown(f"**Índice geral de evolução:** {nivel_evolucao_hist}/10")
-                        st.markdown(f"**Encaminhamentos:** {encaminhamentos_hist or 'Não informado.'}")
-
-                        texto_atendimento = montar_texto_atendimento(
-                            estudante_info, data_hist, objetivo_hist, atividade_hist, resposta_hist, avancos_hist,
-                            dificuldades_hist, evolucao_hist, qtd_atividades_hist, nivel_resposta_hist, nivel_avanco_hist,
-                            nivel_dificuldade_hist, nivel_engajamento_hist, nivel_evolucao_hist, encaminhamentos_hist,
-                        )
-
-                        col_txt_at, col_pdf_at = st.columns(2)
-                        with col_txt_at:
-                            st.download_button(
-                                "Baixar este atendimento em .txt", data=texto_atendimento,
-                                file_name=f"Registro_Atendimento_{estudante_info[1]}_{atendimento_id}.txt",
-                                mime="text/plain", key=f"download_txt_atendimento_{atendimento_id}",
-                            )
-                        with col_pdf_at:
-                            if st.button("Gerar PDF deste atendimento", key=f"btn_pdf_atendimento_{atendimento_id}"):
-                                arquivo = gerar_pdf_atendimento(texto_atendimento, f"{estudante_info[1]}_{atendimento_id}")
-                                st.session_state[f"arquivo_pdf_atendimento_{atendimento_id}"] = arquivo
-                            if f"arquivo_pdf_atendimento_{atendimento_id}" in st.session_state:
-                                with open(st.session_state[f"arquivo_pdf_atendimento_{atendimento_id}"], "rb") as f:
-                                    st.download_button(
-                                        "Baixar este atendimento em PDF", data=f,
-                                        file_name=f"Registro_Atendimento_{estudante_info[1]}_{atendimento_id}.pdf",
-                                        mime="application/pdf", key=f"download_pdf_atendimento_{atendimento_id}",
-                                    )
-
-                        st.markdown("---")
-                        st.markdown("#### ✏️ Editar atendimento")
-                        with st.form(f"form_editar_atendimento_{atendimento_id}"):
-                            data_edit = st.date_input("Data do atendimento", value=data_para_date(data_hist), key=f"edit_at_data_{atendimento_id}")
-                            objetivo_edit = st.text_area("Objetivo trabalhado", value=objetivo_hist or "", key=f"edit_at_objetivo_{atendimento_id}")
-                            atividade_edit = st.text_area("Atividade realizada", value=atividade_hist or "", key=f"edit_at_atividade_{atendimento_id}")
-                            resposta_edit = st.text_area("Resposta do estudante", value=resposta_hist or "", key=f"edit_at_resposta_{atendimento_id}")
-                            nivel_resposta_edit = st.slider("Escala da resposta do estudante", 1, 10, int(nivel_resposta_hist), key=f"edit_at_nivel_resposta_{atendimento_id}")
-                            avancos_edit = st.text_area("Avanços observados", value=avancos_hist or "", key=f"edit_at_avancos_{atendimento_id}")
-                            nivel_avanco_edit = st.slider("Escala do avanço pedagógico", 1, 10, int(nivel_avanco_hist), key=f"edit_at_nivel_avanco_{atendimento_id}")
-                            dificuldades_edit = st.text_area("Dificuldades observadas", value=dificuldades_hist or "", key=f"edit_at_dificuldades_{atendimento_id}")
-                            nivel_dificuldade_edit = st.slider("Escala de dificuldade/barreira observada", 1, 10, int(nivel_dificuldade_hist), key=f"edit_at_nivel_dificuldade_{atendimento_id}")
-                            evolucao_edit = st.text_area("Evolução observada", value=evolucao_hist or "", key=f"edit_at_evolucao_{atendimento_id}")
-                            nivel_engajamento_edit = st.slider("Escala de engajamento/participação", 1, 10, int(nivel_engajamento_hist), key=f"edit_at_nivel_engajamento_{atendimento_id}")
-                            nivel_evolucao_edit = calcular_indice_geral(nivel_resposta_edit, nivel_avanco_edit, nivel_dificuldade_edit, nivel_engajamento_edit)
-                            st.info(f"Índice geral recalculado: {nivel_evolucao_edit}/10")
-                            encaminhamentos_edit = st.text_area("Encaminhamentos", value=encaminhamentos_hist or "", key=f"edit_at_encaminhamentos_{atendimento_id}")
-                            salvar_edicao = st.form_submit_button("Salvar atualização do atendimento")
-                            if salvar_edicao:
-                                atualizar_atendimento(
-                                    atendimento_id, data_edit.strftime("%d/%m/%Y"), objetivo_edit, atividade_edit, resposta_edit,
-                                    avancos_edit, dificuldades_edit, evolucao_edit, qtd_atividades_hist, nivel_resposta_edit,
-                                    nivel_avanco_edit, nivel_dificuldade_edit, nivel_engajamento_edit, nivel_evolucao_edit,
-                                    encaminhamentos_edit,
-                                )
-                                st.success("Atendimento atualizado com sucesso.")
-                                st.rerun()
-
-                        st.markdown("#### 🗑️ Excluir atendimento")
-                        confirmar_exclusao_atendimento = st.checkbox("Confirmar exclusão deste atendimento", key=f"confirmar_exclusao_atendimento_{atendimento_id}")
-                        if st.button("Excluir este atendimento", key=f"btn_excluir_atendimento_{atendimento_id}"):
-                            if confirmar_exclusao_atendimento:
-                                excluir_atendimento(atendimento_id)
-                                st.success("Atendimento excluído com sucesso.")
-                                st.rerun()
-                            else:
-                                st.warning("Marque a confirmação antes de excluir.")
+                for a in atendimentos:
+                    with st.expander(f"Atendimento em {a[1]}"):
+                        texto = texto_atendimento(estudante, a)
+                        st.text(texto)
+                        export_buttons(texto, f"Registro_Atendimento_{estudante[1]}_{a[0]}", tipo_pdf="atendimento")
+                        if st.button("Excluir atendimento", key=f"exc_at_{a[0]}"):
+                            excluir_atendimento(a[0])
+                            st.success("Atendimento excluído.")
+                            st.rerun()
             else:
-                st.info("Nenhum atendimento registrado para este estudante.")
+                st.info("Nenhum atendimento registrado.")
 
 
 # ======================================================
-# RELATÓRIO IA
+# AGENDA DE ATENDIMENTOS
 # ======================================================
-elif menu == "Relatório IA":
-    st.markdown('<div class="subtitulo">📄 Relatório de evolução e qualidade do atendimento</div>', unsafe_allow_html=True)
+elif menu == "Agenda de Atendimentos":
+    st.markdown('<div class="subtitulo">📅 Agenda de Atendimentos</div>', unsafe_allow_html=True)
     estudantes = listar_estudantes()
-
     if not estudantes:
         st.info("Cadastre um estudante primeiro.")
     else:
         ids, mapa = opcoes_estudantes_por_id(estudantes)
-        estudante_id = st.selectbox(
-            "Selecione o estudante",
-            ids,
-            format_func=lambda x: mapa[x],
-            key="relatorio_estudante_id",
-        )
-
-        estudante = buscar_estudante(estudante_id)
-        avaliacao = ultima_avaliacao(estudante_id)
-        atendimentos = listar_atendimentos(estudante_id)
-
-        if atendimentos:
-            df_evolucao = montar_dataframe_evolucao(atendimentos)
-
-            with st.container(border=True):
-                st.markdown("### 📊 Indicadores por atendimento")
-                st.caption(
-                    "Cada data apresenta barras agrupadas com os indicadores registrados no atendimento. "
-                    "A escala vai de 1 a 10. A dificuldade é exibida para identificar barreiras, mas não deve ser lida como evolução positiva."
-                )
-
-                media_resposta = df_evolucao["Resposta do estudante"].mean()
-                media_avanco = df_evolucao["Avanço pedagógico"].mean()
-                media_dificuldade = df_evolucao["Nível de dificuldade"].mean()
-                media_engajamento = df_evolucao["Engajamento"].mean()
-
-                col1, col2, col3, col4, col5 = st.columns(5)
-                col1.metric("Atendimentos", len(df_evolucao))
-                col2.metric("Média resposta", f"{media_resposta:.1f}/10")
-                col3.metric("Média avanço", f"{media_avanco:.1f}/10")
-                col4.metric("Média dificuldade", f"{media_dificuldade:.1f}/10")
-                col5.metric("Média engajamento", f"{media_engajamento:.1f}/10")
-
-                indicadores = [
-                    "Resposta do estudante",
-                    "Avanço pedagógico",
-                    "Nível de dificuldade",
-                    "Engajamento",
-                ]
-
-                # Inclui a evolução geral apenas se existir na base de dados.
-                if "Índice geral de evolução" in df_evolucao.columns:
-                    df_evolucao = df_evolucao.rename(columns={"Índice geral de evolução": "Evolução geral"})
-                    indicadores.append("Evolução geral")
-
-                df_indicadores = df_evolucao[["Data"] + indicadores].melt(
-                    id_vars="Data",
-                    value_vars=indicadores,
-                    var_name="Indicador",
-                    value_name="Pontuação",
-                )
-
-                grafico_indicadores = (
-                    alt.Chart(df_indicadores)
-                    .mark_bar()
-                    .encode(
-                        x=alt.X("Data:N", title="Data do atendimento", sort=None),
-                        xOffset=alt.XOffset("Indicador:N"),
-                        y=alt.Y("Pontuação:Q", title="Pontuação", scale=alt.Scale(domain=[0, 10])),
-                        color=alt.Color("Indicador:N", title="Indicador"),
-                        tooltip=["Data:N", "Indicador:N", alt.Tooltip("Pontuação:Q", format=".1f")],
-                    )
-                    .properties(height=420)
-                )
-                st.altair_chart(grafico_indicadores, use_container_width=True)
-
-                with st.expander("Ver dados usados no gráfico"):
-                    colunas_tabela = [
-                        "Data",
-                        "Resposta do estudante",
-                        "Avanço pedagógico",
-                        "Nível de dificuldade",
-                        "Engajamento",
-                    ]
-                    if "Evolução geral" in df_evolucao.columns:
-                        colunas_tabela.append("Evolução geral")
-                    colunas_tabela += [
-                        "Interpretação",
-                        "Avanços",
-                        "Dificuldades observadas",
-                        "Evolução observada",
-                    ]
-                    colunas_tabela = [c for c in colunas_tabela if c in df_evolucao.columns]
-                    st.dataframe(
-                        df_evolucao[colunas_tabela],
-                        use_container_width=True,
-                        hide_index=True,
-                    )
-        else:
-            with st.container(border=True):
-                st.markdown("### 📊 Indicadores por atendimento")
-                st.warning(
-                    "Este estudante ainda não possui atendimentos registrados. "
-                    "Registre pelo menos um atendimento para gerar o gráfico."
-                )
-
         with st.container(border=True):
-            st.markdown("### 🤖 Gerar novo relatório")
-            if not atendimentos:
-                st.warning("Este estudante ainda não possui atendimentos registrados. O relatório poderá ficar limitado.")
+            st.markdown("### Novo agendamento")
+            with st.form("form_agenda"):
+                estudante_id = st.selectbox("Estudante", ids, format_func=lambda x: mapa[x])
+                data_ag = st.date_input("Data do atendimento")
+                dia_semana = st.selectbox("Dia da semana", DIAS_SEMANA)
+                hora_inicio = st.time_input("Hora início", value=time(8, 0))
+                hora_fim = st.time_input("Hora fim", value=time(8, 50))
+                tipo = st.selectbox("Tipo de atendimento", ["Individual", "Grupo", "Acompanhamento", "Observação", "Outro"])
+                obs = st.text_area("Observações")
+                if st.form_submit_button("Salvar agendamento"):
+                    salvar_agendamento(
+                        estudante_id,
+                        data_ag.strftime("%d/%m/%Y"),
+                        dia_semana,
+                        hora_inicio.strftime("%H:%M"),
+                        hora_fim.strftime("%H:%M"),
+                        tipo,
+                        obs,
+                    )
+                    st.success("Agendamento salvo.")
+                    st.rerun()
 
-            if st.button("Gerar relatório de evolução", key="btn_relatorio"):
-                with st.spinner("Analisando atendimentos..."):
-                    try:
-                        relatorio = gerar_relatorio_evolucao(estudante, avaliacao)
-                        titulo_relatorio = "Relatório de evolução e qualidade do atendimento"
-                        relatorio_id = salvar_relatorio(estudante_id, titulo_relatorio, relatorio)
-                        st.session_state["relatorio_evolucao"] = relatorio
-                        st.session_state["relatorio_evolucao_editavel"] = relatorio
-                        st.session_state["relatorio_codigo"] = estudante[1]
-                        st.session_state["relatorio_id"] = relatorio_id
-                        st.success("Relatório gerado e salvo no histórico.")
-                    except Exception as erro:
-                        st.error(f"Erro ao gerar relatório: {erro}")
+    agenda = listar_agenda()
+    with st.container(border=True):
+        st.markdown("### 📆 Agenda semanal")
+        if agenda:
+            df = pd.DataFrame(
+                agenda,
+                columns=["ID", "Código", "Ano/Série", "Perfil", "Data", "Dia", "Início", "Fim", "Tipo", "Observações"],
+            )
+            st.dataframe(df, use_container_width=True, hide_index=True)
 
-        if "relatorio_evolucao" in st.session_state:
-            with st.container(border=True):
-                codigo_relatorio = st.session_state.get("relatorio_codigo", estudante[1])
-                relatorio_id_atual = st.session_state.get("relatorio_id")
+            csv = df.to_csv(index=False).encode("utf-8")
+            col_csv, col_txt, col_pdf = st.columns(3)
+            with col_csv:
+                st.download_button("Baixar agenda em CSV", csv, "Agenda_INCLUISRM.csv", "text/csv")
+            with col_txt:
+                texto = texto_agenda(df)
+                st.download_button("Baixar agenda em TXT", texto, "Agenda_INCLUISRM.txt", "text/plain")
+            with col_pdf:
+                if st.button("Gerar PDF da agenda"):
+                    arquivo = gerar_pdf_documento(texto_agenda(df), "Agenda_INCLUISRM", tipo="agenda")
+                    st.session_state["pdf_agenda"] = arquivo
+                if "pdf_agenda" in st.session_state:
+                    with open(st.session_state["pdf_agenda"], "rb") as f:
+                        st.download_button("Baixar PDF da agenda", f, "Agenda_INCLUISRM.pdf", "application/pdf")
 
-                st.markdown("### ✏️ Relatório gerado para revisão")
-                st.caption("Você pode editar, salvar, excluir ou baixar o relatório gerado.")
-
-                if "relatorio_evolucao_editavel" not in st.session_state:
-                    st.session_state["relatorio_evolucao_editavel"] = st.session_state["relatorio_evolucao"]
-
-                relatorio_editado = st.text_area(
-                    "Relatório",
-                    height=500,
-                    key="relatorio_evolucao_editavel",
-                )
-
-                col_salvar, col_excluir, col_txt, col_pdf = st.columns(4)
-
-                with col_salvar:
-                    if st.button("Salvar alterações", key="btn_salvar_relatorio_editado"):
-                        if relatorio_id_atual:
-                            atualizar_relatorio(
-                                relatorio_id_atual,
-                                "Relatório de evolução e qualidade do atendimento",
-                                relatorio_editado,
-                            )
-                            st.session_state["relatorio_evolucao"] = relatorio_editado
-                            st.success("Relatório atualizado com sucesso.")
-                        else:
-                            novo_id = salvar_relatorio(
-                                estudante_id,
-                                "Relatório de evolução e qualidade do atendimento",
-                                relatorio_editado,
-                            )
-                            st.session_state["relatorio_id"] = novo_id
-                            st.session_state["relatorio_evolucao"] = relatorio_editado
-                            st.success("Relatório salvo com sucesso.")
-
-                with col_excluir:
-                    if st.button("Excluir relatório", key="btn_excluir_relatorio_atual"):
-                        if relatorio_id_atual:
-                            excluir_relatorio(relatorio_id_atual)
-                        for chave in [
-                            "relatorio_evolucao",
-                            "relatorio_evolucao_editavel",
-                            "relatorio_codigo",
-                            "relatorio_id",
-                            "arquivo_pdf_relatorio",
-                        ]:
-                            st.session_state.pop(chave, None)
-                        st.success("Relatório excluído com sucesso.")
+            for _, row in df.iterrows():
+                with st.expander(f"{row['Data']} - {row['Início']} - {row['Código']}"):
+                    st.write(row.to_dict())
+                    if st.button("Excluir agendamento", key=f"exc_ag_{row['ID']}"):
+                        excluir_agendamento(int(row["ID"]))
+                        st.success("Agendamento excluído.")
                         st.rerun()
+        else:
+            st.info("Nenhum agendamento registrado.")
 
-                with col_txt:
-                    st.download_button(
-                        "Baixar .txt",
-                        data=relatorio_editado,
-                        file_name=f"Relatorio_{codigo_relatorio}.txt",
-                        mime="text/plain",
-                        key="download_txt_relatorio",
-                    )
 
-                with col_pdf:
-                    if st.button("Gerar PDF", key="btn_pdf_relatorio"):
-                        arquivo = gerar_pdf_relatorio(relatorio_editado, codigo_relatorio)
-                        st.session_state["arquivo_pdf_relatorio"] = arquivo
-
-                    if "arquivo_pdf_relatorio" in st.session_state:
-                        with open(st.session_state["arquivo_pdf_relatorio"], "rb") as f:
-                            st.download_button(
-                                "Baixar PDF",
-                                data=f,
-                                file_name=f"Relatorio_{codigo_relatorio}.pdf",
-                                mime="application/pdf",
-                                key="download_pdf_relatorio",
-                            )
+# ======================================================
+# RELATÓRIOS GRE
+# ======================================================
+elif menu == "Relatórios GRE":
+    st.markdown('<div class="subtitulo">📄 Relatórios GRE</div>', unsafe_allow_html=True)
+    estudantes = listar_estudantes()
+    if not estudantes:
+        st.info("Cadastre um estudante primeiro.")
+    else:
+        ids, mapa = opcoes_estudantes_por_id(estudantes)
+        estudante_id = st.selectbox("Selecione o estudante", ids, format_func=lambda x: mapa[x], key="gre_estudante")
+        estudante = buscar_estudante(estudante_id)
 
         with st.container(border=True):
-            st.markdown("### 📚 Histórico de relatórios salvos")
-            st.caption("Abra um relatório salvo para editar, baixar ou excluir.")
-            relatorios_salvos = listar_relatorios(estudante_id)
+            st.markdown("### Gerar documentos")
+            tipo = st.selectbox(
+                "Documento",
+                [
+                    "Matrícula SRM / Cadastro seguro",
+                    "Relatório consolidado GRE",
+                    "Última avaliação pedagógica",
+                    "Último estudo de caso",
+                    "Último Plano AEE / PAEE",
+                ],
+            )
 
-            if relatorios_salvos:
-                for rel_item in relatorios_salvos:
-                    relatorio_id_hist = rel_item[0]
-                    data_geracao_hist = rel_item[1]
-                    titulo_hist = rel_item[2] or "Relatório de evolução e qualidade do atendimento"
-                    conteudo_hist = rel_item[3] or ""
+            if st.button("Gerar documento"):
+                if tipo == "Matrícula SRM / Cadastro seguro":
+                    texto = texto_cadastro_estudante(estudante)
+                    tipo_pdf = "cadastro"
+                    nome = f"Matricula_SRM_{estudante[1]}"
+                elif tipo == "Última avaliação pedagógica":
+                    av = ultima_avaliacao(estudante_id)
+                    texto = texto_avaliacao(estudante, ("", *av)) if av else "Nenhuma avaliação registrada."
+                    tipo_pdf = "avaliacao"
+                    nome = f"Avaliacao_Pedagogica_{estudante[1]}"
+                elif tipo == "Último estudo de caso":
+                    est = ultima_linha("estudos_caso", ["data_registro", "contextualizacao", "queixa_principal", "potencialidades", "dificuldades", "estrategias", "intervencoes", "avaliacao", "consideracoes"], estudante_id)
+                    texto = texto_estudo_caso(estudante, ("", *est)) if est else "Nenhum estudo de caso registrado."
+                    tipo_pdf = "estudo"
+                    nome = f"Estudo_Caso_{estudante[1]}"
+                elif tipo == "Último Plano AEE / PAEE":
+                    pl = ultima_linha("planos_aee", ["data_registro", "objetivos_gerais", "objetivos_especificos", "habilidades_prioritarias", "recursos_acessibilidade", "estrategias", "organizacao_atendimento", "parcerias", "avaliacao_acompanhamento", "observacoes"], estudante_id)
+                    texto = texto_plano_aee(estudante, ("", *pl)) if pl else "Nenhum Plano AEE / PAEE registrado."
+                    tipo_pdf = "plano"
+                    nome = f"Plano_AEE_PAEE_{estudante[1]}"
+                else:
+                    texto = gerar_relatorio_gre_texto(estudante)
+                    tipo_pdf = "relatorio"
+                    nome = f"Relatorio_GRE_{estudante[1]}"
 
-                    with st.expander(f"{titulo_hist} — {data_geracao_hist}"):
-                        titulo_editado = st.text_input(
-                            "Título do relatório",
-                            value=titulo_hist,
-                            key=f"titulo_relatorio_hist_{relatorio_id_hist}",
-                        )
-                        conteudo_editado = st.text_area(
-                            "Conteúdo do relatório",
-                            value=conteudo_hist,
-                            height=420,
-                            key=f"conteudo_relatorio_hist_{relatorio_id_hist}",
-                        )
+                st.session_state["gre_texto"] = texto
+                st.session_state["gre_nome"] = nome
+                st.session_state["gre_tipo_pdf"] = tipo_pdf
 
-                        col_hist_salvar, col_hist_excluir, col_hist_txt, col_hist_pdf = st.columns(4)
+        if "gre_texto" in st.session_state:
+            with st.container(border=True):
+                st.markdown("### Documento gerado")
+                st.text_area("Pré-visualização", st.session_state["gre_texto"], height=480)
+                export_buttons(st.session_state["gre_texto"], st.session_state["gre_nome"], tipo_pdf=st.session_state["gre_tipo_pdf"])
 
-                        with col_hist_salvar:
-                            if st.button("Salvar edição", key=f"btn_salvar_relatorio_hist_{relatorio_id_hist}"):
-                                atualizar_relatorio(relatorio_id_hist, titulo_editado, conteudo_editado)
-                                st.success("Relatório atualizado com sucesso.")
-                                st.rerun()
-
-                        with col_hist_excluir:
-                            confirmar_exclusao_relatorio = st.checkbox(
-                                "Confirmar exclusão",
-                                key=f"check_excluir_relatorio_hist_{relatorio_id_hist}",
-                            )
-                            if st.button("Excluir relatório salvo", key=f"btn_excluir_relatorio_hist_{relatorio_id_hist}"):
-                                if confirmar_exclusao_relatorio:
-                                    excluir_relatorio(relatorio_id_hist)
-                                    st.success("Relatório excluído com sucesso.")
-                                    st.rerun()
-                                else:
-                                    st.warning("Marque a confirmação antes de excluir.")
-
-                        with col_hist_txt:
-                            st.download_button(
-                                "Baixar .txt",
-                                data=conteudo_editado,
-                                file_name=f"Relatorio_{estudante[1]}_{relatorio_id_hist}.txt",
-                                mime="text/plain",
-                                key=f"download_txt_relatorio_hist_{relatorio_id_hist}",
-                            )
-
-                        with col_hist_pdf:
-                            if st.button("Gerar PDF", key=f"btn_pdf_relatorio_hist_{relatorio_id_hist}"):
-                                arquivo = gerar_pdf_relatorio(
-                                    conteudo_editado,
-                                    f"{estudante[1]}_{relatorio_id_hist}",
-                                )
-                                st.session_state[f"arquivo_pdf_relatorio_hist_{relatorio_id_hist}"] = arquivo
-
-                            if f"arquivo_pdf_relatorio_hist_{relatorio_id_hist}" in st.session_state:
-                                with open(st.session_state[f"arquivo_pdf_relatorio_hist_{relatorio_id_hist}"], "rb") as f:
-                                    st.download_button(
-                                        "Baixar PDF",
-                                        data=f,
-                                        file_name=f"Relatorio_{estudante[1]}_{relatorio_id_hist}.pdf",
-                                        mime="application/pdf",
-                                        key=f"download_pdf_relatorio_hist_{relatorio_id_hist}",
-                                    )
-            else:
-                st.info("Nenhum relatório salvo para este estudante.")
 
 # ======================================================
 # ADMINISTRAÇÃO
 # ======================================================
 elif menu == "Administração":
-    st.markdown('<div class="subtitulo">⚙️ Administração</div>', unsafe_allow_html=True)
+    st.markdown('<div class="subtitulo">⚙️ Administração e backup</div>', unsafe_allow_html=True)
 
-    estudantes = listar_estudantes()
+    with st.container(border=True):
+        st.markdown("### Backup geral do banco")
+        conn = conectar()
+        tabelas = pd.read_sql_query("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name", conn)["name"].tolist()
+        backup = {}
+        for tabela in tabelas:
+            backup[tabela] = pd.read_sql_query(f"SELECT * FROM {tabela}", conn)
+        conn.close()
 
-    if estudantes:
-        ids, mapa = opcoes_estudantes_por_id(estudantes)
+        st.write("Tabelas encontradas:", ", ".join(tabelas))
 
-        estudante_id_editar = st.selectbox(
-            "Selecione o estudante para editar",
-            ids,
-            format_func=lambda x: mapa[x],
-            key="editar_estudante_id",
+        for tabela, df in backup.items():
+            with st.expander(f"Tabela: {tabela} ({len(df)} registros)"):
+                st.dataframe(df, use_container_width=True, hide_index=True)
+                st.download_button(
+                    f"Baixar {tabela}.csv",
+                    df.to_csv(index=False).encode("utf-8"),
+                    f"{tabela}_incluisrm.csv",
+                    "text/csv",
+                    key=f"backup_{tabela}",
+                )
+
+        # Backup único em JSON
+        json_texto = "{\n" + ",\n".join(
+            [f'"{tabela}": {df.to_json(orient="records", force_ascii=False)}' for tabela, df in backup.items()]
+        ) + "\n}"
+        st.download_button(
+            "Baixar backup completo em JSON",
+            json_texto,
+            f"backup_completo_incluisrm_{datetime.now().strftime('%Y%m%d_%H%M')}.json",
+            "application/json",
         )
-
-        estudante_editar = buscar_estudante(estudante_id_editar)
-
-        if estudante_editar:
-            perfil_atual = estudante_editar[4] if estudante_editar[4] in PERFIS else "Não informado"
-
-            col_edit, col_delete = st.columns([1.4, 0.8])
-
-            with col_edit:
-                with st.container(border=True):
-                    st.markdown("### ✏️ Editar cadastro do estudante")
-
-                    with st.form(f"form_editar_estudante_{estudante_id_editar}"):
-                        col1, col2 = st.columns(2)
-
-                        with col1:
-                            codigo_edit = st.text_input(
-                                "Código interno",
-                                value=estudante_editar[1] or "",
-                                key=f"edit_codigo_{estudante_id_editar}",
-                            )
-                            ano_edit = st.text_input(
-                                "Ano/Série",
-                                value=estudante_editar[2] or "",
-                                key=f"edit_ano_{estudante_id_editar}",
-                            )
-
-                        with col2:
-                            turma_edit = st.text_input(
-                                "Turma",
-                                value=estudante_editar[3] or "",
-                                key=f"edit_turma_{estudante_id_editar}",
-                            )
-                            perfil_edit = st.selectbox(
-                                "Perfil educacional",
-                                PERFIS,
-                                index=PERFIS.index(perfil_atual),
-                                key=f"edit_perfil_{estudante_id_editar}",
-                            )
-
-                        observacoes_edit = st.text_area(
-                            "Observações pedagógicas iniciais",
-                            value=estudante_editar[5] or "",
-                            key=f"edit_observacoes_{estudante_id_editar}",
-                        )
-
-                        atualizar = st.form_submit_button("💾 Atualizar cadastro")
-
-                        if atualizar:
-                            if not codigo_edit.strip():
-                                st.error("O código interno não pode ficar vazio.")
-                            else:
-                                try:
-                                    atualizar_estudante(
-                                        estudante_id_editar,
-                                        codigo_edit.strip(),
-                                        ano_edit,
-                                        turma_edit,
-                                        perfil_edit,
-                                        observacoes_edit,
-                                    )
-                                    st.success("Cadastro atualizado com sucesso.")
-                                    st.rerun()
-                                except sqlite3.IntegrityError:
-                                    st.error("Este código interno já está sendo usado por outro estudante.")
-
-            with col_delete:
-                with st.container(border=True):
-                    st.markdown("### 🗑️ Excluir estudante")
-                    st.warning("A exclusão remove cadastro, avaliações, PAEE e atendimentos vinculados ao estudante.")
-
-                    confirmar = st.checkbox(
-                        "Confirmar exclusão do estudante selecionado",
-                        key=f"confirmar_exclusao_estudante_{estudante_id_editar}",
-                    )
-
-                    if st.button("Excluir estudante", key=f"btn_excluir_estudante_{estudante_id_editar}"):
-                        if confirmar:
-                            excluir_estudante(estudante_id_editar)
-                            st.success("Estudante excluído com sucesso.")
-                            st.rerun()
-                        else:
-                            st.warning("Marque a confirmação antes de excluir.")
-
-    else:
-        st.info("Nenhum estudante cadastrado ainda.")
