@@ -4,3 +4,8 @@ altair
 openai
 reportlab
 python-docx
+pypdf
+chromadb
+langchain
+langchain-openai
+tiktoken

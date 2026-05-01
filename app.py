@@ -43,6 +43,17 @@ st.set_page_config(
 DB_PATH = Path("inclui_paee.db")
 LOGO_PATH = "logosrm.png"
 
+# Pastas da Base de Conhecimento IA
+BASE_CONHECIMENTO_DIR = Path("base_conhecimento")
+PASTA_CIENTIFICA = BASE_CONHECIMENTO_DIR / "cientifica"
+PASTA_PEDAGOGICA = BASE_CONHECIMENTO_DIR / "pedagogica"
+CHROMA_DIR = Path("chroma_db_incluisrm")
+
+BASE_CONHECIMENTO_DIR.mkdir(parents=True, exist_ok=True)
+PASTA_CIENTIFICA.mkdir(parents=True, exist_ok=True)
+PASTA_PEDAGOGICA.mkdir(parents=True, exist_ok=True)
+CHROMA_DIR.mkdir(parents=True, exist_ok=True)
+
 APP_NAME = "INCLUISRM"
 APP_SUBTITLE = "Sistema de Gestão do Atendimento Educacional Especializado"
 
@@ -2006,7 +2017,7 @@ def gerar_pdf_documento(conteudo, codigo, tipo="documento"):
 
 
 # ======================================================
-# IA
+# IA + BASE DE CONHECIMENTO + MODELOS 3D
 # ======================================================
 def obter_api_key():
     try:
@@ -2015,6 +2026,186 @@ def obter_api_key():
         return os.getenv("OPENAI_API_KEY")
 
 
+def obter_cliente_openai():
+    api_key = obter_api_key()
+    if OpenAI is None or not api_key:
+        return None
+    return OpenAI(api_key=api_key)
+
+
+# ======================================================
+# BASE DE CONHECIMENTO IA - PDFs + CHROMADB
+# ======================================================
+def listar_pdfs_base(pasta):
+    """Lista arquivos PDF de uma pasta da base de conhecimento."""
+    pasta = Path(pasta)
+    pasta.mkdir(parents=True, exist_ok=True)
+    return sorted(list(pasta.glob("*.pdf")))
+
+
+def extrair_texto_pdf(caminho_pdf):
+    """Extrai texto de um PDF usando pypdf."""
+    from pypdf import PdfReader
+
+    partes = []
+    reader = PdfReader(str(caminho_pdf))
+
+    for i, pagina in enumerate(reader.pages):
+        texto = pagina.extract_text() or ""
+        if texto.strip():
+            partes.append(f"\n--- Arquivo: {caminho_pdf.name} | Página {i + 1} ---\n{texto}")
+
+    return "\n".join(partes).strip()
+
+
+def quebrar_texto(texto, tamanho=1200, sobreposicao=200):
+    """Divide textos longos em partes menores para busca semântica."""
+    if not texto:
+        return []
+
+    partes = []
+    inicio = 0
+    while inicio < len(texto):
+        fim = inicio + tamanho
+        parte = texto[inicio:fim].strip()
+        if parte:
+            partes.append(parte)
+        inicio = max(fim - sobreposicao, fim)
+    return partes
+
+
+def criar_embedding(textos):
+    """Cria embeddings com OpenAI."""
+    client = obter_cliente_openai()
+    if client is None:
+        raise RuntimeError("OPENAI_API_KEY não configurada ou biblioteca OpenAI indisponível.")
+
+    resposta = client.embeddings.create(
+        model="text-embedding-3-small",
+        input=textos,
+    )
+    return [item.embedding for item in resposta.data]
+
+
+def obter_chroma_collection(nome_base):
+    """Abre/cria uma coleção ChromaDB para a base informada."""
+    import chromadb
+
+    cliente = chromadb.PersistentClient(path=str(CHROMA_DIR))
+    return cliente.get_or_create_collection(name=f"incluisrm_{nome_base}")
+
+
+def indexar_base_conhecimento(nome_base):
+    """Indexa os PDFs da base científica ou pedagógica."""
+    if nome_base == "cientifica":
+        pasta = PASTA_CIENTIFICA
+    elif nome_base == "pedagogica":
+        pasta = PASTA_PEDAGOGICA
+    else:
+        raise ValueError("Base inválida. Use 'cientifica' ou 'pedagogica'.")
+
+    arquivos = listar_pdfs_base(pasta)
+    if not arquivos:
+        return 0, f"Nenhum PDF encontrado em {pasta}."
+
+    collection = obter_chroma_collection(nome_base)
+    total_chunks = 0
+
+    for pdf in arquivos:
+        texto = extrair_texto_pdf(pdf)
+        if not texto.strip():
+            continue
+
+        chunks = quebrar_texto(texto)
+        if not chunks:
+            continue
+
+        ids = [f"{nome_base}_{pdf.stem}_{idx}" for idx in range(len(chunks))]
+        metadados = [
+            {"arquivo": pdf.name, "base": nome_base, "chunk": idx}
+            for idx in range(len(chunks))
+        ]
+        embeddings = criar_embedding(chunks)
+
+        collection.upsert(
+            ids=ids,
+            documents=chunks,
+            embeddings=embeddings,
+            metadatas=metadados,
+        )
+        total_chunks += len(chunks)
+
+    return total_chunks, f"Base {nome_base} indexada com sucesso."
+
+
+def buscar_na_base_conhecimento(pergunta, bases=None, limite=5):
+    """Busca trechos relevantes nas bases indexadas."""
+    if bases is None:
+        bases = ["cientifica", "pedagogica"]
+
+    try:
+        embedding = criar_embedding([pergunta])[0]
+    except Exception:
+        return []
+
+    resultados_finais = []
+
+    for base in bases:
+        try:
+            collection = obter_chroma_collection(base)
+            resultado = collection.query(
+                query_embeddings=[embedding],
+                n_results=limite,
+            )
+
+            docs = resultado.get("documents", [[]])[0]
+            metas = resultado.get("metadatas", [[]])[0]
+
+            for doc, meta in zip(docs, metas):
+                resultados_finais.append(
+                    {
+                        "texto": doc,
+                        "arquivo": meta.get("arquivo", "Arquivo não identificado"),
+                        "base": meta.get("base", base),
+                    }
+                )
+        except Exception:
+            continue
+
+    return resultados_finais
+
+
+def montar_contexto_base(resultados):
+    """Monta contexto textual para enviar à IA."""
+    if not resultados:
+        return "Nenhum trecho relevante encontrado nas bases científica e pedagógica."
+
+    partes = []
+    for i, item in enumerate(resultados, start=1):
+        partes.append(
+            f"""
+[Fonte {i}]
+Base: {item.get('base', 'não informada')}
+Arquivo: {item.get('arquivo', 'não informado')}
+Trecho:
+{item.get('texto', '')}
+""".strip()
+        )
+    return "\n\n".join(partes)
+
+
+def arquivos_consultados_texto(resultados):
+    arquivos = []
+    for item in resultados or []:
+        nome = item.get("arquivo")
+        if nome and nome not in arquivos:
+            arquivos.append(nome)
+    return ", ".join(arquivos) if arquivos else "Nenhum arquivo consultado ou base ainda não indexada."
+
+
+# ======================================================
+# ATENDIMENTOS EM TEXTO
+# ======================================================
 def listar_atendimentos_texto(estudante_id):
     atendimentos = listar_atendimentos(estudante_id)
     if not atendimentos:
@@ -2040,7 +2231,76 @@ Engajamento: {a[11] if len(a) > 11 else 'Não informado.'}/10
     return "\n---\n".join(partes)
 
 
+# ======================================================
+# BUSCA DE MODELOS 3D
+# ======================================================
+def link_busca_thingiverse(termo):
+    termo_formatado = termo.replace(" ", "%20")
+    return f"https://www.thingiverse.com/search?q={termo_formatado}&type=things"
 
+
+def link_busca_printables(termo):
+    termo_formatado = termo.replace(" ", "%20")
+    return f"https://www.printables.com/search/models?q={termo_formatado}"
+
+
+def link_busca_makerworld(termo):
+    termo_formatado = termo.replace(" ", "%20")
+    return f"https://makerworld.com/pt/search/models?keyword={termo_formatado}"
+
+
+def gerar_termos_3d_com_ia(conteudo_paee):
+    """Gera exatamente 5 termos/objetos para busca de modelos 3D."""
+    client = obter_cliente_openai()
+
+    termos_padrao = [
+        "braille alphabet",
+        "tactile math",
+        "visual schedule",
+        "communication cards",
+        "sensory toy",
+    ]
+
+    if client is None or not conteudo_paee:
+        return termos_padrao
+
+    prompt = f"""
+Analise o PAEE abaixo e gere exatamente 5 objetos ou recursos 3D pedagógicos para busca
+em sites como Thingiverse, Printables e MakerWorld.
+
+Use termos curtos, preferencialmente em inglês, porque retornam mais modelos.
+Priorize recursos inclusivos, táteis, manipuláveis, visuais, sensoriais, comunicação alternativa,
+matemática concreta, alfabetização, autonomia ou organização da rotina.
+
+Não explique.
+Retorne apenas 5 linhas.
+Cada linha deve conter apenas um termo de busca.
+
+PAEE:
+{conteudo_paee}
+"""
+
+    try:
+        resposta = client.responses.create(
+            model="gpt-4.1-mini",
+            input=prompt,
+        )
+        texto = resposta.output_text
+
+        termos = []
+        for linha in texto.split("\n"):
+            termo = linha.strip().strip("-•0123456789. )(").strip()
+            if termo and termo not in termos:
+                termos.append(termo)
+
+        return termos[:5] if termos else termos_padrao
+    except Exception:
+        return termos_padrao
+
+
+# ======================================================
+# PAEE SEM IA / COM IA
+# ======================================================
 def gerar_paee_sem_ia(estudante, avaliacao=None, entrevista=None, estudo=None):
     codigo = estudante[1]
     ano_serie = estudante[2] or "Não informado."
@@ -2165,9 +2425,9 @@ Assinatura: _______________________________________
 
 
 def gerar_paee_com_ia(estudante, avaliacao=None, entrevista=None, estudo=None):
-    api_key = obter_api_key()
+    client = obter_cliente_openai()
 
-    if OpenAI is None or not api_key:
+    if client is None:
         return gerar_paee_sem_ia(estudante, avaliacao, entrevista, estudo)
 
     historico_txt = listar_atendimentos_texto(estudante[0])
@@ -2187,11 +2447,20 @@ Horário preferencial: {estudante[8]}
     entrevista_txt = texto_entrevista(estudante, ("", *entrevista)) if entrevista else "Nenhuma entrevista com a família registrada."
     estudo_txt = texto_estudo_caso(estudante, ("", *estudo)) if estudo else "Nenhum estudo de caso GRE registrado."
 
+    pergunta_busca = f"""
+Plano AEE PAEE para estudante com perfil {estudante[4]}, ano/série {estudante[2]},
+barreiras, potencialidades, estratégias pedagógicas, atividades desplugadas,
+tecnologia assistiva, recursos maker, robótica, impressão 3D e inclusão escolar.
+"""
+    resultados_base = buscar_na_base_conhecimento(pergunta_busca, bases=["cientifica", "pedagogica"], limite=5)
+    contexto_base = montar_contexto_base(resultados_base)
+    arquivos_base = arquivos_consultados_texto(resultados_base)
+
     prompt = f"""
 Você é um assistente pedagógico especializado em Atendimento Educacional Especializado (AEE), Educação Inclusiva, Sala de Recursos Multifuncionais (SRM), tecnologias educacionais inclusivas e elaboração de Plano AEE/PAEE.
 
 TAREFA:
-Elabore uma sugestão de Plano AEE/PAEE com linguagem formal, técnica, objetiva e pedagógica, cruzando as informações do cadastro, entrevista com a família, avaliação pedagógica, estudo de caso GRE e histórico de atendimentos.
+Elabore uma sugestão de Plano AEE/PAEE com linguagem formal, técnica, objetiva e pedagógica, cruzando as informações do cadastro, entrevista com a família, avaliação pedagógica, estudo de caso GRE, histórico de atendimentos e os trechos recuperados das bases científica e pedagógica.
 
 REGRAS DE SEGURANÇA E PRIVACIDADE:
 - Não usar nome real de estudante.
@@ -2201,6 +2470,8 @@ REGRAS DE SEGURANÇA E PRIVACIDADE:
 - Não inventar diagnóstico.
 - Não criar condutas médicas.
 - Não afirmar evolução não registrada.
+- Não inventar citações bibliográficas.
+- Quando usar a base de conhecimento, cite apenas o nome do arquivo consultado.
 
 REGRA SOBRE TEA SEM NÍVEL:
 Se o perfil educacional for TEA e o nível de suporte não estiver informado, adotar provisoriamente estratégias compatíveis com suporte moderado, sem afirmar diagnóstico clínico.
@@ -2222,6 +2493,12 @@ ESTUDO DE CASO GRE:
 
 HISTÓRICO DE ATENDIMENTOS:
 {historico_txt}
+
+TRECHOS DAS BASES CIENTÍFICA E PEDAGÓGICA:
+{contexto_base}
+
+ARQUIVOS CONSULTADOS:
+{arquivos_base}
 
 ESTRUTURE O DOCUMENTO COM:
 1. Identificação segura do estudante
@@ -2252,20 +2529,21 @@ ESTRUTURE O DOCUMENTO COM:
 20. Avaliação e acompanhamento
 21. Evolução do estudante com base nos atendimentos
 22. Recomendações para revisão do plano
-23. Responsável pelo AEE:
+23. Fundamentação com base nos documentos consultados
+24. Arquivos utilizados como referência
+25. Responsável pelo AEE:
 Nome: ___________________________________________
 Função: Professor(a) do Atendimento Educacional Especializado (AEE)
 Assinatura: _______________________________________
-24. Coordenação pedagógica:
+26. Coordenação pedagógica:
 Nome: ___________________________________________
 Cargo: Coordenação Pedagógica
 Assinatura: _______________________________________
-25. Data de elaboração: ____/____/________
+27. Data de elaboração: ____/____/________
 
 Na seção de atividades desplugadas, inclua sugestões concretas e aplicáveis sem computador, como cartões de rotina, pareamento, sequência lógica, jogos de memória, materiais táteis, objetos 3D, trilhas pedagógicas, contação de histórias com apoio visual, atividades de atenção compartilhada e recursos manipuláveis.
 """
 
-    client = OpenAI(api_key=api_key)
     resposta = client.responses.create(
         model="gpt-4.1-mini",
         input=prompt,
@@ -2322,6 +2600,7 @@ Classificar como: Alta, Média ou Baixa.
         input=prompt,
     )
     return resposta.output_text
+
 
 def gerar_relatorio_gre_texto(estudante):
     avaliacao = ultima_avaliacao(estudante[0])
@@ -2385,7 +2664,6 @@ Professor(a) AEE: _______________________________________
 Coordenação/Gestão: _____________________________________
 Responsável: ____________________________________________
 """.strip()
-
 
 # ======================================================
 # DATAFRAMES / GRÁFICOS
@@ -2506,7 +2784,7 @@ with st.sidebar:
             "Entrevista com a Família",
             "Avaliação Pedagógica",
             "Estudo de Caso",
-            "Plano AEE / PAEE",
+            "Plano AEE - Inteligência",
             "Atendimentos",
             "Agenda de Atendimentos",
             "Relatórios GRE",
@@ -2564,7 +2842,7 @@ if menu == "Dashboard":
                 """
                 1. Cadastre o estudante com código interno.
                 2. Registre entrevista, avaliação e estudo de caso.
-                3. Crie o Plano AEE / PAEE.
+                3. Crie o Plano AEE - Inteligência.
                 4. Lance os atendimentos e acompanhe os gráficos.
                 5. Organize a agenda semanal.
                 6. Gere os relatórios GRE para impressão e pasta física.
@@ -3274,10 +3552,10 @@ elif menu == "Estudo de Caso":
 
 
 # ======================================================
-# PLANO AEE / PAEE
+# PLANO AEE - INTELIGÊNCIA
 # ======================================================
-elif menu == "Plano AEE / PAEE":
-    st.markdown('<div class="subtitulo">🧩 Plano AEE / PAEE</div>', unsafe_allow_html=True)
+elif menu == "Plano AEE - Inteligência":
+    st.markdown('<div class="subtitulo">🧠 Plano AEE - Inteligência</div>', unsafe_allow_html=True)
     estudantes = listar_estudantes()
     if not estudantes:
         st.info("Cadastre um estudante primeiro.")
@@ -3287,8 +3565,8 @@ elif menu == "Plano AEE / PAEE":
         estudante = buscar_estudante(estudante_id)
 
         with st.container(border=True):
-            st.markdown("### 🤖 AEE IA - Gerar sugestão de Plano AEE / PAEE")
-            st.caption("A IA cruza cadastro, entrevista com a família, avaliação pedagógica, estudo de caso GRE e atendimentos. O texto gerado inclui sugestões de tecnologias inclusivas, atividades plugadas e atividades desplugadas. Dados sensíveis ficam em branco para preenchimento manual no Word/PDF.")
+            st.markdown("### 🤖 Gerar sugestão inteligente do Plano AEE")
+            st.caption("A IA cruza cadastro, entrevista com a família, avaliação pedagógica, estudo de caso GRE, atendimentos e as bases científica e pedagógica. O texto gerado inclui sugestões de tecnologias inclusivas, atividades plugadas, atividades desplugadas e recursos maker. Dados sensíveis ficam em branco para preenchimento manual no Word/PDF.")
 
             col_ia1, col_ia2 = st.columns([1, 1])
             with col_ia1:
@@ -3298,6 +3576,7 @@ elif menu == "Plano AEE / PAEE":
 
             if limpar_ai:
                 st.session_state.pop(f"paee_ia_texto_{estudante_id}", None)
+                st.session_state.pop(f"termos_3d_{estudante_id}", None)
                 st.rerun()
 
             if gerar_ai:
@@ -3312,7 +3591,7 @@ elif menu == "Plano AEE / PAEE":
                 if not estudo_ia:
                     st.warning("Ainda não há estudo de caso GRE registrado. A sugestão será gerada com dados limitados.")
 
-                with st.spinner("Gerando Plano AEE / PAEE com AEE IA..."):
+                with st.spinner("Gerando Plano AEE com Inteligência e consultando as bases de conhecimento..."):
                     st.session_state[f"paee_ia_texto_{estudante_id}"] = gerar_paee_com_ia(
                         estudante,
                         avaliacao_ia,
@@ -3340,6 +3619,122 @@ elif menu == "Plano AEE / PAEE":
                         )
                         st.success("Sugestão AEE IA salva no histórico de PAEE.")
                         st.rerun()
+
+                st.markdown("---")
+                st.markdown("### 🧩 Busca de modelos 3D para recursos pedagógicos")
+                st.write(
+                    "A IA analisa o Plano AEE gerado, sugere 5 objetos 3D pedagógicos e também permite busca manual em bancos de modelos."
+                )
+
+                col_auto, col_manual = st.columns(2)
+
+                with col_auto:
+                    st.markdown("#### 🤖 Sugestões automáticas da IA")
+
+                    if st.button("Gerar 5 sugestões de objetos 3D", key=f"btn_3d_auto_{estudante_id}"):
+                        with st.spinner("Analisando o Plano AEE e gerando sugestões de objetos 3D..."):
+                            termos_3d = gerar_termos_3d_com_ia(texto_ia)
+                            st.session_state[f"termos_3d_{estudante_id}"] = termos_3d
+
+                    if f"termos_3d_{estudante_id}" in st.session_state:
+                        for termo in st.session_state[f"termos_3d_{estudante_id}"]:
+                            st.markdown(f"##### 🔎 {termo}")
+
+                            c1, c2, c3 = st.columns(3)
+                            with c1:
+                                st.link_button("MakerWorld", link_busca_makerworld(termo))
+                            with c2:
+                                st.link_button("Printables", link_busca_printables(termo))
+                            with c3:
+                                st.link_button("Thingiverse", link_busca_thingiverse(termo))
+
+                with col_manual:
+                    st.markdown("#### 🔍 Busca manual de modelos 3D")
+
+                    termo_manual = st.text_input(
+                        "Digite o termo para buscar",
+                        placeholder="Ex: braille alphabet, tactile map, sensory toy...",
+                        key=f"busca_manual_3d_{estudante_id}",
+                    )
+
+                    if termo_manual.strip():
+                        st.markdown(f"##### Resultado para: {termo_manual}")
+
+                        c1, c2, c3 = st.columns(3)
+                        with c1:
+                            st.link_button("Buscar no MakerWorld", link_busca_makerworld(termo_manual))
+                        with c2:
+                            st.link_button("Buscar no Printables", link_busca_printables(termo_manual))
+                        with c3:
+                            st.link_button("Buscar no Thingiverse", link_busca_thingiverse(termo_manual))
+
+        with st.container(border=True):
+            st.markdown("### 📚 Base de Conhecimento IA")
+            st.caption("Use esta seção para conferir e indexar os PDFs colocados nas pastas base_conhecimento/cientifica e base_conhecimento/pedagogica.")
+
+            col_base1, col_base2 = st.columns(2)
+
+            with col_base1:
+                st.markdown("#### Base Científica Inclusiva")
+                pdfs_cientificos = listar_pdfs_base(PASTA_CIENTIFICA)
+                st.metric("PDFs científicos", len(pdfs_cientificos))
+                if pdfs_cientificos:
+                    with st.expander("Ver PDFs científicos"):
+                        for pdf in pdfs_cientificos:
+                            st.write(f"• {pdf.name}")
+                else:
+                    st.info("Nenhum PDF encontrado em base_conhecimento/cientifica")
+
+                if st.button("Indexar Base Científica", key="indexar_base_cientifica"):
+                    try:
+                        with st.spinner("Indexando base científica..."):
+                            total, msg = indexar_base_conhecimento("cientifica")
+                        st.success(f"{msg} Total de trechos indexados: {total}")
+                    except Exception as e:
+                        st.error(f"Erro ao indexar base científica: {e}")
+
+            with col_base2:
+                st.markdown("#### Base Pedagógica AEE")
+                pdfs_pedagogicos = listar_pdfs_base(PASTA_PEDAGOGICA)
+                st.metric("PDFs pedagógicos", len(pdfs_pedagogicos))
+                if pdfs_pedagogicos:
+                    with st.expander("Ver PDFs pedagógicos"):
+                        for pdf in pdfs_pedagogicos:
+                            st.write(f"• {pdf.name}")
+                else:
+                    st.info("Nenhum PDF encontrado em base_conhecimento/pedagogica")
+
+                if st.button("Indexar Base Pedagógica", key="indexar_base_pedagogica"):
+                    try:
+                        with st.spinner("Indexando base pedagógica..."):
+                            total, msg = indexar_base_conhecimento("pedagogica")
+                        st.success(f"{msg} Total de trechos indexados: {total}")
+                    except Exception as e:
+                        st.error(f"Erro ao indexar base pedagógica: {e}")
+
+            st.markdown("#### Consultar manualmente as bases")
+            pergunta_base = st.text_area(
+                "Digite uma pergunta para consultar os documentos",
+                placeholder="Ex: Que estratégias usar para estudante com TEA no AEE?",
+                key="pergunta_base_conhecimento_ia",
+            )
+            bases_escolhidas = st.multiselect(
+                "Bases para consulta",
+                ["cientifica", "pedagogica"],
+                default=["cientifica", "pedagogica"],
+                key="bases_consulta_manual",
+            )
+            if st.button("Consultar bases", key="consultar_bases_ia"):
+                if not pergunta_base.strip():
+                    st.warning("Digite uma pergunta primeiro.")
+                else:
+                    with st.spinner("Buscando trechos nas bases..."):
+                        resultados = buscar_na_base_conhecimento(pergunta_base, bases=bases_escolhidas, limite=6)
+                        contexto = montar_contexto_base(resultados)
+                        st.session_state["consulta_base_resultado"] = contexto
+
+            if "consulta_base_resultado" in st.session_state:
+                st.text_area("Trechos encontrados", st.session_state["consulta_base_resultado"], height=320)
 
         with st.container(border=True):
             st.markdown("### Novo plano manual")
