@@ -10,8 +10,8 @@ import pandas as pd
 import altair as alt
 
 st.set_page_config(
-    page_title="INCLUISRM",
-    page_icon="📊",
+    page_title="IncluiPAEE IA",
+    page_icon="🧠",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -1288,7 +1288,7 @@ def gerar_pdf_documento(conteudo, codigo, tipo="paee"):
 
     # LOGO
     try:
-        logo = Image("logosrm.png", width=160, height=80)
+        logo = Image("logo.png", width=140, height=70)
         logo.hAlign = "CENTER"
         elementos.append(logo)
         elementos.append(Spacer(1, 8))
@@ -1409,9 +1409,9 @@ def opcoes_estudantes_por_id(estudantes):
 # ======================================================
 with st.sidebar:
     try:
-        st.image("logosrm.png", use_container_width=True)
+        st.image("logo.png", use_container_width=True)
     except Exception:
-        st.markdown("## INCLUISRM")
+        st.markdown("## IncluiPAEE IA")
 
     st.markdown("---")
 
@@ -1431,12 +1431,12 @@ with st.sidebar:
 
     st.markdown("---")
     st.caption("LabTec3DI – UFRPE")
-    st.caption("Sistema de Gestão do Atendimento Educacional Especializado")
+    st.caption("Sistema inteligente de apoio ao AEE")
 
 
-st.markdown('<div class="titulo">INCLUISRM</div>', unsafe_allow_html=True)
+st.markdown('<div class="titulo">IncluiPAEE IA</div>', unsafe_allow_html=True)
 st.markdown(
-    '<div class="descricao">Sistema de Gestão do Atendimento Educacional Especializado.</div>',
+    '<div class="descricao">Sistema inteligente de apoio à elaboração de PAEE, registros pedagógicos e relatórios de evolução.</div>',
     unsafe_allow_html=True,
 )
 
