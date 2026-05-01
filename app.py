@@ -18,86 +18,188 @@ st.set_page_config(
 
 st.markdown("""
 <style>
+/* =============================
+   INCLUISRM - Layout profissional
+   ============================= */
+
 /* Fundo geral */
 .stApp {
-    background-color: #f5f7fb;
+    background: linear-gradient(180deg, #f7f9fc 0%, #eef3f9 100%);
 }
 
-/* Espaçamento geral */
+/* Área central */
 .block-container {
-    padding-top: 3rem;
-    padding-bottom: 2rem;
-    padding-left: 2rem;
-    padding-right: 2rem;
-}
-
-/* Corrige topo e centraliza melhor conteúdo */
-main > div {
-    padding-top: 1rem;
+    padding-top: 2.2rem;
+    padding-bottom: 2.5rem;
+    padding-left: 2.4rem;
+    padding-right: 2.4rem;
+    max-width: 1400px;
 }
 
 /* Sidebar */
 section[data-testid="stSidebar"] {
-    background-color: #0f172a;
+    background: linear-gradient(180deg, #0f172a 0%, #111827 100%);
+    border-right: 1px solid rgba(255,255,255,0.08);
 }
 
 section[data-testid="stSidebar"] * {
     color: #ffffff !important;
 }
 
+section[data-testid="stSidebar"] hr {
+    border-color: rgba(255,255,255,0.12);
+}
+
+.sidebar-logo-card {
+    background: #ffffff;
+    border-radius: 18px;
+    padding: 12px;
+    margin: 4px 0 18px 0;
+    box-shadow: 0 12px 30px rgba(0,0,0,0.25);
+}
+
+.sidebar-title {
+    font-size: 20px;
+    font-weight: 900;
+    letter-spacing: 0.5px;
+    margin-top: 8px;
+}
+
+.sidebar-subtitle {
+    font-size: 12px;
+    color: #cbd5e1 !important;
+    line-height: 1.35;
+    margin-bottom: 12px;
+}
+
+/* Hero principal */
+.app-hero {
+    background: linear-gradient(135deg, #ffffff 0%, #edf7ff 100%);
+    border: 1px solid #dbeafe;
+    border-radius: 24px;
+    padding: 26px 30px;
+    margin-bottom: 22px;
+    box-shadow: 0 14px 35px rgba(15, 23, 42, 0.08);
+}
+
+.app-title {
+    font-size: 38px;
+    font-weight: 900;
+    color: #0f172a;
+    margin: 0;
+    line-height: 1.05;
+    letter-spacing: -0.5px;
+}
+
+.app-subtitle {
+    font-size: 17px;
+    color: #475569;
+    margin-top: 8px;
+    margin-bottom: 0;
+}
+
+.app-badge {
+    display: inline-block;
+    background: #dcfce7;
+    color: #166534 !important;
+    border: 1px solid #bbf7d0;
+    border-radius: 999px;
+    padding: 6px 12px;
+    font-size: 13px;
+    font-weight: 700;
+    margin-bottom: 10px;
+}
+
 /* Títulos */
 .titulo {
-    font-size: 30px;
-    font-weight: 800;
+    font-size: 34px;
+    font-weight: 900;
     color: #0f172a;
     margin-bottom: 0px;
 }
 
 .subtitulo {
-    font-size: 19px;
-    font-weight: 700;
-    color: #1e293b;
-    margin-bottom: 8px;
+    font-size: 23px;
+    font-weight: 850;
+    color: #0f172a;
+    margin-bottom: 12px;
 }
 
 .descricao {
     color: #64748b;
-    font-size: 15px;
-    margin-bottom: 18px;
+    font-size: 16px;
+    margin-bottom: 20px;
 }
 
-/* Botões */
-.stButton > button,
-.stDownloadButton > button {
-    border-radius: 10px;
-    font-weight: 600;
-}
-
-/* Inputs */
-div[data-baseweb="input"],
-div[data-baseweb="select"] {
-    border-radius: 10px;
-}
-
-/* Dataframe */
-[data-testid="stDataFrame"] {
-    border-radius: 12px;
-    overflow: hidden;
+/* Cards/containers do Streamlit */
+div[data-testid="stVerticalBlock"] div[data-testid="stVerticalBlockBorderWrapper"] {
+    border-radius: 20px;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 10px 25px rgba(15, 23, 42, 0.05);
+    background: #ffffff;
 }
 
 /* Métricas */
 [data-testid="stMetric"] {
-    background: white;
-    border: 1px solid #e5e7eb;
-    padding: 16px;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    padding: 18px;
+    border-radius: 18px;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.05);
+}
+
+[data-testid="stMetricValue"] {
+    font-size: 34px;
+    font-weight: 900;
+    color: #0f172a;
+}
+
+/* Botões */
+.stButton > button,
+.stDownloadButton > button,
+div[data-testid="stLinkButton"] a {
+    border-radius: 12px !important;
+    font-weight: 700 !important;
+    border: 1px solid #cbd5e1 !important;
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
+}
+
+/* Inputs */
+div[data-baseweb="input"],
+div[data-baseweb="select"],
+div[data-baseweb="textarea"] {
+    border-radius: 12px;
+}
+
+/* Dataframe */
+[data-testid="stDataFrame"] {
+    border-radius: 16px;
+    overflow: hidden;
+    border: 1px solid #e2e8f0;
+}
+
+/* Alertas */
+div[data-testid="stAlert"] {
     border-radius: 14px;
+}
+
+/* Expanders */
+.streamlit-expanderHeader {
+    border-radius: 12px;
+    font-weight: 700;
 }
 
 /* Linha divisória suave */
 hr {
-    margin-top: 0.8rem;
-    margin-bottom: 1rem;
+    margin-top: 1.1rem;
+    margin-bottom: 1.2rem;
+    border-color: #e2e8f0;
 }
+
+/* Oculta menu e rodapé padrão */
+#MainMenu {visibility: hidden;}
+footer {visibility: hidden;}
+header {visibility: hidden;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -1404,14 +1506,39 @@ def opcoes_estudantes_por_id(estudantes):
     return ids, mapa
 
 
+
+def render_app_header():
+    st.markdown(
+        """
+        <div class="app-hero">
+            <span class="app-badge">Gestão do AEE • SRM • Relatórios</span>
+            <h1 class="app-title">INCLUISRM</h1>
+            <p class="app-subtitle">Sistema de Gestão do Atendimento Educacional Especializado</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
 # ======================================================
 # SIDEBAR PROFISSIONAL
 # ======================================================
 with st.sidebar:
     try:
+        st.markdown('<div class="sidebar-logo-card">', unsafe_allow_html=True)
         st.image("logosrm.png", use_container_width=True)
+        st.markdown('</div>', unsafe_allow_html=True)
     except Exception:
-        st.markdown("## INCLUISRM")
+        st.markdown('<div class="sidebar-title">INCLUISRM</div>', unsafe_allow_html=True)
+        st.markdown(
+            '<div class="sidebar-subtitle">Sistema de Gestão do Atendimento Educacional Especializado</div>',
+            unsafe_allow_html=True,
+        )
+
+    st.markdown('<div class="sidebar-title">INCLUISRM</div>', unsafe_allow_html=True)
+    st.markdown(
+        '<div class="sidebar-subtitle">Sistema de Gestão do Atendimento Educacional Especializado</div>',
+        unsafe_allow_html=True,
+    )
 
     st.markdown("---")
 
@@ -1434,11 +1561,7 @@ with st.sidebar:
     st.caption("Sistema de Gestão do Atendimento Educacional Especializado")
 
 
-st.markdown('<div class="titulo">INCLUISRM</div>', unsafe_allow_html=True)
-st.markdown(
-    '<div class="descricao">Sistema de Gestão do Atendimento Educacional Especializado.</div>',
-    unsafe_allow_html=True,
-)
+render_app_header()
 
 
 # ======================================================
