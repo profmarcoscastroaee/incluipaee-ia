@@ -928,6 +928,71 @@ Observações pedagógicas:
 """.strip()
 
 
+
+def texto_matricula_srm(estudante):
+    codigo = estudante[1] or "Não informado."
+    ano_serie = estudante[2] or "Não informado."
+    turma = estudante[3] or "Não informado."
+    perfil = estudante[4] or "Não informado."
+    observacoes = estudante[5] or "Não informado."
+    turno = estudante[6] or "Não informado."
+    dias = estudante[7] or "Não informado."
+    horario = estudante[8] or "Não informado."
+
+    return f"""
+MATRÍCULA PARA O ATENDIMENTO EDUCACIONAL ESPECIALIZADO
+SALA DE RECURSOS MULTIFUNCIONAIS - SRM
+
+1. IDENTIFICAÇÃO DO ESTUDANTE
+
+Código interno: {codigo}
+Ano/Série: {ano_serie}
+Turma: {turma}
+Turno: {turno}
+Perfil educacional informado: {perfil}
+Dias preferenciais de atendimento: {dias}
+Horário preferencial: {horario}
+
+2. DADOS SENSÍVEIS PARA PREENCHIMENTO MANUAL
+
+Nome completo do estudante: ___________________________________________
+
+Data de nascimento: ____/____/________
+
+CPF/RG do estudante: _________________________________________________
+
+Nome do responsável: _________________________________________________
+
+CPF/RG do responsável: _______________________________________________
+
+Telefone: ___________________________________________________________
+
+Endereço: ___________________________________________________________
+
+3. INFORMAÇÕES PEDAGÓGICAS INICIAIS
+
+Observações registradas no sistema:
+{observacoes}
+
+4. DECLARAÇÃO
+
+Declaro ciência da matrícula do estudante acima identificado no Atendimento Educacional Especializado (AEE), na Sala de Recursos Multifuncionais - SRM, conforme organização pedagógica da unidade escolar e orientações da rede de ensino.
+
+Data: ____/____/________
+
+
+__________________________________________
+Assinatura do responsável
+
+
+__________________________________________
+Professor(a) do Atendimento Educacional Especializado - AEE
+
+
+__________________________________________
+Gestão / Coordenação Pedagógica
+""".strip()
+
 def texto_professor(p):
     return f"""
 FICHA DE IDENTIFICAÇÃO DO(A) PROFESSOR(A) AEE - INCLUISRM
@@ -1155,6 +1220,7 @@ def gerar_pdf_documento(conteudo, codigo, tipo="documento"):
 
     nomes = {
         "cadastro": ("Cadastro_Estudante", "CADASTRO DO ESTUDANTE"),
+        "matricula_srm": ("Matricula_SRM", "MATRÍCULA PARA O ATENDIMENTO EDUCACIONAL ESPECIALIZADO - SRM"),
         "professor": ("Ficha_Professor_AEE", "FICHA DE IDENTIFICAÇÃO DO(A) PROFESSOR(A) AEE"),
         "entrevista": ("Entrevista_Familia", "ENTREVISTA COM A FAMÍLIA"),
         "avaliacao": ("Avaliacao_Pedagogica", "AVALIAÇÃO PEDAGÓGICA INICIAL"),
@@ -2084,8 +2150,8 @@ elif menu == "Relatórios GRE":
 
             if st.button("Gerar documento"):
                 if tipo == "Matrícula SRM / Cadastro seguro":
-                    texto = texto_cadastro_estudante(estudante)
-                    tipo_pdf = "cadastro"
+                    texto = texto_matricula_srm(estudante)
+                    tipo_pdf = "matricula_srm"
                     nome = f"Matricula_SRM_{estudante[1]}"
                 elif tipo == "Última avaliação pedagógica":
                     av = ultima_avaliacao(estudante_id)
@@ -2114,7 +2180,7 @@ elif menu == "Relatórios GRE":
         if "gre_texto" in st.session_state:
             with st.container(border=True):
                 st.markdown("### Documento gerado")
-                st.text_area("Pré-visualização", st.session_state["gre_texto"], height=480)
+                st.text_area("Pré-visualização", st.session_state["gre_texto"], height=520)
                 export_buttons(st.session_state["gre_texto"], st.session_state["gre_nome"], tipo_pdf=st.session_state["gre_tipo_pdf"])
 
 
