@@ -819,39 +819,16 @@ def listar_professores_do_estudante(estudante_id):
     return dados
 
 
-def buscar_professor_responsavel():
-    conn = conectar()
-    cursor = conn.cursor()
-    cursor.execute(
-        """
-        SELECT id, nome_referencia, escola, regional, formacao,
-               carga_horaria, turno_atuacao, observacoes, criado_em
-        FROM professores
-        ORDER BY id DESC
-        LIMIT 1
-        """
-    )
-    dado = cursor.fetchone()
-    conn.close()
-    return dado
-
-
-def texto_professor_responsavel():
-    professor = buscar_professor_responsavel()
-    if not professor:
-        return "Nenhum professor AEE cadastrado."
-    return (
-        f"{professor[1] or 'Não informado.'} | "
-        f"Escola: {professor[2] or 'Não informado.'} | "
-        f"Regional/GRE: {professor[3] or 'Não informado.'} | "
-        f"Carga horária: {professor[5] or 'Não informado.'} | "
-        f"Turno: {professor[6] or 'Não informado.'}"
-    )
-
-
-def texto_professores_vinculados(estudante_id=None):
-    """Protótipo personalizado: usa o professor responsável mais recente."""
-    return texto_professor_responsavel()
+def texto_professores_vinculados(estudante_id):
+    professores = listar_professores_do_estudante(estudante_id)
+    if not professores:
+        return "Nenhum professor AEE vinculado."
+    linhas = []
+    for p in professores:
+        linhas.append(
+            f"- {p[2] or 'Sem nome'} | Escola: {p[3] or 'Não informado.'} | Regional/GRE: {p[4] or 'Não informado.'}"
+        )
+    return "\n".join(linhas)
 
 
 # ======================================================
@@ -1114,7 +1091,7 @@ Perfil educacional informado: {perfil}
 Dias preferenciais de atendimento: {dias}
 Horário preferencial: {horario}
 
-Professor(a) AEE responsável:
+Professor(es) AEE vinculado(s):
 {texto_professores_vinculados(estudante[0])}
 
 2. DADOS SENSÍVEIS PARA PREENCHIMENTO MANUAL
@@ -1579,7 +1556,7 @@ Turma: {estudante[3] or 'Não informado.'}
 Turno: {estudante[6] or 'Não informado.'}
 Perfil educacional: {estudante[4] or 'Não informado.'}
 
-Professor(a) AEE responsável:
+Professor(es) AEE vinculado(s):
 {texto_professores_vinculados(estudante[0])}
 
 Campos sensíveis para preenchimento manual:
@@ -1893,7 +1870,6 @@ elif menu == "Cadastro do Estudante":
 # ======================================================
 elif menu == "Cadastro do Professor AEE":
     st.markdown('<div class="subtitulo">👨‍🏫 Cadastro do Professor AEE</div>', unsafe_allow_html=True)
-    st.caption("Protótipo personalizado: o sistema considera o professor cadastrado mais recente como professor responsável pelos estudantes e relatórios.")
 
     if "prof_form_nonce" not in st.session_state:
         st.session_state["prof_form_nonce"] = 0
@@ -1905,37 +1881,32 @@ elif menu == "Cadastro do Professor AEE":
     # ===============================
     with st.container(border=True):
         st.markdown("### Novo cadastro profissional")
-        st.caption("Ao salvar, a página será atualizada e o formulário aparecerá limpo.")
+        st.caption(
+            "Ao salvar, a página será atualizada. O professor poderá ser vinculado a até 14 estudantes."
+        )
+
+        estudantes_form = listar_estudantes()
 
         with st.form(f"form_professor_{nonce}", clear_on_submit=True):
-            nome_ref = st.text_input(
-                "Nome de referência / nome profissional",
-                key=f"prof_nome_{nonce}",
-            )
-            escola = st.text_input(
-                "Escola",
-                key=f"prof_escola_{nonce}",
-            )
-            regional = st.text_input(
-                "Regional / GRE",
-                key=f"prof_regional_{nonce}",
-            )
-            formacao = st.text_area(
-                "Formação",
-                key=f"prof_formacao_{nonce}",
-            )
-            carga = st.text_input(
-                "Carga horária",
-                key=f"prof_carga_{nonce}",
-            )
-            turno = st.text_input(
-                "Turno de atuação",
-                key=f"prof_turno_{nonce}",
-            )
-            obs = st.text_area(
-                "Observações",
-                key=f"prof_obs_{nonce}",
-            )
+            nome_ref = st.text_input("Nome de referência / nome profissional", key=f"prof_nome_{nonce}")
+            escola = st.text_input("Escola", key=f"prof_escola_{nonce}")
+            regional = st.text_input("Regional / GRE", key=f"prof_regional_{nonce}")
+            formacao = st.text_area("Formação", key=f"prof_formacao_{nonce}")
+            carga = st.text_input("Carga horária", key=f"prof_carga_{nonce}")
+            turno = st.text_input("Turno de atuação", key=f"prof_turno_{nonce}")
+            obs = st.text_area("Observações", key=f"prof_obs_{nonce}")
+
+            estudante_vinculo = None
+            if estudantes_form:
+                ids_est, mapa_est = opcoes_estudantes_por_id(estudantes_form)
+                estudante_vinculo = st.selectbox(
+                    "Vincular a estudante no momento do cadastro (opcional)",
+                    [None] + ids_est,
+                    format_func=lambda x: "Nenhum vínculo agora" if x is None else mapa_est[x],
+                    key=f"prof_vinculo_{nonce}",
+                )
+            else:
+                st.info("Cadastre estudantes para permitir o vínculo com professor.")
 
             salvar = st.form_submit_button("Salvar cadastro do professor")
 
@@ -1944,18 +1915,29 @@ elif menu == "Cadastro do Professor AEE":
                 st.error("Informe pelo menos o nome de referência do professor.")
             else:
                 salvar_professor(nome_ref, escola, regional, formacao, carga, turno, obs)
-                st.success("Cadastro do professor salvo com sucesso.")
+                novo_professor = listar_professores()[0]
+
+                if estudante_vinculo:
+                    ok, msg = vincular_professor_estudante(estudante_vinculo, novo_professor[0])
+                    if ok:
+                        st.success("Cadastro do professor salvo e vínculo realizado com sucesso.")
+                    else:
+                        st.warning(f"Cadastro salvo, mas o vínculo não foi realizado: {msg}")
+                else:
+                    st.success("Cadastro do professor salvo com sucesso.")
+
                 st.session_state["menu_atual"] = "Cadastro do Professor AEE"
                 st.session_state["prof_form_nonce"] += 1
                 st.rerun()
 
     # ===============================
-    # HISTÓRICO DO PROFESSOR
+    # HISTÓRICO E VÍNCULOS
     # ===============================
     with st.container(border=True):
-        st.markdown("### Histórico")
+        st.markdown("### Histórico de professores")
 
         professores = listar_professores()
+        estudantes_disponiveis = listar_estudantes()
 
         if professores:
             st.dataframe(
@@ -1967,61 +1949,95 @@ elif menu == "Cadastro do Professor AEE":
                         "Regional": p[3],
                         "Carga horária": p[5],
                         "Turno": p[6],
-                        "Responsável atual": "Sim" if i == 0 else "Não",
+                        "Alunos vinculados": f"{contar_alunos_do_professor(p[0])}/14",
                     }
-                    for i, p in enumerate(professores)
+                    for p in professores
                 ],
                 use_container_width=True,
                 hide_index=True,
             )
 
-            professor_atual = professores[0]
-            st.success(
-                f"Professor responsável atual nos documentos: {professor_atual[1] or 'Sem nome'}"
-            )
-
             for p in professores:
-                rotulo = "responsável atual" if p[0] == professor_atual[0] else "registro anterior"
-                with st.expander(f"Professor(a) #{p[0]} - {p[1] or 'Sem nome'} ({rotulo})"):
+                total_vinculos = contar_alunos_do_professor(p[0])
+
+                with st.expander(f"👤 Professor(a) #{p[0]} - {p[1] or 'Sem nome'} | {total_vinculos}/14 estudantes"):
                     texto = texto_professor(p)
                     st.text(texto)
                     export_buttons(texto, f"Ficha_Professor_AEE_{p[0]}", tipo_pdf="professor")
 
                     st.markdown("---")
+                    st.markdown("### 🔗 Vincular estudante ao professor")
+
+                    estudantes_disponiveis = listar_estudantes()
+                    if estudantes_disponiveis:
+                        total_vinculos = contar_alunos_do_professor(p[0])
+                        if total_vinculos >= 14:
+                            st.warning("Este professor já atingiu o limite de 14 estudantes vinculados.")
+                        else:
+                            ids_est, mapa_est = opcoes_estudantes_por_id(estudantes_disponiveis)
+                            estudante_select = st.selectbox(
+                                "Selecione o estudante para vincular",
+                                ids_est,
+                                format_func=lambda x: mapa_est[x],
+                                key=f"select_vinculo_professor_{p[0]}",
+                            )
+                            if st.button("🔗 Vincular estudante", key=f"btn_vincular_professor_{p[0]}"):
+                                ok, msg = vincular_professor_estudante(estudante_select, p[0])
+                                if ok:
+                                    st.success(msg)
+                                else:
+                                    st.warning(msg)
+                                st.rerun()
+                    else:
+                        st.info("Nenhum estudante cadastrado para vínculo.")
+
+                    st.markdown("---")
+                    st.markdown("### 👥 Estudantes já vinculados")
+
+                    vinculados = listar_estudantes_do_professor(p[0])
+                    if vinculados:
+                        st.dataframe(
+                            [
+                                {"Código": v[2], "Ano/Série": v[3], "Turma": v[4], "Perfil": v[5]}
+                                for v in vinculados
+                            ],
+                            use_container_width=True,
+                            hide_index=True,
+                        )
+                        for v in vinculados:
+                            col_v1, col_v2 = st.columns([4, 1])
+                            with col_v1:
+                                st.write(f"• {v[2]} - {v[3] or 'Ano/Série não informado'} - {v[5] or 'Perfil não informado'}")
+                            with col_v2:
+                                if st.button("Remover", key=f"remover_vinculo_{p[0]}_{v[0]}"):
+                                    remover_vinculo_professor_estudante(v[0])
+                                    st.success("Vínculo removido.")
+                                    st.rerun()
+                    else:
+                        st.info("Nenhum estudante vinculado a este professor.")
+
+                    st.markdown("---")
                     st.markdown("### ✏️ Editar cadastro")
 
                     with st.form(f"edit_professor_{p[0]}"):
-                        nome_e = st.text_input("Nome referência", value=p[1] or "", key=f"edit_prof_nome_{p[0]}")
-                        escola_e = st.text_input("Escola", value=p[2] or "", key=f"edit_prof_escola_{p[0]}")
-                        regional_e = st.text_input("Regional/GRE", value=p[3] or "", key=f"edit_prof_regional_{p[0]}")
-                        formacao_e = st.text_area("Formação", value=p[4] or "", key=f"edit_prof_formacao_{p[0]}")
-                        carga_e = st.text_input("Carga horária", value=p[5] or "", key=f"edit_prof_carga_{p[0]}")
-                        turno_e = st.text_input("Turno", value=p[6] or "", key=f"edit_prof_turno_{p[0]}")
-                        obs_e = st.text_area("Observações", value=p[7] or "", key=f"edit_prof_obs_{p[0]}")
+                        nome_e = st.text_input("Nome referência", value=p[1] or "")
+                        escola_e = st.text_input("Escola", value=p[2] or "")
+                        regional_e = st.text_input("Regional/GRE", value=p[3] or "")
+                        formacao_e = st.text_area("Formação", value=p[4] or "")
+                        carga_e = st.text_input("Carga horária", value=p[5] or "")
+                        turno_e = st.text_input("Turno", value=p[6] or "")
+                        obs_e = st.text_area("Observações", value=p[7] or "")
 
                         if st.form_submit_button("💾 Atualizar cadastro"):
-                            atualizar_professor(
-                                p[0],
-                                nome_e,
-                                escola_e,
-                                regional_e,
-                                formacao_e,
-                                carga_e,
-                                turno_e,
-                                obs_e,
-                            )
+                            atualizar_professor(p[0], nome_e, escola_e, regional_e, formacao_e, carga_e, turno_e, obs_e)
                             st.success("Cadastro atualizado com sucesso.")
                             st.rerun()
 
                     st.markdown("---")
                     st.markdown("### 🗑️ Excluir professor")
-                    st.caption("Ao excluir o professor, o sistema passará a considerar o cadastro mais recente restante como responsável.")
+                    st.caption("Ao excluir o professor, os vínculos com estudantes também serão removidos.")
 
-                    confirmar_exclusao = st.checkbox(
-                        "Confirmar exclusão deste professor",
-                        key=f"confirmar_excluir_prof_{p[0]}",
-                    )
-
+                    confirmar_exclusao = st.checkbox("Confirmar exclusão deste professor", key=f"confirmar_excluir_prof_{p[0]}")
                     if st.button("Excluir professor", key=f"excluir_professor_{p[0]}"):
                         if confirmar_exclusao:
                             excluir_professor(p[0])
@@ -2031,9 +2047,9 @@ elif menu == "Cadastro do Professor AEE":
                             st.warning("Marque a confirmação antes de excluir.")
         else:
             st.info("Nenhum professor cadastrado.")
-            st.warning("Cadastre seus dados profissionais para que eles apareçam nos relatórios e documentos.")
 
 
+# ======================================================
 # ENTREVISTA COM A FAMÍLIA
 # ======================================================
 elif menu == "Entrevista com a Família":
