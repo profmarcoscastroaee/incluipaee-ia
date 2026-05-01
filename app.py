@@ -317,6 +317,93 @@ def criar_tabelas():
         """
     )
 
+    # Campos ampliados da Entrevista com a Família
+    # Mantém compatibilidade com bancos antigos e adiciona as novas colunas automaticamente.
+    for coluna, definicao in [
+        ("auxilio_governamental", "TEXT"),
+        ("auxilio_quais", "TEXT"),
+        ("historico_familiar", "TEXT"),
+        ("historico_quais", "TEXT"),
+        ("repetiu_ano", "TEXT"),
+        ("repetiu_qtd", "TEXT"),
+        ("trocou_escola", "TEXT"),
+        ("trocou_qtd", "TEXT"),
+        ("motivo_troca", "TEXT"),
+        ("situacao_escolar", "TEXT"),
+        ("interesse_escola", "TEXT"),
+        ("organiza_materiais", "TEXT"),
+        ("resistencia_escola", "TEXT"),
+        ("relacao_colegas", "TEXT"),
+        ("relacao_professores", "TEXT"),
+        ("leva_alimentacao", "TEXT"),
+        ("merenda_escolar", "TEXT"),
+        ("alergia_alimentar", "TEXT"),
+        ("alergia_quais", "TEXT"),
+        ("obs_diversas", "TEXT"),
+        ("motivo_escolha", "TEXT"),
+        ("outros_motivos", "TEXT"),
+        ("conhecimento_aee", "TEXT"),
+        ("doenca_preexistente", "TEXT"),
+        ("convulsoes", "TEXT"),
+        ("acompanhamentos", "TEXT"),
+        ("acompanhamento_outro", "TEXT"),
+        ("frequencia_acompanhamento", "TEXT"),
+        ("frequencia_outro", "TEXT"),
+        ("alimentacao_saudavel", "TEXT"),
+        ("seletividade_alimentar", "TEXT"),
+        ("dieta_sensorial", "TEXT"),
+        ("suplemento_alimentar", "TEXT"),
+        ("suplemento_qual", "TEXT"),
+        ("alimenta_sonda", "TEXT"),
+        ("dorme_bem", "TEXT"),
+        ("medicacao", "TEXT"),
+        ("medicacao_qual", "TEXT"),
+        ("tempo_medicacao_tratamentos", "TEXT"),
+        ("obs_saude", "TEXT"),
+        ("lateralidade", "TEXT"),
+        ("estereotipias", "TEXT"),
+        ("estereotipias_quais", "TEXT"),
+        ("segura_objetos_duas_maos", "TEXT"),
+        ("tamanho_objetos", "TEXT"),
+        ("pega_lapis", "TEXT"),
+        ("engatinhou", "TEXT"),
+        ("idade_andou", "TEXT"),
+        ("usa_fraldas", "TEXT"),
+        ("usa_sonda_alivio", "TEXT"),
+        ("autonomia_atividades", "TEXT"),
+        ("autonomia_outros", "TEXT"),
+        ("atende_comandos", "TEXT"),
+        ("gosta_toque", "TEXT"),
+        ("obs_psicomotor", "TEXT"),
+        ("verbal", "TEXT"),
+        ("consegue_comunicar", "TEXT"),
+        ("problemas_fala", "TEXT"),
+        ("ecolalia", "TEXT"),
+        ("da_recado", "TEXT"),
+        ("comunicacao_alternativa", "TEXT"),
+        ("comunicacao_alternativa_qual", "TEXT"),
+        ("relacao_pai", "TEXT"),
+        ("relacao_mae", "TEXT"),
+        ("relacao_parentes", "TEXT"),
+        ("relacao_irmaos", "TEXT"),
+        ("relacao_estudantes", "TEXT"),
+        ("tem_melhor_amigo", "TEXT"),
+        ("tipo_melhor_amigo", "TEXT"),
+        ("adapta_ambiente", "TEXT"),
+        ("flexivel_rotina", "TEXT"),
+        ("respeita_regras", "TEXT"),
+        ("chora_facilidade", "TEXT"),
+        ("brinca_como", "TEXT"),
+        ("interesses_lazer", "TEXT"),
+        ("familia_gosta", "TEXT"),
+        ("familia_nao_gosta", "TEXT"),
+        ("ambiente_estudo_casa", "TEXT"),
+        ("habilidades", "TEXT"),
+        ("oportunidades_melhoria", "TEXT"),
+        ("outras_info_familia", "TEXT"),
+    ]:
+        adicionar_coluna_se_nao_existe(cursor, "entrevistas_familia", coluna, definicao)
+
     cursor.execute(
         """
         CREATE TABLE IF NOT EXISTS avaliacoes (
@@ -483,6 +570,33 @@ DIAS_SEMANA = [
     "Quarta-feira",
     "Quinta-feira",
     "Sexta-feira",
+]
+
+
+CAMPOS_ENTREVISTA_FAMILIA = [
+    "data_registro",
+    "auxilio_governamental", "auxilio_quais", "historico_familiar", "historico_quais",
+    "repetiu_ano", "repetiu_qtd", "trocou_escola", "trocou_qtd", "motivo_troca",
+    "situacao_escolar", "interesse_escola", "organiza_materiais", "resistencia_escola",
+    "relacao_colegas", "relacao_professores", "leva_alimentacao", "merenda_escolar",
+    "alergia_alimentar", "alergia_quais", "obs_diversas",
+    "motivo_escolha", "outros_motivos", "conhecimento_aee",
+    "doenca_preexistente", "convulsoes", "acompanhamentos", "acompanhamento_outro",
+    "frequencia_acompanhamento", "frequencia_outro", "alimentacao_saudavel",
+    "seletividade_alimentar", "dieta_sensorial", "suplemento_alimentar", "suplemento_qual",
+    "alimenta_sonda", "dorme_bem", "medicacao", "medicacao_qual",
+    "tempo_medicacao_tratamentos", "obs_saude",
+    "lateralidade", "estereotipias", "estereotipias_quais", "segura_objetos_duas_maos",
+    "tamanho_objetos", "pega_lapis", "engatinhou", "idade_andou",
+    "usa_fraldas", "usa_sonda_alivio", "autonomia_atividades", "autonomia_outros",
+    "atende_comandos", "gosta_toque", "obs_psicomotor",
+    "verbal", "consegue_comunicar", "problemas_fala", "ecolalia", "da_recado",
+    "comunicacao_alternativa", "comunicacao_alternativa_qual",
+    "relacao_pai", "relacao_mae", "relacao_parentes", "relacao_irmaos", "relacao_estudantes",
+    "tem_melhor_amigo", "tipo_melhor_amigo", "adapta_ambiente", "flexivel_rotina",
+    "respeita_regras", "chora_facilidade", "brinca_como", "interesses_lazer",
+    "familia_gosta", "familia_nao_gosta", "ambiente_estudo_casa",
+    "habilidades", "oportunidades_melhoria", "outras_info_familia",
 ]
 
 
@@ -1208,37 +1322,120 @@ Resumo pedagógico do laudo, sem identificação:
 
 
 def texto_entrevista(estudante, e):
+    dados = dict(zip(CAMPOS_ENTREVISTA_FAMILIA, e[1:]))
+    def v(campo):
+        valor = dados.get(campo)
+        return valor if valor not in (None, "") else "Não informado."
+
     return f"""
 ENTREVISTA COM A FAMÍLIA - INCLUISRM
 
 Código interno do estudante: {estudante[1]}
-Data do registro: {e[1]}
+Data do registro: {v('data_registro')}
 
 Campos sensíveis para preenchimento manual:
 Nome do estudante: _______________________________________
 Responsável: ____________________________________________
+CPF do responsável: ______________________________________
 Contato: ________________________________________________
 
-Rotina familiar:
-{e[2] or 'Não informado.'}
+1. INFORMAÇÕES DIVERSAS
+Participa de programa de auxílio governamental: {v('auxilio_governamental')}
+Qual(is): {v('auxilio_quais')}
+Histórico familiar de doenças graves, deficiência ou transtornos: {v('historico_familiar')}
+Qual(is): {v('historico_quais')}
+Já repetiu de ano: {v('repetiu_ano')} | Quantas vezes: {v('repetiu_qtd')}
+Trocou de escola: {v('trocou_escola')} | Quantas vezes: {v('trocou_qtd')}
+Motivo da troca: {v('motivo_troca')}
+Situação na escola: {v('situacao_escolar')}
+Demonstra interesse em frequentar a escola: {v('interesse_escola')}
+Cuida/organiza os materiais: {v('organiza_materiais')}
+Apresenta resistência à escola: {v('resistencia_escola')}
+Relaciona-se bem com colegas: {v('relacao_colegas')}
+Relaciona-se bem com professores: {v('relacao_professores')}
+Leva alimentação de casa: {v('leva_alimentacao')}
+Alimenta-se da merenda escolar: {v('merenda_escolar')}
+Possui alergia alimentar: {v('alergia_alimentar')}
+Qual(is) alergias: {v('alergia_quais')}
+Outras observações: {v('obs_diversas')}
 
-Saúde/desenvolvimento em termos pedagógicos:
-{e[3] or 'Não informado.'}
+1.1 SOBRE A ESCOLHA DA ESCOLA
+Motivo da escolha da escola: {v('motivo_escolha')}
+Outros motivos: {v('outros_motivos')}
+O que conhece sobre o serviço do AEE: {v('conhecimento_aee')}
 
-Comunicação:
-{e[4] or 'Não informado.'}
+2. INFORMAÇÕES SOBRE A SAÚDE
+Possui doença preexistente: {v('doenca_preexistente')}
+Convulsões: {v('convulsoes')}
+Acompanhamentos profissionais: {v('acompanhamentos')}
+Outro acompanhamento: {v('acompanhamento_outro')}
+Frequência dos acompanhamentos: {v('frequencia_acompanhamento')}
+Outra frequência: {v('frequencia_outro')}
+Alimentação saudável: {v('alimentacao_saudavel')}
+Seletividade alimentar: {v('seletividade_alimentar')}
+Dieta sensorial: {v('dieta_sensorial')}
+Usa suplemento alimentar: {v('suplemento_alimentar')}
+Qual suplemento: {v('suplemento_qual')}
+Alimenta-se por sonda: {v('alimenta_sonda')}
+Dorme bem: {v('dorme_bem')}
+Faz uso de medicação: {v('medicacao')}
+Qual(is) medicação(ões): {v('medicacao_qual')}
+Tempo de uso/tratamentos realizados: {v('tempo_medicacao_tratamentos')}
+Outras observações de saúde: {v('obs_saude')}
 
-Autonomia:
-{e[5] or 'Não informado.'}
+3. DESENVOLVIMENTO PSICOMOTOR
+Lateralidade: {v('lateralidade')}
+Apresenta estereotipias: {v('estereotipias')}
+Qual(is): {v('estereotipias_quais')}
+Segura objetos com as duas mãos: {v('segura_objetos_duas_maos')}
+Tamanho dos objetos que segura: {v('tamanho_objetos')}
+Faz a pega correta do lápis: {v('pega_lapis')}
+Engatinhou: {v('engatinhou')}
+Andou com que idade: {v('idade_andou')}
+Usa fraldas na escola: {v('usa_fraldas')}
+Usa sonda de alívio: {v('usa_sonda_alivio')}
+O que consegue fazer sem ajuda: {v('autonomia_atividades')}
+Outras atividades de autonomia: {v('autonomia_outros')}
+Atende comandos: {v('atende_comandos')}
+Gosta do toque: {v('gosta_toque')}
+Outras observações psicomotoras: {v('obs_psicomotor')}
 
-Socialização:
-{e[6] or 'Não informado.'}
+4. LINGUAGEM
+É verbal: {v('verbal')}
+Consegue se comunicar: {v('consegue_comunicar')}
+Possui problemas na fala: {v('problemas_fala')}
+Tem ecolalia: {v('ecolalia')}
+Consegue dar recado: {v('da_recado')}
+Usa comunicação alternativa: {v('comunicacao_alternativa')}
+Qual comunicação alternativa: {v('comunicacao_alternativa_qual')}
 
-Interesses:
-{e[7] or 'Não informado.'}
+5. SOCIALIZAÇÃO
+Relaciona-se bem com o pai: {v('relacao_pai')}
+Relaciona-se bem com a mãe: {v('relacao_mae')}
+Relaciona-se bem com outros parentes: {v('relacao_parentes')}
+Relaciona-se bem com irmãos: {v('relacao_irmaos')}
+Relaciona-se bem com outros estudantes: {v('relacao_estudantes')}
+Tem melhor amigo(a): {v('tem_melhor_amigo')}
+Esse(a) melhor amigo(a) é: {v('tipo_melhor_amigo')}
+Adapta-se facilmente ao ambiente: {v('adapta_ambiente')}
+É flexível na rotina: {v('flexivel_rotina')}
+Respeita regras: {v('respeita_regras')}
+Chora com facilidade: {v('chora_facilidade')}
+Gosta de brincar: {v('brinca_como')}
+Assunto ou lazer de interesse: {v('interesses_lazer')}
+O que a família mais gosta no(a) estudante: {v('familia_gosta')}
+O que a família não gosta/necesita melhorar: {v('familia_nao_gosta')}
+Ambiente físico em casa para estudos/brincadeiras: {v('ambiente_estudo_casa')}
 
-Observações familiares:
-{e[8] or 'Não informado.'}
+6. CONTEXTO FAMILIAR
+Principais habilidades:
+{v('habilidades')}
+
+Principais oportunidades de melhoria:
+{v('oportunidades_melhoria')}
+
+7. OUTRAS INFORMAÇÕES
+{v('outras_info_familia')}
 
 Assinatura do responsável:
 ________________________________________________________
@@ -1554,7 +1751,7 @@ def gerar_relatorio_gre_texto(estudante):
     avaliacao = ultima_avaliacao(estudante[0])
     entrevista = ultima_linha(
         "entrevistas_familia",
-        ["data_registro", "rotina", "saude", "comunicacao", "autonomia", "socializacao", "interesses", "observacoes"],
+        CAMPOS_ENTREVISTA_FAMILIA,
         estudante[0],
     )
     estudo = ultima_linha(
@@ -2038,37 +2235,214 @@ elif menu == "Cadastro do Professor AEE":
 elif menu == "Entrevista com a Família":
     st.markdown('<div class="subtitulo">👪 Entrevista com a Família</div>', unsafe_allow_html=True)
     estudantes = listar_estudantes()
+
     if not estudantes:
         st.info("Cadastre um estudante primeiro.")
     else:
         ids, mapa = opcoes_estudantes_por_id(estudantes)
-        estudante_id = st.selectbox("Selecione o estudante", ids, format_func=lambda x: mapa[x], key="entrevista_estudante")
+        estudante_id = st.selectbox(
+            "Selecione o estudante",
+            ids,
+            format_func=lambda x: mapa[x],
+            key="entrevista_estudante",
+        )
         estudante = buscar_estudante(estudante_id)
 
         with st.container(border=True):
-            st.markdown("### Nova entrevista")
-            with st.form("form_entrevista"):
-                rotina = st.text_area("Rotina familiar")
-                saude = st.text_area("Saúde/desenvolvimento em termos pedagógicos")
-                comunicacao = st.text_area("Comunicação")
-                autonomia = st.text_area("Autonomia")
-                socializacao = st.text_area("Socialização")
-                interesses = st.text_area("Interesses")
-                observacoes = st.text_area("Observações familiares")
-                if st.form_submit_button("Salvar entrevista"):
+            st.markdown("### Nova entrevista com a família")
+            st.caption("Dados organizados conforme o roteiro de entrevista familiar do AEE. Campos sensíveis continuam para preenchimento manual nos documentos impressos.")
+
+            with st.form("form_entrevista_completa"):
+                st.markdown("### 🧾 1. Informações diversas")
+                col1, col2 = st.columns(2)
+                with col1:
+                    auxilio_governamental = st.radio("A família participa de programa de auxílio governamental?", ["Não", "Sim"], horizontal=True)
+                    auxilio_quais = st.text_input("Qual(is) programa(s)?")
+                    historico_familiar = st.radio("Há histórico de doenças graves, deficiência ou transtornos na família?", ["Não", "Sim"], horizontal=True)
+                    historico_quais = st.text_input("Qual(is) histórico(s)?")
+                    repetiu_ano = st.radio("O estudante já repetiu de ano?", ["Não", "Sim"], horizontal=True)
+                    repetiu_qtd = st.number_input("Quantas vezes repetiu?", min_value=0, max_value=20, value=0)
+                with col2:
+                    trocou_escola = st.radio("O estudante trocou de escola?", ["Não", "Sim"], horizontal=True)
+                    trocou_qtd = st.number_input("Quantas vezes trocou de escola?", min_value=0, max_value=20, value=0)
+                    motivo_troca = st.text_area("Por qual motivo trocou de escola?")
+                    situacao_escolar = st.radio("Em relação à escola, o estudante é:", ["Não informado", "Novato(a)", "Veterano(a)"], horizontal=True)
+
+                st.markdown("### 🏫 Relação com a escola")
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    interesse_escola = st.radio("Demonstra interesse em frequentar a escola?", ["Não", "Sim", "Não informado"], horizontal=True)
+                    organiza_materiais = st.radio("Cuida/organiza seus materiais?", ["Não", "Sim", "Não informado"], horizontal=True)
+                    resistencia_escola = st.radio("Apresenta resistência à escola?", ["Não", "Sim", "Não informado"], horizontal=True)
+                with col2:
+                    relacao_colegas = st.radio("Relaciona-se bem com colegas?", ["Não", "Sim", "Não informado"], horizontal=True)
+                    relacao_professores = st.radio("Relaciona-se bem com professores?", ["Não", "Sim", "Não informado"], horizontal=True)
+                with col3:
+                    leva_alimentacao = st.radio("Leva alimentação de casa?", ["Não", "Sim", "Não informado"], horizontal=True)
+                    merenda_escolar = st.radio("Alimenta-se da merenda escolar?", ["Não", "Sim", "Não informado"], horizontal=True)
+                    alergia_alimentar = st.radio("Possui alergia alimentar?", ["Não", "Sim", "Não informado"], horizontal=True)
+                    alergia_quais = st.text_input("Qual(is) alergia(s)?")
+                obs_diversas = st.text_area("Outras observações relevantes sobre escola/família")
+
+                st.markdown("### 🏫 1.1 Sobre a escolha da escola")
+                motivo_escolha_lista = st.multiselect(
+                    "Motivo da escolha da escola",
+                    [
+                        "Proximidade de casa",
+                        "Tem o serviço do AEE",
+                        "Irmãos matriculados na unidade educacional",
+                        "Escola com boas referências",
+                        "A unidade tem EJAI / estudante fora de faixa",
+                        "Outro",
+                    ],
+                )
+                motivo_escolha = ", ".join(motivo_escolha_lista)
+                outros_motivos = st.text_area("Outros motivos da escolha")
+                conhecimento_aee = st.text_area("O que a família conhece sobre o serviço do AEE?")
+
+                st.markdown("### 🩺 2. Informações sobre a saúde do estudante")
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    doenca_preexistente = st.radio("Possui doença preexistente?", ["Não", "Sim", "Não informado"], horizontal=True)
+                    convulsoes = st.radio("Apresenta convulsões?", ["Não", "Sim", "Não informado"], horizontal=True)
+                    acompanhamentos_lista = st.multiselect(
+                        "Possui acompanhamento de",
+                        ["Fonoaudiólogo", "Terapeuta Ocupacional", "Fisioterapeuta", "Psicólogo", "Outro"],
+                    )
+                    acompanhamentos = ", ".join(acompanhamentos_lista)
+                    acompanhamento_outro = st.text_input("Outro acompanhamento")
+                with col2:
+                    frequencia_acompanhamento = st.selectbox("Frequência dos acompanhamentos", ["Não informado", "1x na semana", "2x na semana", "Quinzenalmente", "Outro"])
+                    frequencia_outro = st.text_input("Outra frequência")
+                    alimentacao_saudavel = st.radio("Tem alimentação saudável?", ["Não", "Sim", "Não informado"], horizontal=True)
+                    seletividade_alimentar = st.radio("Possui seletividade alimentar?", ["Não", "Sim", "Não informado"], horizontal=True)
+                    dieta_sensorial = st.radio("Possui dieta sensorial?", ["Não", "Sim", "Não informado"], horizontal=True)
+                with col3:
+                    suplemento_alimentar = st.radio("Usa suplemento alimentar?", ["Não", "Sim", "Não informado"], horizontal=True)
+                    suplemento_qual = st.text_input("Qual suplemento?")
+                    alimenta_sonda = st.radio("Alimenta-se por sonda?", ["Não", "Sim", "Não informado"], horizontal=True)
+                    dorme_bem = st.radio("Dorme bem?", ["Não", "Sim", "Não informado"], horizontal=True)
+                    medicacao = st.radio("Faz uso de medicação?", ["Não", "Sim", "Não informado"], horizontal=True)
+                    medicacao_qual = st.text_input("Qual(is) medicação(ões)?")
+                tempo_medicacao_tratamentos = st.text_area("Há quanto tempo usa medicação? Quais tratamentos realizados?")
+                obs_saude = st.text_area("Outras observações relevantes sobre saúde")
+
+                st.markdown("### 🧠 3. Desenvolvimento psicomotor")
+                lateralidade = st.radio("Lateralidade", ["Não informado", "Destro(a)", "Canhoto(a)", "Ambidestro(a)"], horizontal=True)
+                col1, col2 = st.columns(2)
+                with col1:
+                    estereotipias_lista = st.multiselect(
+                        "Estereotipias observadas",
+                        [
+                            "Não apresenta",
+                            "Balançar o corpo para frente e para trás",
+                            "Balançar as mãos / flapping",
+                            "Girar objetos ou girar em volta do próprio corpo",
+                            "Fazer sons repetitivos ou repetir sílabas/palavras",
+                            "Estalar os dedos",
+                            "Pular",
+                            "Correr indo e vindo sem destino claro",
+                            "Andar na ponta dos pés",
+                            "Movimentar os dedos na frente dos olhos",
+                        ],
+                    )
+                    estereotipias = ", ".join(estereotipias_lista)
+                    estereotipias_quais = st.text_area("Outras estereotipias / descrição")
+                    segura_objetos_duas_maos = st.radio("Segura objetos com as duas mãos?", ["Não", "Sim", "Não informado"], horizontal=True)
+                    tamanho_objetos_lista = st.multiselect("Segura objetos", ["Pequenos", "Médios", "Grandes"])
+                    tamanho_objetos = ", ".join(tamanho_objetos_lista)
+                    pega_lapis = st.radio("Faz a pega correta do lápis?", ["Não", "Sim", "Não informado"], horizontal=True)
+                with col2:
+                    engatinhou = st.radio("Engatinhou?", ["Não", "Sim", "Não informado"], horizontal=True)
+                    idade_andou = st.text_input("Andou com que idade?")
+                    usa_fraldas = st.radio("Usa fraldas na escola?", ["Não", "Sim", "Não informado"], horizontal=True)
+                    usa_sonda_alivio = st.radio("Usa sonda de alívio?", ["Não", "Sim", "Não informado"], horizontal=True)
+                    autonomia_lista = st.multiselect("O que consegue fazer sem ajuda?", ["Tomar banho", "Escovar os dentes", "Usar o banheiro", "Se alimentar", "Se vestir", "Outros"])
+                    autonomia_atividades = ", ".join(autonomia_lista)
+                    autonomia_outros = st.text_input("Outras atividades de autonomia")
+                    atende_comandos = st.radio("Atende comandos?", ["Não", "Sim", "Não informado"], horizontal=True)
+                    gosta_toque = st.radio("Gosta do toque?", ["Não", "Sim", "Não informado"], horizontal=True)
+                obs_psicomotor = st.text_area("Outras observações relevantes sobre desenvolvimento psicomotor")
+
+                st.markdown("### 🗣️ 4. Linguagem")
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    verbal = st.radio("É verbal?", ["Não", "Sim", "Não informado"], horizontal=True)
+                    consegue_comunicar = st.radio("Consegue se comunicar?", ["Não", "Sim", "Não informado"], horizontal=True)
+                    problemas_fala = st.radio("Possui problemas na fala?", ["Não", "Sim", "Não informado"], horizontal=True)
+                with col2:
+                    ecolalia = st.radio("Tem ecolalia?", ["Não", "Sim", "Não informado"], horizontal=True)
+                    da_recado = st.radio("Consegue dar um recado?", ["Não", "Sim", "Não informado"], horizontal=True)
+                with col3:
+                    comunicacao_alternativa = st.radio("Usa comunicação alternativa?", ["Não", "Sim", "Não informado"], horizontal=True)
+                    comunicacao_alternativa_qual = st.text_input("Qual comunicação alternativa?")
+
+                st.markdown("### 🤝 5. Socialização")
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    relacao_pai = st.radio("Relaciona-se bem com o pai?", ["Não", "Sim", "Não informado"], horizontal=True)
+                    relacao_mae = st.radio("Relaciona-se bem com a mãe?", ["Não", "Sim", "Não informado"], horizontal=True)
+                    relacao_parentes = st.radio("Relaciona-se bem com outros parentes?", ["Não", "Sim", "Não informado"], horizontal=True)
+                    relacao_irmaos = st.radio("Relaciona-se bem com irmãos?", ["Não", "Sim", "Não informado"], horizontal=True)
+                with col2:
+                    relacao_estudantes = st.radio("Relaciona-se bem com outros estudantes?", ["Não", "Sim", "Não informado"], horizontal=True)
+                    tem_melhor_amigo = st.radio("Tem melhor amigo(a)?", ["Não", "Sim", "Não informado"], horizontal=True)
+                    tipo_melhor_amigo = st.selectbox("Esse(a) melhor amigo(a) é", ["Não informado", "Parente", "Colega de escola", "Colega do local onde mora"])
+                    adapta_ambiente = st.radio("Adapta-se facilmente ao ambiente?", ["Não", "Sim", "Não informado"], horizontal=True)
+                with col3:
+                    flexivel_rotina = st.radio("É flexível na rotina?", ["Não", "Sim", "Não informado"], horizontal=True)
+                    respeita_regras = st.radio("Respeita regras?", ["Não", "Sim", "Não informado"], horizontal=True)
+                    chora_facilidade = st.radio("Chora com facilidade?", ["Não", "Sim", "Não informado"], horizontal=True)
+                    brinca_como = st.radio("Gosta de brincar", ["Não informado", "Sozinho(a)", "Com outros", "Das duas formas"], horizontal=True)
+                interesses_lazer = st.text_area("Assunto ou lazer que interessa ao estudante")
+                familia_gosta = st.text_area("O que a família mais gosta nesse(a) filho(a)?")
+                familia_nao_gosta = st.text_area("O que a família não gosta/necesita melhorar nele(a)?")
+                ambiente_estudo_casa = st.text_area("Em casa existe ambiente físico para atividades escolares e brincadeiras?")
+
+                st.markdown("### 🏠 6. Contexto familiar")
+                habilidades = st.text_area("Principais habilidades: o que faz bem")
+                oportunidades_melhoria = st.text_area("Principais oportunidades de melhoria: o que podemos estimular mais")
+
+                st.markdown("### 📝 7. Outras informações")
+                outras_info_familia = st.text_area("Outras informações que a família considera importante registrar")
+
+                salvar_entrevista = st.form_submit_button("Salvar entrevista com a família")
+
+                if salvar_entrevista:
                     inserir_registro(
                         "entrevistas_familia",
-                        ["estudante_id", "data_registro", "rotina", "saude", "comunicacao", "autonomia", "socializacao", "interesses", "observacoes"],
-                        [estudante_id, hoje_str(), rotina, saude, comunicacao, autonomia, socializacao, interesses, observacoes],
+                        ["estudante_id"] + CAMPOS_ENTREVISTA_FAMILIA,
+                        [
+                            estudante_id, hoje_str(),
+                            auxilio_governamental, auxilio_quais, historico_familiar, historico_quais,
+                            repetiu_ano, str(repetiu_qtd), trocou_escola, str(trocou_qtd), motivo_troca,
+                            situacao_escolar, interesse_escola, organiza_materiais, resistencia_escola,
+                            relacao_colegas, relacao_professores, leva_alimentacao, merenda_escolar,
+                            alergia_alimentar, alergia_quais, obs_diversas,
+                            motivo_escolha, outros_motivos, conhecimento_aee,
+                            doenca_preexistente, convulsoes, acompanhamentos, acompanhamento_outro,
+                            frequencia_acompanhamento, frequencia_outro, alimentacao_saudavel,
+                            seletividade_alimentar, dieta_sensorial, suplemento_alimentar, suplemento_qual,
+                            alimenta_sonda, dorme_bem, medicacao, medicacao_qual,
+                            tempo_medicacao_tratamentos, obs_saude,
+                            lateralidade, estereotipias, estereotipias_quais, segura_objetos_duas_maos,
+                            tamanho_objetos, pega_lapis, engatinhou, idade_andou,
+                            usa_fraldas, usa_sonda_alivio, autonomia_atividades, autonomia_outros,
+                            atende_comandos, gosta_toque, obs_psicomotor,
+                            verbal, consegue_comunicar, problemas_fala, ecolalia, da_recado,
+                            comunicacao_alternativa, comunicacao_alternativa_qual,
+                            relacao_pai, relacao_mae, relacao_parentes, relacao_irmaos, relacao_estudantes,
+                            tem_melhor_amigo, tipo_melhor_amigo, adapta_ambiente, flexivel_rotina,
+                            respeita_regras, chora_facilidade, brinca_como, interesses_lazer,
+                            familia_gosta, familia_nao_gosta, ambiente_estudo_casa,
+                            habilidades, oportunidades_melhoria, outras_info_familia,
+                        ],
                     )
-                    st.success("Entrevista salva.")
+                    st.success("Entrevista com a família salva com sucesso.")
                     st.rerun()
 
-        registros = listar_por_estudante(
-            "entrevistas_familia",
-            ["data_registro", "rotina", "saude", "comunicacao", "autonomia", "socializacao", "interesses", "observacoes"],
-            estudante_id,
-        )
+        registros = listar_por_estudante("entrevistas_familia", CAMPOS_ENTREVISTA_FAMILIA, estudante_id)
+
         with st.container(border=True):
             st.markdown("### Histórico de entrevistas")
             if registros:
