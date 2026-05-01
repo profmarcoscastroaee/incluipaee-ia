@@ -441,6 +441,47 @@ def criar_tabelas():
         """
     )
 
+    # Campos ampliados do Estudo de Caso / Plano AEE conforme modelo GRE.
+    # Não armazenamos CPF, RG, endereço ou dados sensíveis do estudante; esses campos ficam em branco nos documentos finais.
+    for coluna, definicao in [
+        ("etapa_modalidade", "TEXT"),
+        ("ano_etapa", "TEXT"),
+        ("laudo", "TEXT"),
+        ("deficiencia", "TEXT"),
+        ("cid", "TEXT"),
+        ("altas_habilidades", "TEXT"),
+        ("bpc", "TEXT"),
+        ("escola_nome", "TEXT"),
+        ("unidade_aee", "TEXT"),
+        ("gestor_nome", "TEXT"),
+        ("gestor_contato", "TEXT"),
+        ("professor_nome", "TEXT"),
+        ("professor_contato", "TEXT"),
+        ("matricula_professor", "TEXT"),
+        ("especialidade_professor", "TEXT"),
+        ("periodo_inicio", "TEXT"),
+        ("periodo_fim", "TEXT"),
+        ("frequencia_atendimento", "TEXT"),
+        ("tempo_atendimento_semana", "TEXT"),
+        ("formato_atendimento", "TEXT"),
+        ("percurso_educacional", "TEXT"),
+        ("motivo_encaminhamento_aee", "TEXT"),
+        ("precisa_transporte_inclusivo", "TEXT"),
+        ("recebe_transporte_inclusivo", "TEXT"),
+        ("precisa_profissional_apoio", "TEXT"),
+        ("justificativa_apoio", "TEXT"),
+        ("acompanhado_profissional_apoio", "TEXT"),
+        ("nome_profissional_apoio", "TEXT"),
+        ("recursos_tecnologia_assistiva", "TEXT"),
+        ("observacoes_ambiente_educacional", "TEXT"),
+        ("habilidades_observadas", "TEXT"),
+        ("habilidades_a_desenvolver", "TEXT"),
+        ("indicadores_altas_habilidades", "TEXT"),
+        ("recursos_surdez", "TEXT"),
+        ("observacoes_surdez", "TEXT"),
+    ]:
+        adicionar_coluna_se_nao_existe(cursor, "estudos_caso", coluna, definicao)
+
     cursor.execute(
         """
         CREATE TABLE IF NOT EXISTS planos_aee (
@@ -599,6 +640,118 @@ CAMPOS_ENTREVISTA_FAMILIA = [
     "habilidades", "oportunidades_melhoria", "outras_info_familia",
 ]
 
+CAMPOS_ESTUDO_CASO = [
+    "data_registro",
+    "contextualizacao", "queixa_principal", "potencialidades", "dificuldades", "estrategias", "intervencoes", "avaliacao", "consideracoes",
+    "etapa_modalidade", "ano_etapa", "laudo", "deficiencia", "cid", "altas_habilidades", "bpc",
+    "escola_nome", "unidade_aee", "gestor_nome", "gestor_contato",
+    "professor_nome", "professor_contato", "matricula_professor", "especialidade_professor",
+    "periodo_inicio", "periodo_fim", "frequencia_atendimento", "tempo_atendimento_semana", "formato_atendimento",
+    "percurso_educacional", "motivo_encaminhamento_aee", "precisa_transporte_inclusivo", "recebe_transporte_inclusivo",
+    "precisa_profissional_apoio", "justificativa_apoio", "acompanhado_profissional_apoio", "nome_profissional_apoio",
+    "recursos_tecnologia_assistiva", "observacoes_ambiente_educacional",
+    "habilidades_observadas", "habilidades_a_desenvolver", "indicadores_altas_habilidades",
+    "recursos_surdez", "observacoes_surdez",
+]
+
+OPCOES_ANO_ETAPA = [
+    "1º ano do EF", "2º ano do EF", "3º ano do EF", "4º ano do EF", "5º ano do EF",
+    "6º ano do EF", "7º ano do EF", "8º ano do EF", "9º ano do EF",
+    "1º ano do EM", "2º ano do EM", "3º ano do EM",
+    "EJA - Módulo 1", "EJA - Módulo 2", "EJA - Módulo 3", "EJA - Módulo 5", "EJA - Módulo 6", "EJA - Módulo 7", "EJA - Módulo 8",
+    "Outro / não informado",
+]
+
+OPCOES_ESPECIALIDADE_AEE = [
+    "Professor(a) do AEE",
+    "Professor(a) Brailista",
+    "Professor(a) Instrutor(a) de LIBRAS",
+    "Professor(a) Intérprete de LIBRAS",
+    "Outra",
+]
+
+OPCOES_FORMATO_ATENDIMENTO = [
+    "Individual",
+    "Coletivo",
+    "Em sala de aula",
+    "Domiciliar",
+    "Hospitalar",
+    "Outro",
+]
+
+OPCOES_HABILIDADES_PEDAGOGICAS = [
+    "Inteligência interpessoal",
+    "Interesse/habilidade em atividades sensoriais",
+    "Raciocínio lógico-matemático",
+    "Realiza as quatro operações",
+    "Resolve situações-problema com autonomia",
+    "Interesse em temas científicos",
+    "Compreende explicações e cumpre comandos",
+    "Demonstra criatividade",
+    "Acompanha as atividades propostas do grupo/classe",
+    "Usa recursos tecnológicos com autonomia",
+    "Fluência na leitura",
+    "Escreve textos com autonomia",
+    "Apropriação do sistema de escrita alfabética",
+    "Habilidades artísticas",
+    "Comunica desejos e necessidades",
+    "Apresenta atenção compartilhada",
+    "Interesse por leitura",
+    "Domina Libras",
+    "Domina Braille",
+    "Possui identidade surda",
+    "Usa comunicação aumentativa e alternativa com autonomia",
+    "Outro",
+]
+
+OPCOES_INDICADORES_AHSD = [
+    "Aprende fácil e rapidamente",
+    "Original, imaginativo(a), criativo(a), não convencional",
+    "Pensa de forma incomum para resolver problemas",
+    "Persistente, independente, autodirecionado(a)",
+    "Persuasivo(a), capaz de influenciar os outros",
+    "Inquisitivo(a), cético(a), curioso(a)",
+    "Adapta-se a diferentes situações e novos ambientes",
+    "Criativo(a) ao construir com materiais incomuns",
+    "Habilidade nas artes (música, desenho, dança etc.)",
+    "Entende a importância da natureza",
+    "Vocabulário excepcional, verbalmente fluente",
+    "Aprende facilmente novas línguas",
+    "Trabalha independente e mostra iniciativa",
+    "Bom julgamento e lógica",
+    "Usa recursos tecnológicos com autonomia",
+    "Versátil, muitos interesses e interesse além da idade cronológica",
+    "Mostra insights e percepções incomuns",
+    "Demonstra sensibilidade e empatia",
+    "Apresenta excelente senso de humor",
+    "Expressa ideias e reações de forma argumentativa",
+    "Outro",
+]
+
+OPCOES_RECURSOS_TA = [
+    "Recursos de comunicação alternativa/aumentativa",
+    "Pranchas de comunicação",
+    "Tablet/celular/computador com recurso acessível",
+    "Materiais concretos/manipuláveis",
+    "Recursos táteis/sensoriais",
+    "Recursos em Libras",
+    "Recursos em Braille",
+    "Leitor de tela/ampliação",
+    "Órteses/adaptações de acesso",
+    "Jogos pedagógicos acessíveis",
+    "Impressão 3D/recurso maker inclusivo",
+    "Outro",
+]
+
+OPCOES_RECURSOS_SURDEZ = [
+    "Implante coclear",
+    "Aparelho auditivo",
+    "Libras",
+    "Leitura labial",
+    "Intérprete de Libras",
+    "Não se aplica",
+]
+
 
 def hoje_str():
     return datetime.now().strftime("%d/%m/%Y %H:%M")
@@ -671,8 +824,51 @@ def render_app_header():
     )
 
 
+def gerar_docx_documento(conteudo, nome_base, tipo="documento"):
+    """Gera documento Word editável com os mesmos textos do PDF.
+    Observação: dados sensíveis permanecem como linhas em branco para preenchimento manual.
+    """
+    from docx import Document
+    from docx.shared import Pt
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+
+    nome_arquivo = f"{tipo}_{nome_base}.docx".replace("/", "-").replace("\\", "-")
+    doc = Document()
+
+    titulo = doc.add_paragraph()
+    titulo.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    run = titulo.add_run("INCLUISRM\nSistema de Gestão do Atendimento Educacional Especializado")
+    run.bold = True
+    run.font.size = Pt(12)
+
+    doc.add_paragraph("")
+
+    for linha in conteudo.split("\n"):
+        linha = linha.rstrip()
+        if not linha:
+            doc.add_paragraph("")
+            continue
+
+        par = doc.add_paragraph()
+        texto_limpo = linha.strip()
+        run = par.add_run(texto_limpo)
+
+        if texto_limpo.isupper() or (len(texto_limpo) > 2 and texto_limpo[:2].isdigit() and "." in texto_limpo[:4]):
+            run.bold = True
+        run.font.size = Pt(11)
+
+    doc.add_paragraph("")
+    rodape = doc.add_paragraph(f"Gerado em {datetime.now().strftime('%d/%m/%Y %H:%M')} pelo INCLUISRM.")
+    rodape.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    for r in rodape.runs:
+        r.font.size = Pt(9)
+
+    doc.save(nome_arquivo)
+    return nome_arquivo
+
+
 def export_buttons(texto, nome_base, tipo_pdf="documento"):
-    col_txt, col_pdf, col_docx = st.columns(3)
+    col_txt, col_pdf, col_word = st.columns(3)
 
     with col_txt:
         st.download_button(
@@ -698,15 +894,13 @@ def export_buttons(texto, nome_base, tipo_pdf="documento"):
                     key=f"download_pdf_{nome_base}_{tipo_pdf}",
                 )
 
-    with col_docx:
+    with col_word:
         if st.button("Gerar Word", key=f"gerar_docx_{nome_base}_{tipo_pdf}"):
             try:
                 arquivo = gerar_docx_documento(texto, nome_base, tipo=tipo_pdf)
                 st.session_state[f"docx_{nome_base}_{tipo_pdf}"] = arquivo
             except ModuleNotFoundError:
                 st.error("Biblioteca python-docx não instalada. Rode: pip install python-docx")
-            except Exception as erro:
-                st.error(f"Erro ao gerar Word: {erro}")
 
         if f"docx_{nome_base}_{tipo_pdf}" in st.session_state:
             with open(st.session_state[f"docx_{nome_base}_{tipo_pdf}"], "rb") as f:
@@ -1462,8 +1656,24 @@ ________________________________________________________
 """.strip()
 
 
+def texto_campos_sensiveis_em_branco_estudante():
+    return """
+DADOS SENSÍVEIS PARA PREENCHIMENTO MANUAL NO DOCUMENTO IMPRESSO/WORD
+Nome completo do(a) estudante: ___________________________________________
+CPF/RG do(a) estudante: _________________________________________________
+Data de nascimento: ____/____/________
+Nome do responsável: _________________________________________________
+CPF/RG do responsável: _______________________________________________
+Telefone do responsável: ______________________________________________
+Endereço: ____________________________________________________________
+""".strip()
+
+
 def texto_estudo_caso(estudante, e):
-    return f"""
+    """Texto oficial do Estudo de Caso no formato GRE, sem armazenar dados sensíveis."""
+    # Compatibilidade com estudos antigos: e = (id, data, contextualizacao, queixa, ...)
+    if len(e) <= 10:
+        return f"""
 ESTUDO DE CASO - INCLUISRM
 
 Código interno do estudante: {estudante[1]}
@@ -1471,6 +1681,8 @@ Ano/Série: {estudante[2] or 'Não informado.'}
 Turma: {estudante[3] or 'Não informado.'}
 Perfil educacional: {estudante[4] or 'Não informado.'}
 Data do registro: {e[1]}
+
+{texto_campos_sensiveis_em_branco_estudante()}
 
 1. Contextualização
 {e[2] or 'Não informado.'}
@@ -1499,6 +1711,110 @@ Data do registro: {e[1]}
 Assinaturas:
 Professor(a) AEE: _______________________________________
 Coordenação/Gestão: _____________________________________
+""".strip()
+
+    dados = dict(zip(CAMPOS_ESTUDO_CASO, e[1:]))
+
+    def v(campo):
+        valor = dados.get(campo)
+        return valor if valor not in (None, "") else "Não informado."
+
+    return f"""
+ESTUDO DE CASO E PLANO DE ATENDIMENTO EDUCACIONAL ESPECIALIZADO - INCLUISRM
+
+O Plano de Atendimento Educacional Especializado deverá considerar os registros avaliativos do estudante público-alvo da educação especial, partindo do estudo de caso e da identificação de barreiras, recursos de acessibilidade e estratégias necessárias à promoção da autonomia e da aprendizagem.
+
+PARTE 1 - IDENTIFICAÇÃO SEGURA DO(A) ESTUDANTE
+Código interno do estudante: {estudante[1] or 'Não informado.'}
+Ano/Série cadastrado no sistema: {estudante[2] or 'Não informado.'}
+Turma: {estudante[3] or 'Não informado.'}
+Turno: {estudante[6] or 'Não informado.'}
+Perfil educacional: {estudante[4] or 'Não informado.'}
+
+{texto_campos_sensiveis_em_branco_estudante()}
+
+1.5 Etapa/modalidade da educação em que o(a) estudante está: {v('etapa_modalidade')}
+Ano/etapa: {v('ano_etapa')}
+1.6 Turma e turno: {estudante[3] or 'Não informado.'} / {estudante[6] or 'Não informado.'}
+1.7 O(a) estudante apresenta laudo? {v('laudo')}
+1.8 Apresenta deficiência? {v('deficiencia')} | CID: {v('cid')}
+1.9 Altas habilidades/superdotação: {v('altas_habilidades')}
+1.10 Usuário de BPC: {v('bpc')}
+1.11 Escola do ensino comum: {v('escola_nome')}
+1.12 Unidade educacional onde é atendido pelo AEE: {v('unidade_aee')}
+1.13 Gestor(a) da escola do ensino comum e contato: {v('gestor_nome')} - {v('gestor_contato')}
+1.14 Professor(a) do AEE e contato: {v('professor_nome')} - {v('professor_contato')}
+1.15 Matrícula do(a) professor(a) do AEE: {v('matricula_professor')}
+1.16 Especialidade do(a) professor(a) do AEE: {v('especialidade_professor')}
+1.17 Período de elaboração do Plano/AEE - início: {v('periodo_inicio')}
+1.18 Data final: {v('periodo_fim')}
+1.19 Frequência de atendimento na SRM: {v('frequencia_atendimento')}
+1.20 Tempo de atendimento por semana: {v('tempo_atendimento_semana')}
+1.21 Formato do atendimento: {v('formato_atendimento')}
+
+2. ESTUDO DE CASO / PERCURSO EDUCACIONAL DO(A) ESTUDANTE
+Relato sobre o trajeto educacional do(a) estudante em turmas comuns e no Atendimento Educacional Especializado anterior, quando aplicável:
+{v('percurso_educacional')}
+
+2.1 Motivo pelo qual o(a) estudante foi encaminhado para o Atendimento Educacional Especializado:
+{v('motivo_encaminhamento_aee')}
+
+2.2 Precisa de transporte escolar inclusivo? {v('precisa_transporte_inclusivo')}
+2.2.1 Recebe o serviço de transporte escolar inclusivo? {v('recebe_transporte_inclusivo')}
+
+2.3 Precisa de profissional de apoio? {v('precisa_profissional_apoio')}
+Justificativa:
+{v('justificativa_apoio')}
+
+2.3.1 É acompanhado por profissional de apoio na escola? {v('acompanhado_profissional_apoio')}
+Nome do profissional de apoio: {v('nome_profissional_apoio')}
+
+2.4 Recursos de tecnologia educacional e/ou assistiva utilizados:
+{v('recursos_tecnologia_assistiva')}
+
+2.5 Observações relevantes para o ambiente educacional, acompanhamento médico ou terapêutico:
+{v('observacoes_ambiente_educacional')}
+
+2.6 Habilidades observadas e desenvolvidas pelo(a) estudante:
+{v('habilidades_observadas')}
+
+2.7 Habilidades que precisam ser desenvolvidas pelo(a) estudante:
+{v('habilidades_a_desenvolver')}
+
+2.8 Indicadores de altas habilidades/superdotação observados:
+{v('indicadores_altas_habilidades')}
+
+2.9 Caso o estudante seja pessoa surda, recursos utilizados:
+{v('recursos_surdez')}
+Observações sobre uso de aparelho auditivo, implante coclear, Libras, comunicação e efetividade dos recursos:
+{v('observacoes_surdez')}
+
+SÍNTESE PEDAGÓGICA DO ESTUDO DE CASO
+Contextualização:
+{v('contextualizacao')}
+
+Potencialidades:
+{v('potencialidades')}
+
+Dificuldades/barreiras observadas:
+{v('dificuldades')}
+
+Estratégias pedagógicas:
+{v('estrategias')}
+
+Intervenções/encaminhamentos sugeridos:
+{v('intervencoes')}
+
+Avaliação:
+{v('avaliacao')}
+
+Considerações finais:
+{v('consideracoes')}
+
+Assinaturas:
+Professor(a) AEE: _______________________________________
+Coordenação/Gestão: _____________________________________
+Responsável: ____________________________________________
 """.strip()
 
 
@@ -1689,110 +2005,6 @@ def gerar_pdf_documento(conteudo, codigo, tipo="documento"):
     return nome_arquivo
 
 
-
-# ======================================================
-# WORD (.DOCX)
-# ======================================================
-def gerar_docx_documento(conteudo, nome_base, tipo="documento"):
-    from docx import Document
-    from docx.shared import Pt, Inches
-    from docx.enum.text import WD_ALIGN_PARAGRAPH
-
-    nomes = {
-        "cadastro": "CADASTRO DO ESTUDANTE",
-        "matricula_srm": "MATRÍCULA PARA O ATENDIMENTO EDUCACIONAL ESPECIALIZADO - SRM",
-        "professor": "FICHA DE IDENTIFICAÇÃO DO(A) PROFESSOR(A) AEE",
-        "entrevista": "ENTREVISTA COM A FAMÍLIA",
-        "avaliacao": "AVALIAÇÃO PEDAGÓGICA INICIAL",
-        "estudo": "ESTUDO DE CASO",
-        "plano": "PLANO AEE / PAEE",
-        "atendimento": "REGISTRO DE ATENDIMENTO DO AEE",
-        "agenda": "AGENDA DE ATENDIMENTOS",
-        "relatorio": "RELATÓRIO GRE",
-        "documento": "DOCUMENTO",
-    }
-
-    titulo_doc = nomes.get(tipo, nomes["documento"])
-    nome_arquivo = f"{nome_base}.docx".replace("/", "-").replace("\\", "-")
-
-    doc = Document()
-
-    # Margens
-    section = doc.sections[0]
-    section.top_margin = Inches(0.7)
-    section.bottom_margin = Inches(0.7)
-    section.left_margin = Inches(0.7)
-    section.right_margin = Inches(0.7)
-
-    # Estilo padrão
-    estilo_normal = doc.styles["Normal"]
-    estilo_normal.font.name = "Arial"
-    estilo_normal.font.size = Pt(11)
-
-    # Cabeçalho
-    if os.path.exists(LOGO_PATH):
-        try:
-            p_logo = doc.add_paragraph()
-            p_logo.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            run_logo = p_logo.add_run()
-            run_logo.add_picture(LOGO_PATH, width=Inches(1.8))
-        except Exception:
-            pass
-
-    p = doc.add_paragraph()
-    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    r = p.add_run("INCLUISRM\nSistema de Gestão do Atendimento Educacional Especializado")
-    r.bold = True
-    r.font.size = Pt(12)
-
-    p_titulo = doc.add_paragraph()
-    p_titulo.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    r_titulo = p_titulo.add_run(titulo_doc)
-    r_titulo.bold = True
-    r_titulo.font.size = Pt(14)
-
-    doc.add_paragraph("")
-
-    for linha in conteudo.split("\n"):
-        linha = linha.strip()
-
-        if not linha:
-            doc.add_paragraph("")
-            continue
-
-        # Título principal do texto
-        if linha.isupper() and len(linha) > 8 and not linha.startswith("CPF"):
-            p_linha = doc.add_paragraph()
-            r_linha = p_linha.add_run(linha)
-            r_linha.bold = True
-            continue
-
-        # Seções numeradas
-        if len(linha) > 2 and linha[0].isdigit() and "." in linha[:4]:
-            p_linha = doc.add_paragraph()
-            r_linha = p_linha.add_run(linha)
-            r_linha.bold = True
-            r_linha.font.size = Pt(12)
-            continue
-
-        # Subitens e marcadores
-        if linha.startswith("-"):
-            doc.add_paragraph(linha[1:].strip(), style="List Bullet")
-            continue
-
-        doc.add_paragraph(linha)
-
-    doc.add_paragraph("")
-    p_rodape = doc.add_paragraph()
-    p_rodape.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    r_rodape = p_rodape.add_run(f"Gerado em {datetime.now().strftime('%d/%m/%Y %H:%M')} pelo INCLUISRM.")
-    r_rodape.italic = True
-    r_rodape.font.size = Pt(9)
-
-    doc.save(nome_arquivo)
-    return nome_arquivo
-
-
 # ======================================================
 # IA
 # ======================================================
@@ -1880,7 +2092,7 @@ def gerar_relatorio_gre_texto(estudante):
     )
     estudo = ultima_linha(
         "estudos_caso",
-        ["data_registro", "contextualizacao", "queixa_principal", "potencialidades", "dificuldades", "estrategias", "intervencoes", "avaliacao", "consideracoes"],
+        CAMPOS_ESTUDO_CASO,
         estudante[0],
     )
     plano = ultima_linha(
@@ -2632,7 +2844,9 @@ elif menu == "Avaliação Pedagógica":
 # ESTUDO DE CASO
 # ======================================================
 elif menu == "Estudo de Caso":
-    st.markdown('<div class="subtitulo">📚 Estudo de Caso</div>', unsafe_allow_html=True)
+    st.markdown('<div class="subtitulo">📚 Estudo de Caso / Documento GRE</div>', unsafe_allow_html=True)
+    st.caption("Os campos sensíveis como CPF, RG, endereço e nome completo ficam fora do banco. Eles aparecem em branco no Word/PDF para preenchimento manual antes da entrega à GRE.")
+
     estudantes = listar_estudantes()
     if not estudantes:
         st.info("Cadastre um estudante primeiro.")
@@ -2640,12 +2854,13 @@ elif menu == "Estudo de Caso":
         ids, mapa = opcoes_estudantes_por_id(estudantes)
         estudante_id = st.selectbox("Selecione o estudante", ids, format_func=lambda x: mapa[x], key="estudo_estudante")
         estudante = buscar_estudante(estudante_id)
+        professor_resp = buscar_professor_responsavel()
 
         with st.container(border=True):
             st.markdown("### Gerar sugestão de estudo de caso com IA")
             if st.button("Gerar sugestão com IA", key="btn_ia_estudo"):
                 avaliacao = ultima_avaliacao(estudante_id)
-                entrevista = ultima_linha("entrevistas_familia", ["data_registro", "rotina", "saude", "comunicacao", "autonomia", "socializacao", "interesses", "observacoes"], estudante_id)
+                entrevista = ultima_linha("entrevistas_familia", CAMPOS_ENTREVISTA_FAMILIA, estudante_id)
                 with st.spinner("Gerando sugestão..."):
                     st.session_state["sugestao_estudo"] = gerar_estudo_caso_com_ia(estudante, avaliacao, entrevista)
 
@@ -2653,28 +2868,164 @@ elif menu == "Estudo de Caso":
                 st.text_area("Sugestão gerada", st.session_state["sugestao_estudo"], height=350)
 
         with st.container(border=True):
-            st.markdown("### Novo estudo de caso")
-            with st.form("form_estudo"):
-                contextualizacao = st.text_area("Contextualização")
-                queixa = st.text_area("Queixa principal / motivo do acompanhamento")
-                potencialidades = st.text_area("Potencialidades")
-                dificuldades = st.text_area("Dificuldades observadas")
-                estrategias = st.text_area("Estratégias pedagógicas")
-                intervencoes = st.text_area("Intervenções / encaminhamentos sugeridos")
-                avaliacao = st.text_area("Avaliação")
-                consideracoes = st.text_area("Considerações finais")
-                if st.form_submit_button("Salvar estudo de caso"):
-                    inserir_registro(
-                        "estudos_caso",
-                        ["estudante_id", "data_registro", "contextualizacao", "queixa_principal", "potencialidades", "dificuldades", "estrategias", "intervencoes", "avaliacao", "consideracoes"],
-                        [estudante_id, hoje_str(), contextualizacao, queixa, potencialidades, dificuldades, estrategias, intervencoes, avaliacao, consideracoes],
+            st.markdown("### Novo Estudo de Caso - Campos obrigatórios GRE")
+            with st.form("form_estudo_gre"):
+                aba1, aba2, aba3, aba4 = st.tabs([
+                    "1. Identificação",
+                    "2. Percurso educacional",
+                    "3. Habilidades",
+                    "4. Síntese pedagógica",
+                ])
+
+                with aba1:
+                    st.markdown("#### Identificação educacional")
+                    etapa_modalidade = st.selectbox(
+                        "Etapa/modalidade",
+                        ["Ensino Fundamental", "Ensino Médio", "EJA", "Outro / não informado"],
                     )
-                    st.success("Estudo de caso salvo.")
+                    ano_etapa = st.selectbox("Ano/etapa", OPCOES_ANO_ETAPA)
+                    turma_turno_info = f"{estudante[3] or 'Turma não informada'} / {estudante[6] or 'Turno não informado'}"
+                    st.info(f"Turma e turno cadastrados: {turma_turno_info}")
+
+                    col_l1, col_l2, col_l3 = st.columns(3)
+                    with col_l1:
+                        laudo = st.radio("Possui laudo?", ["Não", "Sim"], horizontal=True)
+                    with col_l2:
+                        deficiencia = st.radio("Apresenta deficiência?", ["Não", "Sim"], horizontal=True)
+                    with col_l3:
+                        altas_habilidades = st.radio("Altas habilidades/superdotação?", ["Não", "Sim"], horizontal=True)
+
+                    cid = st.text_input("CID, se houver", placeholder="Ex.: F84.0. Não armazene laudos ou documentos sensíveis aqui.")
+                    bpc = st.radio("Usuário de BPC?", ["Não", "Sim", "Não informado"], horizontal=True)
+
+                    st.markdown("#### Dados institucionais")
+                    escola_nome = st.text_input("Nome da escola em que o(a) estudante está matriculado no ensino comum", value="")
+                    unidade_aee = st.text_input("Unidade educacional onde o(a) estudante é atendido pelo AEE", value="")
+                    gestor_nome = st.text_input("Nome do(a) gestor(a) da escola do ensino comum", value="")
+                    gestor_contato = st.text_input("Contato institucional do(a) gestor(a)", value="")
+
+                    professor_nome_padrao = professor_resp[1] if professor_resp else ""
+                    professor_nome = st.text_input("Nome do(a) professor(a) AEE", value=professor_nome_padrao or "")
+                    professor_contato = st.text_input("Contato institucional do(a) professor(a) AEE", value="")
+                    matricula_professor = st.text_input("Matrícula do(a) professor(a) AEE", value="")
+                    especialidade_professor = st.multiselect("Especialidade do(a) professor(a) AEE", OPCOES_ESPECIALIDADE_AEE, default=["Professor(a) do AEE"])
+
+                    col_p1, col_p2 = st.columns(2)
+                    with col_p1:
+                        periodo_inicio = st.text_input("Período de elaboração/início do atendimento", placeholder="Ex.: 01/02/2026")
+                    with col_p2:
+                        periodo_fim = st.text_input("Data final", placeholder="Ex.: 30/06/2026")
+
+                    frequencia_atendimento = st.multiselect("Frequência de atendimento na SRM", DIAS_SEMANA, default=[])
+                    tempo_atendimento_semana = st.text_input("Tempo de atendimento por semana", placeholder="Ex.: 2h semanais")
+                    formato_atendimento = st.multiselect("Formato do atendimento", OPCOES_FORMATO_ATENDIMENTO, default=["Individual"])
+
+                with aba2:
+                    st.markdown("#### Estudo de caso / percurso educacional")
+                    percurso_educacional = st.text_area(
+                        "Relato sobre o trajeto educacional do(a) estudante",
+                        placeholder="Descreva situação inicial, estratégias já utilizadas e progressos alcançados em turmas comuns e/ou AEE anterior.",
+                        height=180,
+                    )
+                    motivo_encaminhamento_aee = st.text_area("Motivo pelo qual foi encaminhado ao AEE", height=120)
+
+                    col_t1, col_t2 = st.columns(2)
+                    with col_t1:
+                        precisa_transporte_inclusivo = st.radio("Precisa de transporte escolar inclusivo?", ["Não", "Sim", "Não informado"], horizontal=True)
+                    with col_t2:
+                        recebe_transporte_inclusivo = st.radio("Recebe transporte escolar inclusivo?", ["Não", "Sim", "Não informado"], horizontal=True)
+
+                    precisa_profissional_apoio = st.radio("Precisa de profissional de apoio?", ["Não", "Sim", "Não informado"], horizontal=True)
+                    justificativa_apoio = st.text_area("Justificativa para profissional de apoio, se necessário", height=100)
+                    acompanhado_profissional_apoio = st.radio("É acompanhado por profissional de apoio na escola?", ["Não", "Sim", "Não informado"], horizontal=True)
+                    nome_profissional_apoio = st.text_input("Nome do profissional de apoio, se houver")
+
+                    recursos_tecnologia_assistiva = st.multiselect("Recursos de tecnologia educacional e/ou assistiva utilizados", OPCOES_RECURSOS_TA)
+                    observacoes_ambiente_educacional = st.text_area(
+                        "Observações relevantes para o ambiente educacional / acompanhamento médico ou terapêutico",
+                        placeholder="Ex.: acompanhamento terapêutico, recomendações pedagógicas, cuidados no ambiente escolar.",
+                        height=140,
+                    )
+
+                with aba3:
+                    st.markdown("#### Habilidades e indicadores")
+                    habilidades_observadas = st.multiselect("Habilidades observadas e desenvolvidas", OPCOES_HABILIDADES_PEDAGOGICAS)
+                    habilidades_a_desenvolver = st.multiselect("Habilidades que precisam ser desenvolvidas", OPCOES_HABILIDADES_PEDAGOGICAS)
+                    indicadores_altas_habilidades = st.multiselect("Indicadores de altas habilidades/superdotação", OPCOES_INDICADORES_AHSD)
+                    recursos_surdez = st.multiselect("Caso seja pessoa surda, marque recursos utilizados", OPCOES_RECURSOS_SURDEZ, default=["Não se aplica"])
+                    observacoes_surdez = st.text_area(
+                        "Observações sobre aparelho auditivo, implante coclear, Libras, uso diário, efetividade ou incômodos",
+                        height=120,
+                    )
+
+                with aba4:
+                    st.markdown("#### Síntese pedagógica")
+                    contextualizacao = st.text_area("Contextualização", height=130)
+                    potencialidades = st.text_area("Potencialidades", height=100)
+                    dificuldades = st.text_area("Dificuldades/barreiras observadas", height=100)
+                    estrategias = st.text_area("Estratégias pedagógicas", height=120)
+                    intervencoes = st.text_area("Intervenções / encaminhamentos sugeridos", height=120)
+                    avaliacao_estudo = st.text_area("Avaliação", height=100)
+                    consideracoes = st.text_area("Considerações finais", height=100)
+
+                salvar_estudo = st.form_submit_button("Salvar estudo de caso GRE")
+
+                if salvar_estudo:
+                    campos = ["estudante_id"] + CAMPOS_ESTUDO_CASO
+                    valores = [
+                        estudante_id,
+                        hoje_str(),
+                        contextualizacao,
+                        motivo_encaminhamento_aee,
+                        ", ".join(habilidades_observadas),
+                        ", ".join(habilidades_a_desenvolver),
+                        estrategias,
+                        intervencoes,
+                        avaliacao_estudo,
+                        consideracoes,
+                        etapa_modalidade,
+                        ano_etapa,
+                        laudo,
+                        deficiencia,
+                        cid,
+                        altas_habilidades,
+                        bpc,
+                        escola_nome,
+                        unidade_aee,
+                        gestor_nome,
+                        gestor_contato,
+                        professor_nome,
+                        professor_contato,
+                        matricula_professor,
+                        ", ".join(especialidade_professor),
+                        periodo_inicio,
+                        periodo_fim,
+                        ", ".join(frequencia_atendimento),
+                        tempo_atendimento_semana,
+                        ", ".join(formato_atendimento),
+                        percurso_educacional,
+                        motivo_encaminhamento_aee,
+                        precisa_transporte_inclusivo,
+                        recebe_transporte_inclusivo,
+                        precisa_profissional_apoio,
+                        justificativa_apoio,
+                        acompanhado_profissional_apoio,
+                        nome_profissional_apoio,
+                        ", ".join(recursos_tecnologia_assistiva),
+                        observacoes_ambiente_educacional,
+                        ", ".join(habilidades_observadas),
+                        ", ".join(habilidades_a_desenvolver),
+                        ", ".join(indicadores_altas_habilidades),
+                        ", ".join(recursos_surdez),
+                        observacoes_surdez,
+                    ]
+                    inserir_registro("estudos_caso", campos, valores)
+                    st.success("Estudo de caso GRE salvo.")
                     st.rerun()
 
         estudos = listar_por_estudante(
             "estudos_caso",
-            ["data_registro", "contextualizacao", "queixa_principal", "potencialidades", "dificuldades", "estrategias", "intervencoes", "avaliacao", "consideracoes"],
+            CAMPOS_ESTUDO_CASO,
             estudante_id,
         )
         with st.container(border=True):
@@ -2684,7 +3035,7 @@ elif menu == "Estudo de Caso":
                     with st.expander(f"Estudo em {e[1]}"):
                         texto = texto_estudo_caso(estudante, e)
                         st.text(texto)
-                        export_buttons(texto, f"Estudo_Caso_{estudante[1]}_{e[0]}", tipo_pdf="estudo")
+                        export_buttons(texto, f"Estudo_Caso_GRE_{estudante[1]}_{e[0]}", tipo_pdf="estudo")
                         if st.button("Excluir estudo de caso", key=f"exc_estudo_{e[0]}"):
                             excluir_registro("estudos_caso", e[0])
                             st.success("Estudo excluído.")
