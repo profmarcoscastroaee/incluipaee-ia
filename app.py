@@ -129,12 +129,20 @@ menu = st.sidebar.radio("Navegação", [
 
 # ================= DASHBOARD =================
 if menu == "Dashboard":
-    st.title("📊 INCLUISRM")
+    st.markdown("# 📊 INCLUISRM")
+    st.caption("Sistema de Gestão do Atendimento Educacional Especializado")
 
     estudantes = listar_estudantes()
 
-    st.metric("Total de estudantes", len(estudantes))
+    col1, col2, col3 = st.columns(3)
 
+    col1.metric("👥 Estudantes", len(estudantes))
+    col2.metric("📅 Atendimentos", 0)
+    col3.metric("📈 Evolução média", "—")
+
+    st.markdown("---")
+
+    st.info("Bem-vindo ao sistema INCLUISRM. Utilize o menu ao lado para iniciar.")
 # ================= CADASTRO =================
 elif menu == "Cadastro do Estudante":
     st.title("👤 Cadastro do Estudante")
