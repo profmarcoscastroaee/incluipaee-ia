@@ -1945,7 +1945,6 @@ elif menu == "Cadastro do Professor AEE":
             else:
                 salvar_professor(nome_ref, escola, regional, formacao, carga, turno, obs)
                 st.success("Cadastro do professor salvo com sucesso.")
-                st.session_state["menu_atual"] = "Cadastro do Professor AEE"
                 st.session_state["prof_form_nonce"] += 1
                 st.rerun()
 
