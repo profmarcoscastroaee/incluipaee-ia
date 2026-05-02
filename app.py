@@ -313,6 +313,16 @@ def conectar():
     return sqlite3.connect(DB_PATH)
 
 
+def limpar_cache_dados():
+    """Limpa os caches de consulta após qualquer gravação/edição/exclusão.
+    Isso evita dados desatualizados depois de cadastrar, editar ou excluir registros.
+    """
+    try:
+        st.cache_data.clear()
+    except Exception:
+        pass
+
+
 def coluna_existe(cursor, tabela, coluna):
     if USAR_POSTGRES:
         cursor.execute(
@@ -690,9 +700,14 @@ def criar_tabelas():
 
     conn.commit()
     conn.close()
+    limpar_cache_dados()
 
 
-criar_tabelas()
+# Cria/atualiza as tabelas apenas uma vez por sessão do Streamlit.
+# Isso reduz o tempo de troca entre telas, principalmente usando PostgreSQL.
+if "tabelas_criadas" not in st.session_state:
+    criar_tabelas()
+    st.session_state.tabelas_criadas = True
 
 
 # ======================================================
@@ -1038,8 +1053,10 @@ def cadastrar_estudante(codigo, ano_serie, turma, turno, perfil, observacoes, di
     )
     conn.commit()
     conn.close()
+    limpar_cache_dados()
 
 
+@st.cache_data(ttl=30, show_spinner=False)
 def listar_estudantes():
     conn = conectar()
     cursor = conn.cursor()
@@ -1055,6 +1072,7 @@ def listar_estudantes():
     return dados
 
 
+@st.cache_data(ttl=30, show_spinner=False)
 def buscar_estudante(estudante_id):
     conn = conectar()
     cursor = conn.cursor()
@@ -1085,6 +1103,7 @@ def atualizar_estudante(estudante_id, codigo, ano_serie, turma, turno, perfil, o
     )
     conn.commit()
     conn.close()
+    limpar_cache_dados()
 
 
 def excluir_estudante(estudante_id):
@@ -1098,6 +1117,7 @@ def excluir_estudante(estudante_id):
     cursor.execute("DELETE FROM estudantes WHERE id=?", (estudante_id,))
     conn.commit()
     conn.close()
+    limpar_cache_dados()
 
 
 # ======================================================
@@ -1117,8 +1137,10 @@ def salvar_professor(nome_referencia, escola, regional, formacao, carga_horaria,
     )
     conn.commit()
     conn.close()
+    limpar_cache_dados()
 
 
+@st.cache_data(ttl=30, show_spinner=False)
 def listar_professores():
     conn = conectar()
     cursor = conn.cursor()
@@ -1148,6 +1170,7 @@ def atualizar_professor(professor_id, nome_referencia, escola, regional, formaca
     )
     conn.commit()
     conn.close()
+    limpar_cache_dados()
 
 
 def excluir_professor(professor_id):
@@ -1157,8 +1180,10 @@ def excluir_professor(professor_id):
     cursor.execute("DELETE FROM professores WHERE id=?", (professor_id,))
     conn.commit()
     conn.close()
+    limpar_cache_dados()
 
 
+@st.cache_data(ttl=30, show_spinner=False)
 def contar_alunos_do_professor(professor_id):
     conn = conectar()
     cursor = conn.cursor()
@@ -1208,6 +1233,7 @@ def vincular_professor_estudante(estudante_id, professor_id):
     )
     conn.commit()
     conn.close()
+    limpar_cache_dados()
     return True, "Vínculo realizado com sucesso."
 
 
@@ -1217,8 +1243,10 @@ def remover_vinculo_professor_estudante(vinculo_id):
     cursor.execute("DELETE FROM estudante_professor WHERE id=?", (vinculo_id,))
     conn.commit()
     conn.close()
+    limpar_cache_dados()
 
 
+@st.cache_data(ttl=30, show_spinner=False)
 def listar_estudantes_do_professor(professor_id):
     conn = conectar()
     cursor = conn.cursor()
@@ -1237,6 +1265,7 @@ def listar_estudantes_do_professor(professor_id):
     return dados
 
 
+@st.cache_data(ttl=30, show_spinner=False)
 def listar_professores_do_estudante(estudante_id):
     conn = conectar()
     cursor = conn.cursor()
@@ -1255,6 +1284,7 @@ def listar_professores_do_estudante(estudante_id):
     return dados
 
 
+@st.cache_data(ttl=30, show_spinner=False)
 def buscar_professor_responsavel():
     conn = conectar()
     cursor = conn.cursor()
@@ -1303,8 +1333,10 @@ def inserir_registro(tabela, campos, valores):
     )
     conn.commit()
     conn.close()
+    limpar_cache_dados()
 
 
+@st.cache_data(ttl=30, show_spinner=False)
 def listar_por_estudante(tabela, campos, estudante_id):
     conn = conectar()
     cursor = conn.cursor()
@@ -1323,6 +1355,7 @@ def excluir_registro(tabela, registro_id):
     cursor.execute(f"DELETE FROM {tabela} WHERE id=?", (registro_id,))
     conn.commit()
     conn.close()
+    limpar_cache_dados()
 
 
 def atualizar_registro(tabela, campos, valores, registro_id):
@@ -1332,8 +1365,10 @@ def atualizar_registro(tabela, campos, valores, registro_id):
     cursor.execute(f"UPDATE {tabela} SET {sets} WHERE id=?", list(valores) + [registro_id])
     conn.commit()
     conn.close()
+    limpar_cache_dados()
 
 
+@st.cache_data(ttl=30, show_spinner=False)
 def ultima_linha(tabela, campos, estudante_id):
     conn = conectar()
     cursor = conn.cursor()
@@ -1357,6 +1392,7 @@ def salvar_avaliacao(estudante_id, barreiras, potencialidades, comunicacao, inte
     )
 
 
+@st.cache_data(ttl=30, show_spinner=False)
 def listar_avaliacoes(estudante_id):
     return listar_por_estudante(
         "avaliacoes",
@@ -1365,6 +1401,7 @@ def listar_avaliacoes(estudante_id):
     )
 
 
+@st.cache_data(ttl=30, show_spinner=False)
 def ultima_avaliacao(estudante_id):
     return ultima_linha(
         "avaliacoes",
@@ -1399,6 +1436,7 @@ def salvar_atendimento(
     )
 
 
+@st.cache_data(ttl=30, show_spinner=False)
 def listar_atendimentos(estudante_id):
     conn = conectar()
     cursor = conn.cursor()
@@ -1419,6 +1457,7 @@ def listar_atendimentos(estudante_id):
     return dados
 
 
+@st.cache_data(ttl=30, show_spinner=False)
 def listar_atendimentos_com_id(estudante_id):
     conn = conectar()
     cursor = conn.cursor()
@@ -1471,6 +1510,7 @@ def salvar_agendamento(estudante_id, data_agendamento, dia_semana, hora_inicio, 
     )
 
 
+@st.cache_data(ttl=30, show_spinner=False)
 def listar_agenda():
     conn = conectar()
     cursor = conn.cursor()
@@ -1493,6 +1533,16 @@ def listar_agenda_com_id():
     return listar_agenda()
 
 
+@st.cache_data(ttl=30, show_spinner=False)
+def contar_registros_tabela(tabela):
+    conn = conectar()
+    cursor = conn.cursor()
+    cursor.execute(f"SELECT COUNT(*) FROM {tabela}")
+    total = cursor.fetchone()[0]
+    conn.close()
+    return total
+
+
 def excluir_agendamento(agenda_id):
     excluir_registro("agenda", agenda_id)
 
@@ -1505,6 +1555,7 @@ def data_texto_para_date_seguro(data_texto):
         return None
 
 
+@st.cache_data(ttl=30, show_spinner=False)
 def listar_agenda_detalhada(estudante_id=None, data_inicio=None, data_fim=None):
     """Lista agenda com status de presença calculado automaticamente.
     Status calculado:
@@ -1610,6 +1661,7 @@ def atualizar_status_agenda(agenda_id, status_presenca, atendimento_id=None, pre
         )
     conn.commit()
     conn.close()
+    limpar_cache_dados()
 
 
 def montar_dataframe_quadro_semanal(estudante_id=None, data_inicio=None, data_fim=None):
@@ -1819,6 +1871,7 @@ def registrar_documento_gre(estudante_id, tipo_documento, nome_arquivo, observac
     )
 
 
+@st.cache_data(ttl=30, show_spinner=False)
 def listar_documentos_gre_gerados(estudante_id=None):
     conn = conectar()
     cursor = conn.cursor()
@@ -3785,11 +3838,12 @@ if menu == "Dashboard":
 # else:
 #     st.warning("🟡 Banco conectado: SQLite local")
 
-    estudantes = listar_estudantes()
-    total_estudantes = len(estudantes)
-    total_avaliacoes = sum(len(listar_avaliacoes(e[0])) for e in estudantes)
-    total_atendimentos = sum(len(listar_atendimentos(e[0])) for e in estudantes)
-    total_agenda = len(listar_agenda())
+    with st.spinner("Carregando painel..."):
+        estudantes = listar_estudantes()
+        total_estudantes = len(estudantes)
+        total_avaliacoes = contar_registros_tabela("avaliacoes")
+        total_atendimentos = contar_registros_tabela("atendimentos")
+        total_agenda = contar_registros_tabela("agenda")
 
     col1, col2, col3, col4 = st.columns(4)
     col1.metric("Estudantes", total_estudantes)
@@ -4567,10 +4621,7 @@ elif menu == "Plano AEE - IA":
                 st.session_state.pop(f"paee_modo_{estudante_id}", None)
                 st.session_state.pop(f"termos_3d_{estudante_id}", None)
                 st.rerun()
-# BOTÃO
-            gerar_ai = st.button("🤖 Gerar Plano AEE com IA")
 
-# AÇÃO
             if gerar_ai:
                 avaliacao_ia = ultima_avaliacao(estudante_id)
                 entrevista_ia = ultima_linha("entrevistas_familia", CAMPOS_ENTREVISTA_FAMILIA, estudante_id)
