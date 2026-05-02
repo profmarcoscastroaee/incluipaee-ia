@@ -591,6 +591,15 @@ def criar_tabelas():
         """
     )
 
+    # Campos de controle operacional da agenda
+    # Permitem transformar um agendamento em atendimento, presença ou falta.
+    for coluna, definicao in [
+        ("status_presenca", "TEXT DEFAULT 'Agendado'"),
+        ("atendimento_id", "INTEGER"),
+        ("observacao_presenca", "TEXT"),
+    ]:
+        adicionar_coluna_se_nao_existe(cursor, "agenda", coluna, definicao)
+
     conn.commit()
     conn.close()
 
@@ -1285,21 +1294,31 @@ def salvar_atendimento(
     nivel_avanco, nivel_dificuldade, nivel_engajamento, nivel_evolucao,
     encaminhamentos,
 ):
-    inserir_registro(
-        "atendimentos",
-        [
-            "estudante_id", "data_atendimento", "objetivo", "atividade", "resposta_estudante",
-            "avancos", "dificuldades", "evolucao", "qtd_atividades", "nivel_resposta",
-            "nivel_avanco", "nivel_dificuldade", "nivel_engajamento", "nivel_evolucao",
-            "encaminhamentos",
-        ],
-        [
+    """Salva um atendimento e retorna o ID criado.
+    Esse retorno permite vincular o registro ao agendamento do dia.
+    """
+    conn = conectar()
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        INSERT INTO atendimentos (
+            estudante_id, data_atendimento, objetivo, atividade, resposta_estudante,
+            avancos, dificuldades, evolucao, qtd_atividades, nivel_resposta,
+            nivel_avanco, nivel_dificuldade, nivel_engajamento, nivel_evolucao,
+            encaminhamentos
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
             estudante_id, data_atendimento, objetivo, atividade, resposta_estudante,
             avancos, dificuldades, evolucao, qtd_atividades, nivel_resposta,
             nivel_avanco, nivel_dificuldade, nivel_engajamento, nivel_evolucao,
             encaminhamentos,
-        ],
+        ),
     )
+    atendimento_id = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    return atendimento_id
 
 
 def listar_atendimentos(estudante_id):
@@ -1369,8 +1388,14 @@ def excluir_atendimento(atendimento_id):
 def salvar_agendamento(estudante_id, data_agendamento, dia_semana, hora_inicio, hora_fim, tipo_atendimento, observacoes):
     inserir_registro(
         "agenda",
-        ["estudante_id", "data_agendamento", "dia_semana", "hora_inicio", "hora_fim", "tipo_atendimento", "observacoes", "criado_em"],
-        [estudante_id, data_agendamento, dia_semana, hora_inicio, hora_fim, tipo_atendimento, observacoes, hoje_str()],
+        [
+            "estudante_id", "data_agendamento", "dia_semana", "hora_inicio",
+            "hora_fim", "tipo_atendimento", "observacoes", "status_presenca", "criado_em"
+        ],
+        [
+            estudante_id, data_agendamento, dia_semana, hora_inicio, hora_fim,
+            tipo_atendimento, observacoes, "Agendado", hoje_str()
+        ],
     )
 
 
@@ -1381,7 +1406,9 @@ def listar_agenda():
         """
         SELECT agenda.id, estudantes.codigo, estudantes.ano_serie, estudantes.perfil,
                agenda.data_agendamento, agenda.dia_semana, agenda.hora_inicio,
-               agenda.hora_fim, agenda.tipo_atendimento, agenda.observacoes
+               agenda.hora_fim, agenda.tipo_atendimento, agenda.observacoes,
+               COALESCE(agenda.status_presenca, 'Agendado') AS status_presenca,
+               agenda.observacao_presenca, agenda.atendimento_id
         FROM agenda
         JOIN estudantes ON estudantes.id = agenda.estudante_id
         ORDER BY agenda.data_agendamento, agenda.hora_inicio
@@ -1390,6 +1417,62 @@ def listar_agenda():
     dados = cursor.fetchall()
     conn.close()
     return dados
+
+
+def listar_agenda_por_data(data_texto):
+    conn = conectar()
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        SELECT agenda.id, agenda.estudante_id, estudantes.codigo, estudantes.ano_serie, estudantes.turma,
+               estudantes.perfil, agenda.data_agendamento, agenda.dia_semana, agenda.hora_inicio,
+               agenda.hora_fim, agenda.tipo_atendimento, agenda.observacoes,
+               COALESCE(agenda.status_presenca, 'Agendado') AS status_presenca,
+               agenda.observacao_presenca, agenda.atendimento_id
+        FROM agenda
+        JOIN estudantes ON estudantes.id = agenda.estudante_id
+        WHERE agenda.data_agendamento = ?
+        ORDER BY agenda.hora_inicio, estudantes.codigo
+        """,
+        (data_texto,),
+    )
+    dados = cursor.fetchall()
+    conn.close()
+    return dados
+
+
+def atualizar_status_agendamento(agenda_id, status_presenca, observacao_presenca=None, atendimento_id=None):
+    conn = conectar()
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        UPDATE agenda
+        SET status_presenca = ?, observacao_presenca = COALESCE(?, observacao_presenca),
+            atendimento_id = COALESCE(?, atendimento_id)
+        WHERE id = ?
+        """,
+        (status_presenca, observacao_presenca, atendimento_id, agenda_id),
+    )
+    conn.commit()
+    conn.close()
+
+
+def buscar_agendamento(agenda_id):
+    conn = conectar()
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        SELECT id, estudante_id, data_agendamento, dia_semana, hora_inicio, hora_fim,
+               tipo_atendimento, observacoes, COALESCE(status_presenca, 'Agendado'),
+               observacao_presenca, atendimento_id
+        FROM agenda
+        WHERE id = ?
+        """,
+        (agenda_id,),
+    )
+    dado = cursor.fetchone()
+    conn.close()
+    return dado
 
 
 def listar_agenda_com_id():
@@ -2785,8 +2868,9 @@ with st.sidebar:
             "Avaliação Pedagógica",
             "Estudo de Caso",
             "Plano AEE - Inteligência",
-            "Atendimentos",
             "Agenda de Atendimentos",
+            "Atendimentos do Dia",
+            "Atendimentos",
             "Relatórios GRE",
             "Administração",
         ],
@@ -3685,24 +3769,13 @@ elif menu == "Plano AEE - Inteligência":
                 else:
                     st.info("Nenhum PDF encontrado em base_conhecimento/cientifica")
 
-                if st.session_state.get("base_cientifica_indexada", False):
-                    st.info("✅ Base científica já indexada nesta sessão. Evite reindexar para reduzir consumo da API.")
-
                 if st.button("Indexar Base Científica", key="indexar_base_cientifica"):
-                    if st.session_state.get("base_cientifica_indexada", False):
-                        st.warning("⚠️ Base científica já indexada nesta sessão. Use o botão de reindexação apenas se você adicionou ou trocou PDFs.")
-                    else:
-                        try:
-                            with st.spinner("Indexando base científica..."):
-                                total, msg = indexar_base_conhecimento("cientifica")
-                            st.success(f"{msg} Total de trechos indexados: {total}")
-                            st.session_state["base_cientifica_indexada"] = True
-                        except Exception as e:
-                            st.error(f"Erro ao indexar base científica: {e}")
-
-                if st.button("Liberar reindexação científica", key="liberar_reindexacao_cientifica"):
-                    st.session_state.pop("base_cientifica_indexada", None)
-                    st.success("Reindexação científica liberada. Clique em Indexar Base Científica apenas se houver PDFs novos ou alterados.")
+                    try:
+                        with st.spinner("Indexando base científica..."):
+                            total, msg = indexar_base_conhecimento("cientifica")
+                        st.success(f"{msg} Total de trechos indexados: {total}")
+                    except Exception as e:
+                        st.error(f"Erro ao indexar base científica: {e}")
 
             with col_base2:
                 st.markdown("#### Base Pedagógica AEE")
@@ -3715,24 +3788,13 @@ elif menu == "Plano AEE - Inteligência":
                 else:
                     st.info("Nenhum PDF encontrado em base_conhecimento/pedagogica")
 
-                if st.session_state.get("base_pedagogica_indexada", False):
-                    st.info("✅ Base pedagógica já indexada nesta sessão. Evite reindexar para reduzir consumo da API.")
-
                 if st.button("Indexar Base Pedagógica", key="indexar_base_pedagogica"):
-                    if st.session_state.get("base_pedagogica_indexada", False):
-                        st.warning("⚠️ Base pedagógica já indexada nesta sessão. Use o botão de reindexação apenas se você adicionou ou trocou PDFs.")
-                    else:
-                        try:
-                            with st.spinner("Indexando base pedagógica..."):
-                                total, msg = indexar_base_conhecimento("pedagogica")
-                            st.success(f"{msg} Total de trechos indexados: {total}")
-                            st.session_state["base_pedagogica_indexada"] = True
-                        except Exception as e:
-                            st.error(f"Erro ao indexar base pedagógica: {e}")
-
-                if st.button("Liberar reindexação pedagógica", key="liberar_reindexacao_pedagogica"):
-                    st.session_state.pop("base_pedagogica_indexada", None)
-                    st.success("Reindexação pedagógica liberada. Clique em Indexar Base Pedagógica apenas se houver PDFs novos ou alterados.")
+                    try:
+                        with st.spinner("Indexando base pedagógica..."):
+                            total, msg = indexar_base_conhecimento("pedagogica")
+                        st.success(f"{msg} Total de trechos indexados: {total}")
+                    except Exception as e:
+                        st.error(f"Erro ao indexar base pedagógica: {e}")
 
             st.markdown("#### Consultar manualmente as bases")
             pergunta_base = st.text_area(
@@ -3821,18 +3883,49 @@ elif menu == "Plano AEE - Inteligência":
 # ======================================================
 elif menu == "Atendimentos":
     st.markdown('<div class="subtitulo">📌 Registro dos atendimentos</div>', unsafe_allow_html=True)
+    st.write("Registre atendimentos avulsos ou complete um atendimento iniciado a partir da agenda.")
+
     estudantes = listar_estudantes()
     if not estudantes:
         st.info("Cadastre um estudante primeiro.")
     else:
         ids, mapa = opcoes_estudantes_por_id(estudantes)
-        estudante_id = st.selectbox("Selecione o estudante", ids, format_func=lambda x: mapa[x], key="atendimento_estudante")
+
+        agenda_id_em_registro = st.session_state.get("agenda_id_em_registro")
+        estudante_preselecionado = st.session_state.get("atendimento_estudante_id")
+        data_preselecionada = st.session_state.get("atendimento_data")
+
+        indice_padrao = 0
+        if estudante_preselecionado in ids:
+            indice_padrao = ids.index(estudante_preselecionado)
+
+        estudante_id = st.selectbox(
+            "Selecione o estudante",
+            ids,
+            index=indice_padrao,
+            format_func=lambda x: mapa[x],
+            key="atendimento_estudante",
+            disabled=bool(agenda_id_em_registro),
+        )
         estudante = buscar_estudante(estudante_id)
+
+        if agenda_id_em_registro:
+            ag = buscar_agendamento(agenda_id_em_registro)
+            if ag:
+                st.success(
+                    f"Atendimento iniciado pela agenda: {ag[2]} • {ag[4]} às {ag[5]} • {ag[6]}"
+                )
+                if st.button("Cancelar vínculo com a agenda"):
+                    st.session_state.pop("agenda_id_em_registro", None)
+                    st.session_state.pop("atendimento_estudante_id", None)
+                    st.session_state.pop("atendimento_data", None)
+                    st.rerun()
 
         with st.container(border=True):
             st.markdown("### Novo atendimento")
+            data_padrao = data_para_date(data_preselecionada) if data_preselecionada else datetime.now().date()
             with st.form("form_atendimento"):
-                data_atendimento = st.date_input("Data do atendimento")
+                data_atendimento = st.date_input("Data do atendimento", value=data_padrao)
                 objetivo = st.text_area("Objetivo trabalhado")
                 atividade = st.text_area("Atividade realizada")
                 resposta = st.text_area("Resposta do estudante")
@@ -3846,12 +3939,25 @@ elif menu == "Atendimentos":
                 indice = calcular_indice_geral(nivel_resposta, nivel_avanco, nivel_dificuldade, nivel_engajamento)
                 st.info(f"Índice geral calculado automaticamente: {indice}/10")
                 encaminhamentos = st.text_area("Encaminhamentos")
+
                 if st.form_submit_button("Salvar atendimento"):
-                    salvar_atendimento(
+                    atendimento_id = salvar_atendimento(
                         estudante_id, data_atendimento.strftime("%d/%m/%Y"), objetivo, atividade, resposta,
                         avancos, dificuldades, evolucao, 1, nivel_resposta, nivel_avanco,
                         nivel_dificuldade, nivel_engajamento, indice, encaminhamentos,
                     )
+
+                    if agenda_id_em_registro:
+                        atualizar_status_agendamento(
+                            agenda_id_em_registro,
+                            "Atendimento registrado",
+                            "Presença confirmada e atendimento registrado.",
+                            atendimento_id,
+                        )
+                        st.session_state.pop("agenda_id_em_registro", None)
+                        st.session_state.pop("atendimento_estudante_id", None)
+                        st.session_state.pop("atendimento_data", None)
+
                     st.success("Atendimento registrado.")
                     st.rerun()
 
@@ -3882,6 +3988,8 @@ elif menu == "Atendimentos":
 # ======================================================
 elif menu == "Agenda de Atendimentos":
     st.markdown('<div class="subtitulo">📅 Agenda de Atendimentos</div>', unsafe_allow_html=True)
+    st.write("Organize os atendimentos antes do registro pedagógico. Depois, use a tela Atendimentos do Dia para confirmar presença ou falta.")
+
     estudantes = listar_estudantes()
     if not estudantes:
         st.info("Cadastre um estudante primeiro.")
@@ -3912,11 +4020,14 @@ elif menu == "Agenda de Atendimentos":
 
     agenda = listar_agenda()
     with st.container(border=True):
-        st.markdown("### 📆 Agenda semanal")
+        st.markdown("### 📆 Agenda geral")
         if agenda:
             df = pd.DataFrame(
                 agenda,
-                columns=["ID", "Código", "Ano/Série", "Perfil", "Data", "Dia", "Início", "Fim", "Tipo", "Observações"],
+                columns=[
+                    "ID", "Código", "Ano/Série", "Perfil", "Data", "Dia", "Início", "Fim",
+                    "Tipo", "Observações", "Status", "Observação de presença", "Atendimento ID"
+                ],
             )
             st.dataframe(df, use_container_width=True, hide_index=True)
 
@@ -3936,7 +4047,7 @@ elif menu == "Agenda de Atendimentos":
                         st.download_button("Baixar PDF da agenda", f, "Agenda_INCLUISRM.pdf", "application/pdf")
 
             for _, row in df.iterrows():
-                with st.expander(f"{row['Data']} - {row['Início']} - {row['Código']}"):
+                with st.expander(f"{row['Data']} - {row['Início']} - {row['Código']} - {row['Status']}"):
                     st.write(row.to_dict())
                     if st.button("Excluir agendamento", key=f"exc_ag_{row['ID']}"):
                         excluir_agendamento(int(row["ID"]))
@@ -3944,6 +4055,84 @@ elif menu == "Agenda de Atendimentos":
                         st.rerun()
         else:
             st.info("Nenhum agendamento registrado.")
+
+
+# ======================================================
+# ATENDIMENTOS DO DIA
+# ======================================================
+elif menu == "Atendimentos do Dia":
+    st.markdown('<div class="subtitulo">✅ Atendimentos do Dia</div>', unsafe_allow_html=True)
+    st.write("Confira os estudantes agendados, registre presença ou falta e abra o formulário de atendimento quando houver comparecimento.")
+
+    data_consulta = st.date_input("Selecione a data", value=datetime.now().date(), key="data_atendimentos_dia")
+    data_texto = data_consulta.strftime("%d/%m/%Y")
+    agenda_dia = listar_agenda_por_data(data_texto)
+
+    with st.container(border=True):
+        st.markdown(f"### Agenda do dia {data_texto}")
+
+        if not agenda_dia:
+            st.info("Nenhum estudante agendado para esta data.")
+        else:
+            df_dia = pd.DataFrame(
+                agenda_dia,
+                columns=[
+                    "ID", "Estudante ID", "Código", "Ano/Série", "Turma", "Perfil", "Data",
+                    "Dia", "Início", "Fim", "Tipo", "Observações", "Status",
+                    "Observação de presença", "Atendimento ID"
+                ],
+            )
+
+            col_a, col_b, col_c, col_d = st.columns(4)
+            col_a.metric("Agendados", len(df_dia))
+            col_b.metric("Compareceram", int(df_dia["Status"].isin(["Compareceu", "Atendimento registrado"]).sum()))
+            col_c.metric("Faltas", int((df_dia["Status"] == "Faltou").sum()))
+            col_d.metric("Pendentes", int((df_dia["Status"] == "Agendado").sum()))
+
+            st.dataframe(df_dia.drop(columns=["Estudante ID", "Atendimento ID"]), use_container_width=True, hide_index=True)
+
+            st.markdown("### Lista operacional")
+            for item in agenda_dia:
+                (
+                    agenda_id, estudante_id, codigo, ano_serie, turma, perfil, data_ag, dia_semana,
+                    hora_inicio, hora_fim, tipo, observacoes, status, obs_presenca, atendimento_id
+                ) = item
+
+                with st.expander(f"{hora_inicio} - {codigo} | {ano_serie or 'Ano não informado'} | Status: {status}"):
+                    st.write(f"**Estudante:** {codigo}")
+                    st.write(f"**Perfil:** {perfil or 'Não informado'}")
+                    st.write(f"**Tipo:** {tipo}")
+                    st.write(f"**Horário:** {hora_inicio} às {hora_fim}")
+                    if observacoes:
+                        st.write(f"**Observações do agendamento:** {observacoes}")
+                    if obs_presenca:
+                        st.write(f"**Observação de presença/falta:** {obs_presenca}")
+
+                    if status == "Atendimento registrado":
+                        st.success("Atendimento já registrado para este agendamento.")
+                    elif status == "Faltou":
+                        st.warning("Falta registrada.")
+                        if st.button("Reabrir como agendado", key=f"reabrir_{agenda_id}"):
+                            atualizar_status_agendamento(agenda_id, "Agendado", "Registro reaberto para nova decisão.", None)
+                            st.rerun()
+                    else:
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            if st.button("✅ Compareceu / registrar atendimento", key=f"compareceu_{agenda_id}"):
+                                atualizar_status_agendamento(agenda_id, "Compareceu", "Presença confirmada. Aguardando registro do atendimento.", None)
+                                st.session_state["agenda_id_em_registro"] = agenda_id
+                                st.session_state["atendimento_estudante_id"] = estudante_id
+                                st.session_state["atendimento_data"] = data_ag
+                                st.session_state["menu_atual"] = "Atendimentos"
+                                st.rerun()
+                        with col2:
+                            motivo_falta = st.text_input("Motivo/observação da falta", key=f"motivo_falta_{agenda_id}")
+                            if st.button("❌ Registrar falta", key=f"faltou_{agenda_id}"):
+                                obs = motivo_falta.strip() or "Falta registrada sem justificativa informada."
+                                atualizar_status_agendamento(agenda_id, "Faltou", obs, None)
+                                st.success("Falta registrada.")
+                                st.rerun()
+
 
 
 # ======================================================
