@@ -3774,18 +3774,18 @@ with st.sidebar:
 
 render_app_header()
 
-
 # ======================================================
 # DASHBOARD
 # ======================================================
 if menu == "Dashboard":
     st.markdown('<div class="subtitulo">📊 Painel inicial</div>', unsafe_allow_html=True)
 
-  # 👉 AQUI (verificação do banco)
+    # Verificação do banco conectado
     if USAR_POSTGRES:
         st.success("🟢 Banco conectado: PostgreSQL (Render)")
     else:
         st.warning("🟡 Banco conectado: SQLite local")
+
     estudantes = listar_estudantes()
     total_estudantes = len(estudantes)
     total_avaliacoes = sum(len(listar_avaliacoes(e[0])) for e in estudantes)
@@ -3801,12 +3801,22 @@ if menu == "Dashboard":
     st.markdown("---")
 
     col_esq, col_dir = st.columns([1.25, 1])
+
     with col_esq:
         with st.container(border=True):
             st.markdown("### 👥 Estudantes recentes")
             if estudantes:
                 st.dataframe(
-                    [{"Código": e[1], "Ano/Série": e[2], "Turma": e[3], "Perfil": e[4], "Dias": e[7]} for e in estudantes],
+                    [
+                        {
+                            "Código": e[1],
+                            "Ano/Série": e[2],
+                            "Turma": e[3],
+                            "Perfil": e[4],
+                            "Dias": e[7],
+                        }
+                        for e in estudantes
+                    ],
                     use_container_width=True,
                     hide_index=True,
                 )
@@ -3821,13 +3831,11 @@ if menu == "Dashboard":
                 1. Cadastre o estudante com código interno.
                 2. Registre entrevista, avaliação e estudo de caso.
                 3. Crie o Plano AEE - IA.
-                4. Lance os atendimentos e acompanhe os gráficos.
-                5. Organize a agenda semanal.
+                4. Organize a agenda semanal.
+                5. Lance os atendimentos e acompanhe os gráficos.
                 6. Gere os relatórios GRE para impressão e pasta física.
                 """
             )
-
-
 # ======================================================
 # CADASTRO DO ESTUDANTE
 # ======================================================
