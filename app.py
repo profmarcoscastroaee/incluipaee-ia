@@ -591,6 +591,20 @@ def criar_tabelas():
         """
     )
 
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS documentos_gre_gerados (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            estudante_id INTEGER,
+            tipo_documento TEXT,
+            nome_arquivo TEXT,
+            data_geracao TEXT,
+            observacao TEXT,
+            FOREIGN KEY(estudante_id) REFERENCES estudantes(id)
+        )
+        """
+    )
+
     conn.commit()
     conn.close()
 
@@ -1398,6 +1412,53 @@ def listar_agenda_com_id():
 
 def excluir_agendamento(agenda_id):
     excluir_registro("agenda", agenda_id)
+
+
+# ======================================================
+# HISTÓRICO DE GERAÇÃO DOS DOCUMENTOS GRE
+# ======================================================
+def registrar_documento_gre(estudante_id, tipo_documento, nome_arquivo, observacao="Gerado sob demanda; arquivo não armazenado no banco."):
+    """Registra apenas a data/tipo do documento GRE gerado.
+    O conteúdo do PDF/Word não é armazenado para evitar dados sensíveis e excesso de arquivos.
+    """
+    inserir_registro(
+        "documentos_gre_gerados",
+        ["estudante_id", "tipo_documento", "nome_arquivo", "data_geracao", "observacao"],
+        [estudante_id, tipo_documento, nome_arquivo, hoje_str(), observacao],
+    )
+
+
+def listar_documentos_gre_gerados(estudante_id=None):
+    conn = conectar()
+    cursor = conn.cursor()
+    if estudante_id:
+        cursor.execute(
+            """
+            SELECT d.id, e.codigo, d.tipo_documento, d.nome_arquivo, d.data_geracao, d.observacao
+            FROM documentos_gre_gerados d
+            LEFT JOIN estudantes e ON e.id = d.estudante_id
+            WHERE d.estudante_id = ?
+            ORDER BY d.id DESC
+            """,
+            (estudante_id,),
+        )
+    else:
+        cursor.execute(
+            """
+            SELECT d.id, e.codigo, d.tipo_documento, d.nome_arquivo, d.data_geracao, d.observacao
+            FROM documentos_gre_gerados d
+            LEFT JOIN estudantes e ON e.id = d.estudante_id
+            ORDER BY d.id DESC
+            LIMIT 50
+            """
+        )
+    dados = cursor.fetchall()
+    conn.close()
+    return dados
+
+
+def excluir_historico_documento_gre(registro_id):
+    excluir_registro("documentos_gre_gerados", registro_id)
 
 
 # ======================================================
@@ -4452,7 +4513,8 @@ elif menu == "Relatórios GRE":
     st.markdown(
         """
         <div class="descricao">
-        Gere os documentos solicitados pela GRE a partir dos dados já cadastrados no sistema.
+        Gere os documentos solicitados pela GRE sob demanda, a partir dos dados já cadastrados no sistema.
+        Os arquivos não ficam armazenados no banco; apenas a data e o tipo de documento gerado entram no histórico.
         Os campos sigilosos permanecem em branco para preenchimento manual no Word ou após impressão.
         </div>
         """,
@@ -4530,11 +4592,43 @@ elif menu == "Relatórios GRE":
                 st.session_state["gre_tipo_pdf"] = tipo_pdf
                 st.session_state["gre_tipo"] = tipo
 
+                registrar_documento_gre(
+                    estudante_id=estudante_id,
+                    tipo_documento=tipo,
+                    nome_arquivo=nome,
+                    observacao="Documento gerado sob demanda. PDF/Word não armazenado no banco.",
+                )
+                st.success("Documento GRE gerado sob demanda. Apenas o registro da geração foi salvo no histórico.")
+
         if "gre_texto" in st.session_state:
             with st.container(border=True):
                 st.markdown(f"### Documento gerado: {st.session_state.get('gre_tipo', '')}")
                 st.text_area("Pré-visualização", st.session_state["gre_texto"], height=560)
                 export_buttons(st.session_state["gre_texto"], st.session_state["gre_nome"], tipo_pdf=st.session_state["gre_tipo_pdf"])
+
+        with st.container(border=True):
+            st.markdown("### 🗂️ Histórico de geração GRE")
+            st.caption("Este histórico guarda somente data, tipo e nome-base do documento. O arquivo e o conteúdo não ficam armazenados no banco.")
+            historico_gre = listar_documentos_gre_gerados(estudante_id)
+            if historico_gre:
+                df_hist_gre = pd.DataFrame(
+                    historico_gre,
+                    columns=["ID", "Código", "Tipo de documento", "Nome-base", "Data de geração", "Observação"],
+                )
+                st.dataframe(df_hist_gre.drop(columns=["ID"]), use_container_width=True)
+
+                excluir_hist = st.selectbox(
+                    "Excluir item do histórico, se necessário",
+                    [0] + [h[0] for h in historico_gre],
+                    format_func=lambda x: "Não excluir" if x == 0 else f"Registro #{x}",
+                    key="excluir_historico_gre",
+                )
+                if excluir_hist and st.button("Excluir registro do histórico GRE"):
+                    excluir_historico_documento_gre(excluir_hist)
+                    st.success("Registro removido do histórico.")
+                    st.rerun()
+            else:
+                st.info("Nenhum documento GRE gerado para este estudante nesta base de dados.")
 
         with st.container(border=True):
             st.markdown("### 🧾 Conferência dos dados usados")
