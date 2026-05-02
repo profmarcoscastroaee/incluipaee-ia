@@ -3780,6 +3780,11 @@ render_app_header()
 if menu == "Dashboard":
     st.markdown('<div class="subtitulo">📊 Painel inicial</div>', unsafe_allow_html=True)
 
+# if USAR_POSTGRES:
+#     st.success("🟢 Banco conectado: PostgreSQL (Render)")
+# else:
+#     st.warning("🟡 Banco conectado: SQLite local")
+
     estudantes = listar_estudantes()
     total_estudantes = len(estudantes)
     total_avaliacoes = sum(len(listar_avaliacoes(e[0])) for e in estudantes)
