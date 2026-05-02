@@ -3683,7 +3683,7 @@ with st.sidebar:
             "Entrevista com a Família",
             "Avaliação Pedagógica",
             "Estudo de Caso",
-            "Plano AEE - Inteligência",
+            "Plano AEE - IA",
             "Agenda de Atendimentos",
             "Atendimentos",
             "Relatórios GRE",
@@ -3741,7 +3741,7 @@ if menu == "Dashboard":
                 """
                 1. Cadastre o estudante com código interno.
                 2. Registre entrevista, avaliação e estudo de caso.
-                3. Crie o Plano AEE - Inteligência.
+                3. Crie o Plano AEE - IA.
                 4. Lance os atendimentos e acompanhe os gráficos.
                 5. Organize a agenda semanal.
                 6. Gere os relatórios GRE para impressão e pasta física.
@@ -4452,8 +4452,8 @@ elif menu == "Estudo de Caso":
 # ======================================================
 # PLANO AEE - INTELIGÊNCIA
 # ======================================================
-elif menu == "Plano AEE - Inteligência":
-    st.markdown('<div class="subtitulo">🧠 Plano AEE - Inteligência</div>', unsafe_allow_html=True)
+elif menu == "Plano AEE - IA":
+    st.markdown('<div class="subtitulo">🧠 Plano AEE - IA</div>', unsafe_allow_html=True)
     estudantes = listar_estudantes()
     if not estudantes:
         st.info("Cadastre um estudante primeiro.")
