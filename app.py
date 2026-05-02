@@ -2962,7 +2962,7 @@ elif menu == "Cadastro do Estudante":
                         try:
                             cadastrar_estudante(codigo.strip(), ano_serie, turma, turno, perfil, observacoes, ", ".join(dias), horario)
                             st.success("Estudante cadastrado com sucesso.")
-                            st.session_state["menu_atual"] = "Cadastro do Estudante"
+                           
                             resetar_form("cadastro_estudante")
                             st.rerun()
 
