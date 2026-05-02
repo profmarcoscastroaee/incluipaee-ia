@@ -3685,13 +3685,24 @@ elif menu == "Plano AEE - Inteligência":
                 else:
                     st.info("Nenhum PDF encontrado em base_conhecimento/cientifica")
 
+                if st.session_state.get("base_cientifica_indexada", False):
+                    st.info("✅ Base científica já indexada nesta sessão. Evite reindexar para reduzir consumo da API.")
+
                 if st.button("Indexar Base Científica", key="indexar_base_cientifica"):
-                    try:
-                        with st.spinner("Indexando base científica..."):
-                            total, msg = indexar_base_conhecimento("cientifica")
-                        st.success(f"{msg} Total de trechos indexados: {total}")
-                    except Exception as e:
-                        st.error(f"Erro ao indexar base científica: {e}")
+                    if st.session_state.get("base_cientifica_indexada", False):
+                        st.warning("⚠️ Base científica já indexada nesta sessão. Use o botão de reindexação apenas se você adicionou ou trocou PDFs.")
+                    else:
+                        try:
+                            with st.spinner("Indexando base científica..."):
+                                total, msg = indexar_base_conhecimento("cientifica")
+                            st.success(f"{msg} Total de trechos indexados: {total}")
+                            st.session_state["base_cientifica_indexada"] = True
+                        except Exception as e:
+                            st.error(f"Erro ao indexar base científica: {e}")
+
+                if st.button("Liberar reindexação científica", key="liberar_reindexacao_cientifica"):
+                    st.session_state.pop("base_cientifica_indexada", None)
+                    st.success("Reindexação científica liberada. Clique em Indexar Base Científica apenas se houver PDFs novos ou alterados.")
 
             with col_base2:
                 st.markdown("#### Base Pedagógica AEE")
@@ -3704,13 +3715,24 @@ elif menu == "Plano AEE - Inteligência":
                 else:
                     st.info("Nenhum PDF encontrado em base_conhecimento/pedagogica")
 
+                if st.session_state.get("base_pedagogica_indexada", False):
+                    st.info("✅ Base pedagógica já indexada nesta sessão. Evite reindexar para reduzir consumo da API.")
+
                 if st.button("Indexar Base Pedagógica", key="indexar_base_pedagogica"):
-                    try:
-                        with st.spinner("Indexando base pedagógica..."):
-                            total, msg = indexar_base_conhecimento("pedagogica")
-                        st.success(f"{msg} Total de trechos indexados: {total}")
-                    except Exception as e:
-                        st.error(f"Erro ao indexar base pedagógica: {e}")
+                    if st.session_state.get("base_pedagogica_indexada", False):
+                        st.warning("⚠️ Base pedagógica já indexada nesta sessão. Use o botão de reindexação apenas se você adicionou ou trocou PDFs.")
+                    else:
+                        try:
+                            with st.spinner("Indexando base pedagógica..."):
+                                total, msg = indexar_base_conhecimento("pedagogica")
+                            st.success(f"{msg} Total de trechos indexados: {total}")
+                            st.session_state["base_pedagogica_indexada"] = True
+                        except Exception as e:
+                            st.error(f"Erro ao indexar base pedagógica: {e}")
+
+                if st.button("Liberar reindexação pedagógica", key="liberar_reindexacao_pedagogica"):
+                    st.session_state.pop("base_pedagogica_indexada", None)
+                    st.success("Reindexação pedagógica liberada. Clique em Indexar Base Pedagógica apenas se houver PDFs novos ou alterados.")
 
             st.markdown("#### Consultar manualmente as bases")
             pergunta_base = st.text_area(
