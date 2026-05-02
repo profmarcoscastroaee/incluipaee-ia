@@ -591,6 +591,15 @@ def criar_tabelas():
         """
     )
 
+    # Campos ampliados da Agenda para controle de presença e integração com o Quadro Semanal GRE.
+    # Mantém compatibilidade com bancos antigos.
+    for coluna, definicao in [
+        ("status_presenca", "TEXT DEFAULT 'Agendado'"),
+        ("atendimento_id", "INTEGER"),
+        ("preenchimento_ia", "TEXT"),
+    ]:
+        adicionar_coluna_se_nao_existe(cursor, "agenda", coluna, definicao)
+
     cursor.execute(
         """
         CREATE TABLE IF NOT EXISTS documentos_gre_gerados (
@@ -1412,6 +1421,314 @@ def listar_agenda_com_id():
 
 def excluir_agendamento(agenda_id):
     excluir_registro("agenda", agenda_id)
+
+
+def data_texto_para_date_seguro(data_texto):
+    """Converte data em formato dd/mm/aaaa para date. Retorna None se inválida."""
+    try:
+        return datetime.strptime(str(data_texto), "%d/%m/%Y").date()
+    except Exception:
+        return None
+
+
+def listar_agenda_detalhada(estudante_id=None, data_inicio=None, data_fim=None):
+    """Lista agenda com status de presença calculado automaticamente.
+    Status calculado:
+    - Compareceu: se houver atendimento vinculado ou atendimento do estudante na mesma data.
+    - Faltou: se a data já passou e não houver atendimento.
+    - Agendado: se ainda não ocorreu.
+    """
+    conn = conectar()
+    cursor = conn.cursor()
+    if estudante_id:
+        cursor.execute(
+            """
+            SELECT a.id, a.estudante_id, e.codigo, e.ano_serie, e.perfil,
+                   a.data_agendamento, a.dia_semana, a.hora_inicio, a.hora_fim,
+                   a.tipo_atendimento, a.observacoes,
+                   COALESCE(a.status_presenca, 'Agendado') AS status_presenca,
+                   a.atendimento_id,
+                   COALESCE(a.preenchimento_ia, '') AS preenchimento_ia
+            FROM agenda a
+            JOIN estudantes e ON e.id = a.estudante_id
+            WHERE a.estudante_id = ?
+            ORDER BY a.data_agendamento, a.hora_inicio
+            """,
+            (estudante_id,),
+        )
+    else:
+        cursor.execute(
+            """
+            SELECT a.id, a.estudante_id, e.codigo, e.ano_serie, e.perfil,
+                   a.data_agendamento, a.dia_semana, a.hora_inicio, a.hora_fim,
+                   a.tipo_atendimento, a.observacoes,
+                   COALESCE(a.status_presenca, 'Agendado') AS status_presenca,
+                   a.atendimento_id,
+                   COALESCE(a.preenchimento_ia, '') AS preenchimento_ia
+            FROM agenda a
+            JOIN estudantes e ON e.id = a.estudante_id
+            ORDER BY a.data_agendamento, a.hora_inicio
+            """
+        )
+    dados = cursor.fetchall()
+
+    # Busca atendimentos para status automático.
+    cursor.execute("SELECT id, estudante_id, data_atendimento FROM atendimentos")
+    atendimentos = cursor.fetchall()
+    conn.close()
+
+    atend_por_estudante_data = {}
+    for atendimento_id, est_id, data_at in atendimentos:
+        atend_por_estudante_data[(est_id, data_at)] = atendimento_id
+
+    hoje = datetime.now().date()
+    filtrados = []
+    for row in dados:
+        row = list(row)
+        data_ag = data_texto_para_date_seguro(row[5])
+        if data_inicio and data_ag and data_ag < data_inicio:
+            continue
+        if data_fim and data_ag and data_ag > data_fim:
+            continue
+
+        ag_id, est_id = row[0], row[1]
+        status_original = row[11] or "Agendado"
+        atendimento_vinculado = row[12]
+        atendimento_mesma_data = atend_por_estudante_data.get((est_id, row[5]))
+
+        if atendimento_vinculado or atendimento_mesma_data:
+            status_calc = "Compareceu"
+            if not atendimento_vinculado and atendimento_mesma_data:
+                row[12] = atendimento_mesma_data
+        elif status_original in ["Compareceu", "Faltou", "Justificado", "Cancelado"]:
+            status_calc = status_original
+        elif data_ag and data_ag < hoje:
+            status_calc = "Faltou"
+        else:
+            status_calc = "Agendado"
+        row[11] = status_calc
+        filtrados.append(tuple(row))
+    return filtrados
+
+
+def atualizar_status_agenda(agenda_id, status_presenca, atendimento_id=None, preenchimento_ia=None):
+    conn = conectar()
+    cursor = conn.cursor()
+    if atendimento_id is not None and preenchimento_ia is not None:
+        cursor.execute(
+            "UPDATE agenda SET status_presenca=?, atendimento_id=?, preenchimento_ia=? WHERE id=?",
+            (status_presenca, atendimento_id, preenchimento_ia, agenda_id),
+        )
+    elif atendimento_id is not None:
+        cursor.execute(
+            "UPDATE agenda SET status_presenca=?, atendimento_id=? WHERE id=?",
+            (status_presenca, atendimento_id, agenda_id),
+        )
+    elif preenchimento_ia is not None:
+        cursor.execute(
+            "UPDATE agenda SET status_presenca=?, preenchimento_ia=? WHERE id=?",
+            (status_presenca, preenchimento_ia, agenda_id),
+        )
+    else:
+        cursor.execute(
+            "UPDATE agenda SET status_presenca=? WHERE id=?",
+            (status_presenca, agenda_id),
+        )
+    conn.commit()
+    conn.close()
+
+
+def montar_dataframe_quadro_semanal(estudante_id=None, data_inicio=None, data_fim=None):
+    agenda = listar_agenda_detalhada(estudante_id=estudante_id, data_inicio=data_inicio, data_fim=data_fim)
+    colunas = [
+        "Agenda ID", "Estudante ID", "Código", "Ano/Série", "Perfil", "Data", "Dia", "Início", "Fim",
+        "Tipo", "Observações da agenda", "Status", "Atendimento ID", "Sugestão IA"
+    ]
+    df_ag = pd.DataFrame(agenda, columns=colunas)
+    if df_ag.empty:
+        return df_ag
+
+    # Traz dados do atendimento quando houver atendimento no mesmo dia.
+    linhas = []
+    for _, row in df_ag.iterrows():
+        estudante = buscar_estudante(int(row["Estudante ID"]))
+        atendimentos = listar_atendimentos(int(row["Estudante ID"]))
+        at_data = None
+        for a in atendimentos:
+            if a[0] == row["Data"]:
+                at_data = a
+                break
+
+        atividade = at_data[2] if at_data else row["Observações da agenda"]
+        resposta = at_data[3] if at_data else ""
+        dificuldades = at_data[5] if at_data else ""
+        evolucao = at_data[6] if at_data else ""
+        encaminhamentos = at_data[13] if at_data and len(at_data) > 13 else ""
+        observacoes = " | ".join([x for x in [resposta, dificuldades, evolucao, encaminhamentos, row["Sugestão IA"]] if str(x).strip()])
+
+        tipo = str(row["Tipo"] or "").lower()
+        linhas.append({
+            "Data": row["Data"],
+            "Código": row["Código"],
+            "Estudante": estudante[1] if estudante else row["Código"],
+            "Individual": "X" if "individual" in tipo else "",
+            "Coletivo": "X" if ("grupo" in tipo or "coletivo" in tipo) else "",
+            "Recursos/Atividades desenvolvidas": atividade or "",
+            "Observação em sala": "X" if "observ" in tipo else "",
+            "Formação em serviço": "",
+            "Diversos": "X" if str(row["Status"]) in ["Faltou", "Justificado", "Cancelado"] else "",
+            "Presença": row["Status"],
+            "Observações": observacoes or row["Observações da agenda"] or "",
+            "Assinatura/Rúbrica": "",
+        })
+    return pd.DataFrame(linhas)
+
+
+def gerar_texto_quadro_semanal_gre(professor, df_quadro, mes, ano, escola_manual="", regional_manual=""):
+    escola = escola_manual or (professor[2] if professor else "") or "______________________________________________"
+    regional = regional_manual or (professor[3] if professor else "") or "__________"
+    professor_nome = (professor[1] if professor else "") or "______________________________________________"
+    mes = mes or "________________"
+    ano = ano or "20____"
+
+    linhas = []
+    if df_quadro is not None and not df_quadro.empty:
+        for _, r in df_quadro.iterrows():
+            linhas.append(
+                f"Data: {r['Data']} | Individual: {r['Individual']} | Coletivo: {r['Coletivo']} | "
+                f"Recursos/Atividades: {r['Recursos/Atividades desenvolvidas']} | "
+                f"Observação em sala: {r['Observação em sala']} | Formação: {r['Formação em serviço']} | "
+                f"Diversos: {r['Diversos']} | Presença: {r['Presença']} | Observações: {r['Observações']} | "
+                f"Assinatura/Rúbrica: ____________________"
+            )
+    else:
+        linhas.append("Nenhum atendimento/agendamento encontrado no período selecionado.")
+
+    return f"""
+{texto_cabecalho_gre("QUADRO DE ACOMPANHAMENTO SEMANAL - AÇÕES/PRÁTICAS DO PROFESSOR DO AEE")}
+
+Escola: {escola}
+Regional: {regional}
+Professor(a): {professor_nome}
+Mês: {mes}    Ano: {ano}
+
+QUADRO DE ACOMPANHAMENTO SEMANAL - AÇÕES/PRÁTICAS DO PROFESSOR DO AEE
+
+""".strip() + "\n\n" + "\n".join(linhas) + "\n\n*Este documento poderá ser editado ao longo do tempo para atender às necessidades e atualizações da atividade."
+
+
+def gerar_docx_quadro_semanal_gre(professor, df_quadro, nome_base, mes, ano, escola_manual="", regional_manual=""):
+    from docx import Document
+    from docx.shared import Pt, Inches
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    from docx.enum.section import WD_ORIENT
+
+    nome_arquivo = f"Quadro_Semanal_GRE_{nome_base}.docx".replace("/", "-").replace("\\", "-")
+    doc = Document()
+    section = doc.sections[0]
+    section.orientation = WD_ORIENT.LANDSCAPE
+    section.page_width, section.page_height = section.page_height, section.page_width
+    section.left_margin = Inches(0.35)
+    section.right_margin = Inches(0.35)
+    section.top_margin = Inches(0.35)
+    section.bottom_margin = Inches(0.35)
+
+    cab = doc.add_paragraph()
+    cab.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    run = cab.add_run(
+        "SECRETARIA DE EDUCAÇÃO E ESPORTES\n"
+        "GERÊNCIA METROPOLITANA NORTE DE EDUCAÇÃO\n"
+        "CGDE - COORDENAÇÃO GERAL DE DESENVOLVIMENTO DA EDUCAÇÃO\n"
+        "NÚCLEO DE EDUCAÇÃO INCLUSIVA, DIREITOS HUMANOS E CIDADANIA"
+    )
+    run.bold = True
+    run.font.size = Pt(8)
+
+    escola = escola_manual or (professor[2] if professor else "") or "______________________________________________"
+    regional = regional_manual or (professor[3] if professor else "") or "__________"
+    professor_nome = (professor[1] if professor else "") or "______________________________________________"
+    mes = mes or "________________"
+    ano = ano or "20____"
+
+    doc.add_paragraph(f"ESCOLA: {escola}    REGIONAL: {regional}")
+    doc.add_paragraph(f"PROFESSOR(A): {professor_nome}    MÊS: {mes}    ANO: {ano}")
+
+    titulo = doc.add_paragraph()
+    titulo.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    rt = titulo.add_run("Quadro de Acompanhamento Semanal - Ações/Práticas do Professor do AEE")
+    rt.bold = True
+    rt.underline = True
+    rt.font.size = Pt(10)
+
+    headers = [
+        "DATA", "INDIVIDUAL", "COLETIVO", "RECURSOS UTILIZADOS / ATIVIDADES DESENVOLVIDAS",
+        "OBSERVAÇÃO EM SALA", "FORMAÇÃO EM SERVIÇO", "DIVERSOS", "PRESENÇA", "OBSERVAÇÕES", "ASSINATURA/RÚBRICA"
+    ]
+    table = doc.add_table(rows=1, cols=len(headers))
+    table.style = "Table Grid"
+    for i, h in enumerate(headers):
+        cell = table.rows[0].cells[i]
+        cell.text = h
+        for p in cell.paragraphs:
+            for r in p.runs:
+                r.bold = True
+                r.font.size = Pt(7)
+
+    if df_quadro is not None and not df_quadro.empty:
+        for _, r in df_quadro.iterrows():
+            row = table.add_row().cells
+            valores = [
+                r.get("Data", ""), r.get("Individual", ""), r.get("Coletivo", ""),
+                r.get("Recursos/Atividades desenvolvidas", ""), r.get("Observação em sala", ""),
+                r.get("Formação em serviço", ""), r.get("Diversos", ""), r.get("Presença", ""),
+                r.get("Observações", ""), ""
+            ]
+            for i, val in enumerate(valores):
+                row[i].text = str(val or "")
+                for p in row[i].paragraphs:
+                    for rr in p.runs:
+                        rr.font.size = Pt(7)
+    else:
+        for _ in range(5):
+            table.add_row()
+
+    rod = doc.add_paragraph("*Este documento poderá ser editado ao longo do tempo para atender às necessidades e atualizações da atividade.")
+    for r in rod.runs:
+        r.font.size = Pt(7)
+
+    doc.save(nome_arquivo)
+    return nome_arquivo
+
+
+def gerar_sugestao_ia_quadro_semanal(df_quadro, foco=""):
+    client = obter_cliente_openai()
+    if client is None:
+        return "IA não configurada. Configure OPENAI_API_KEY para usar esta função."
+
+    dados = df_quadro.to_string(index=False) if df_quadro is not None and not df_quadro.empty else "Nenhum dado encontrado."
+    prompt = f"""
+Você é um especialista em Atendimento Educacional Especializado (AEE).
+Analise os registros de agenda/atendimentos abaixo e sugira um preenchimento objetivo para o Quadro de Acompanhamento Semanal do Professor do AEE.
+
+REGRAS:
+- Não invente dados pessoais.
+- Use linguagem institucional e pedagógica.
+- Considere presença automática: Compareceu, Faltou, Justificado, Cancelado ou Agendado.
+- Para faltas, sugira observação breve e encaminhamento adequado.
+- Para comparecimento, sintetize recursos utilizados, atividades e observações pedagógicas.
+- Responda em formato de tabela textual com as colunas: Data | Recursos/Atividades | Outros atendimentos | Observações.
+
+FOCO/ORIENTAÇÃO DO PROFESSOR:
+{foco}
+
+DADOS:
+{dados}
+"""
+    try:
+        resposta = client.responses.create(model="gpt-4.1-mini", input=prompt)
+        return resposta.output_text
+    except Exception as e:
+        return f"Não foi possível gerar sugestão com IA agora. Erro: {e}"
 
 
 # ======================================================
@@ -4497,6 +4814,22 @@ elif menu == "Agenda de Atendimentos":
             for _, row in df.iterrows():
                 with st.expander(f"{row['Data']} - {row['Início']} - {row['Código']}"):
                     st.write(row.to_dict())
+                    col_status1, col_status2, col_status3 = st.columns(3)
+                    with col_status1:
+                        if st.button("Marcar Compareceu", key=f"cmp_ag_{row['ID']}"):
+                            atualizar_status_agenda(int(row["ID"]), "Compareceu")
+                            st.success("Presença marcada como compareceu.")
+                            st.rerun()
+                    with col_status2:
+                        if st.button("Marcar Faltou", key=f"falt_ag_{row['ID']}"):
+                            atualizar_status_agenda(int(row["ID"]), "Faltou")
+                            st.success("Presença marcada como falta.")
+                            st.rerun()
+                    with col_status3:
+                        if st.button("Marcar Justificado", key=f"just_ag_{row['ID']}"):
+                            atualizar_status_agenda(int(row["ID"]), "Justificado")
+                            st.success("Presença marcada como justificada.")
+                            st.rerun()
                     if st.button("Excluir agendamento", key=f"exc_ag_{row['ID']}"):
                         excluir_agendamento(int(row["ID"]))
                         st.success("Agendamento excluído.")
@@ -4541,6 +4874,7 @@ elif menu == "Relatórios GRE":
                     "Entrevista com a Família",
                     "Estudo de Caso e Plano AEE",
                     "Relatório Consolidado GRE",
+                    "Quadro Semanal - Ações/Práticas do Professor AEE",
                     "Pacote GRE Completo",
                 ],
             )
@@ -4548,6 +4882,88 @@ elif menu == "Relatórios GRE":
             st.info(
                 "Os campos como nome completo, CPF, endereço, telefone pessoal, NIS, Cartão SUS e dados familiares sensíveis ficarão em branco para preenchimento manual."
             )
+
+            # Configurações específicas do Quadro Semanal GRE
+            data_inicio_qs = None
+            data_fim_qs = None
+            escola_qs = ""
+            regional_qs = ""
+            mes_qs = datetime.now().strftime("%m")
+            ano_qs = datetime.now().strftime("%Y")
+            df_quadro_qs = pd.DataFrame()
+
+            if tipo == "Quadro Semanal - Ações/Práticas do Professor AEE":
+                st.markdown("### 📋 Configuração do Quadro Semanal")
+                col_periodo1, col_periodo2, col_periodo3, col_periodo4 = st.columns(4)
+                with col_periodo1:
+                    data_inicio_qs = st.date_input("Data inicial", value=datetime.now().date().replace(day=1), key="qs_inicio")
+                with col_periodo2:
+                    data_fim_qs = st.date_input("Data final", value=datetime.now().date(), key="qs_fim")
+                with col_periodo3:
+                    mes_qs = st.text_input("Mês", value=datetime.now().strftime("%m"), key="qs_mes")
+                with col_periodo4:
+                    ano_qs = st.text_input("Ano", value=datetime.now().strftime("%Y"), key="qs_ano")
+
+                col_escola, col_regional = st.columns(2)
+                with col_escola:
+                    escola_qs = st.text_input("Escola", value="", placeholder="Preencha ou deixe para puxar do professor cadastrado", key="qs_escola")
+                with col_regional:
+                    regional_qs = st.text_input("Regional", value="", placeholder="Ex: Metropolitana Norte", key="qs_regional")
+
+                df_quadro_qs = montar_dataframe_quadro_semanal(
+                    estudante_id=estudante_id,
+                    data_inicio=data_inicio_qs,
+                    data_fim=data_fim_qs,
+                )
+
+                st.markdown("### ✅ Presença automática e registros do período")
+                if df_quadro_qs.empty:
+                    st.info("Nenhum agendamento/atendimento encontrado no período selecionado.")
+                else:
+                    st.dataframe(df_quadro_qs, use_container_width=True, hide_index=True)
+
+                    col_g1, col_g2 = st.columns(2)
+                    with col_g1:
+                        st.markdown("#### 📈 Atendimentos por status")
+                        status_df = df_quadro_qs.groupby("Presença").size().reset_index(name="Quantidade")
+                        graf_status = (
+                            alt.Chart(status_df)
+                            .mark_bar()
+                            .encode(
+                                x=alt.X("Presença:N", title="Status"),
+                                y=alt.Y("Quantidade:Q", title="Quantidade"),
+                                tooltip=["Presença", "Quantidade"],
+                            )
+                            .properties(height=260)
+                        )
+                        st.altair_chart(graf_status, use_container_width=True)
+                    with col_g2:
+                        st.markdown("#### 📈 Atendimentos por data")
+                        data_df = df_quadro_qs.groupby("Data").size().reset_index(name="Quantidade")
+                        graf_data = (
+                            alt.Chart(data_df)
+                            .mark_bar()
+                            .encode(
+                                x=alt.X("Data:N", title="Data", sort=None),
+                                y=alt.Y("Quantidade:Q", title="Quantidade"),
+                                tooltip=["Data", "Quantidade"],
+                            )
+                            .properties(height=260)
+                        )
+                        st.altair_chart(graf_data, use_container_width=True)
+
+                    foco_ia_qs = st.text_area(
+                        "Orientação para a IA sugerir o preenchimento do quadro",
+                        placeholder="Ex: sintetizar os recursos utilizados e as observações pedagógicas com linguagem institucional.",
+                        key="qs_foco_ia",
+                    )
+                    if st.button("🤖 Sugerir preenchimento do Quadro Semanal com IA", key="qs_ia"):
+                        with st.spinner("Gerando sugestão pedagógica para o quadro..."):
+                            st.session_state["qs_sugestao_ia"] = gerar_sugestao_ia_quadro_semanal(df_quadro_qs, foco=foco_ia_qs)
+
+                    if "qs_sugestao_ia" in st.session_state:
+                        st.markdown("### 🤖 Sugestão da IA para preenchimento")
+                        st.text_area("Sugestão editável", st.session_state["qs_sugestao_ia"], height=260, key="qs_sugestao_ia_texto")
 
             if st.button("Gerar documento GRE", key="gerar_documento_gre"):
                 if tipo == "Ficha de Identificação Professor(a) AEE":
@@ -4582,6 +4998,37 @@ elif menu == "Relatórios GRE":
                     tipo_pdf = "relatorio"
                     nome = f"Relatorio_Consolidado_GRE_{estudante[1]}"
 
+                elif tipo == "Quadro Semanal - Ações/Práticas do Professor AEE":
+                    professor = buscar_professor_responsavel()
+                    df_quadro_qs = montar_dataframe_quadro_semanal(
+                        estudante_id=estudante_id,
+                        data_inicio=data_inicio_qs,
+                        data_fim=data_fim_qs,
+                    )
+                    texto = gerar_texto_quadro_semanal_gre(
+                        professor=professor,
+                        df_quadro=df_quadro_qs,
+                        mes=mes_qs,
+                        ano=ano_qs,
+                        escola_manual=escola_qs,
+                        regional_manual=regional_qs,
+                    )
+                    tipo_pdf = "relatorio"
+                    nome = f"Quadro_Semanal_GRE_{estudante[1]}_{mes_qs}_{ano_qs}"
+                    try:
+                        arquivo_docx_qs = gerar_docx_quadro_semanal_gre(
+                            professor=professor,
+                            df_quadro=df_quadro_qs,
+                            nome_base=f"{estudante[1]}_{mes_qs}_{ano_qs}",
+                            mes=mes_qs,
+                            ano=ano_qs,
+                            escola_manual=escola_qs,
+                            regional_manual=regional_qs,
+                        )
+                        st.session_state["gre_docx_quadro"] = arquivo_docx_qs
+                    except Exception as e:
+                        st.warning(f"Não foi possível gerar o Word em tabela do Quadro Semanal: {e}")
+
                 else:
                     texto = texto_pacote_gre_completo(estudante)
                     tipo_pdf = "relatorio"
@@ -4605,6 +5052,18 @@ elif menu == "Relatórios GRE":
                 st.markdown(f"### Documento gerado: {st.session_state.get('gre_tipo', '')}")
                 st.text_area("Pré-visualização", st.session_state["gre_texto"], height=560)
                 export_buttons(st.session_state["gre_texto"], st.session_state["gre_nome"], tipo_pdf=st.session_state["gre_tipo_pdf"])
+                if st.session_state.get("gre_tipo") == "Quadro Semanal - Ações/Práticas do Professor AEE" and "gre_docx_quadro" in st.session_state:
+                    try:
+                        with open(st.session_state["gre_docx_quadro"], "rb") as f:
+                            st.download_button(
+                                "Baixar Quadro Semanal em Word com tabela",
+                                data=f,
+                                file_name=Path(st.session_state["gre_docx_quadro"]).name,
+                                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                                key="download_quadro_semanal_docx_tabela",
+                            )
+                    except Exception:
+                        st.info("Gere novamente o Quadro Semanal para baixar o Word em tabela.")
 
         with st.container(border=True):
             st.markdown("### 🗂️ Histórico de geração GRE")
