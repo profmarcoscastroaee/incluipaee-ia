@@ -4550,7 +4550,11 @@ elif menu == "Plano AEE - IA":
 
         with st.container(border=True):
             st.markdown("### 🤖 Gerar sugestão inteligente do Plano AEE")
-            st.caption("A IA cruza cadastro, entrevista com a família, avaliação pedagógica, estudo de caso GRE, atendimentos e as bases científica e pedagógica. O texto gerado inclui sugestões de tecnologias inclusivas, atividades plugadas, atividades desplugadas e recursos maker. Dados sensíveis ficam em branco para preenchimento manual no Word/PDF.")
+            st.caption(
+                "A IA cruza cadastro, entrevista com a família, avaliação pedagógica, estudo de caso GRE, "
+                "atendimentos e as bases científica e pedagógica. Para segurança pedagógica, o sistema só gera "
+                "Plano AEE completo quando houver dados mínimos registrados."
+            )
 
             col_ia1, col_ia2 = st.columns([1, 1])
             with col_ia1:
@@ -4560,33 +4564,34 @@ elif menu == "Plano AEE - IA":
 
             if limpar_ai:
                 st.session_state.pop(f"paee_ia_texto_{estudante_id}", None)
+                st.session_state.pop(f"paee_modo_{estudante_id}", None)
                 st.session_state.pop(f"termos_3d_{estudante_id}", None)
                 st.rerun()
 
-if gerar_ai:
-    avaliacao_ia = ultima_avaliacao(estudante_id)
-    entrevista_ia = ultima_linha("entrevistas_familia", CAMPOS_ENTREVISTA_FAMILIA, estudante_id)
-    estudo_ia = ultima_linha("estudos_caso", CAMPOS_ESTUDO_CASO, estudante_id)
+            if gerar_ai:
+                avaliacao_ia = ultima_avaliacao(estudante_id)
+                entrevista_ia = ultima_linha("entrevistas_familia", CAMPOS_ENTREVISTA_FAMILIA, estudante_id)
+                estudo_ia = ultima_linha("estudos_caso", CAMPOS_ESTUDO_CASO, estudante_id)
 
-    pendencias = []
+                pendencias = []
+                if not entrevista_ia:
+                    pendencias.append("Entrevista com a família")
+                if not avaliacao_ia:
+                    pendencias.append("Avaliação pedagógica")
+                if not estudo_ia:
+                    pendencias.append("Estudo de caso")
 
-    if not entrevista_ia:
-        pendencias.append("Entrevista com a família")
-    if not avaliacao_ia:
-        pendencias.append("Avaliação pedagógica")
-    if not estudo_ia:
-        pendencias.append("Estudo de caso")
+                if pendencias:
+                    st.warning("⚠️ Ainda não há dados suficientes para gerar um Plano AEE personalizado.")
+                    st.info(
+                        "Será gerado apenas um roteiro diagnóstico inicial, sem sugestões de recursos específicos, "
+                        "tecnologias, atividades plugadas, atividades desplugadas ou materiais maker."
+                    )
 
-    if pendencias:
-        st.warning("⚠️ Ainda não há dados suficientes para gerar um Plano AEE personalizado.")
-        st.info(
-            "O sistema irá gerar apenas um roteiro diagnóstico inicial, sem sugerir recursos específicos "
-            "ou materiais individualizados."
-        )
-
-        texto_pendencias = "\n".join([f"- {p}" for p in pendencias])
-
-        st.session_state[f"paee_ia_texto_{estudante_id}"] = f"""
+                    texto_pendencias = "\n".join([f"- {p}" for p in pendencias])
+                    st.session_state[f"paee_modo_{estudante_id}"] = "roteiro"
+                    st.session_state.pop(f"termos_3d_{estudante_id}", None)
+                    st.session_state[f"paee_ia_texto_{estudante_id}"] = f"""
 ROTEIRO DIAGNÓSTICO INICIAL - INCLUISRM
 
 Código interno do estudante: {estudante[1]}
@@ -4597,33 +4602,45 @@ Pendências identificadas:
 {texto_pendencias}
 
 ORIENTAÇÃO PEDAGÓGICA:
-Antes de gerar sugestões individualizadas de recursos, tecnologias assistivas, atividades plugadas, atividades desplugadas ou materiais maker, recomenda-se completar o fluxo pedagógico inicial:
+Antes de gerar sugestões individualizadas de recursos, tecnologias assistivas, atividades plugadas, atividades desplugadas, materiais maker ou objetos 3D, recomenda-se completar o fluxo pedagógico inicial:
 
 1. Realizar a entrevista com a família.
 2. Registrar a avaliação pedagógica.
 3. Elaborar o estudo de caso.
-4. Somente após essas etapas, gerar o Plano AEE - IA completo.
+4. Somente após essas etapas, retornar ao módulo Plano AEE - IA para gerar o plano completo.
+
+O QUE O SISTEMA NÃO IRÁ FAZER NESTA ETAPA:
+- Não irá indicar materiais específicos.
+- Não irá sugerir tecnologias assistivas individualizadas.
+- Não irá sugerir atividades plugadas ou desplugadas personalizadas.
+- Não irá recomendar objetos 3D ou recursos maker específicos.
+- Não irá presumir barreiras, potencialidades ou necessidades sem registros.
 
 JUSTIFICATIVA:
-Sem esses registros, o sistema não deve sugerir materiais específicos, pois isso poderia gerar recomendações sem base suficiente nas necessidades reais do estudante.
+Sem entrevista, avaliação pedagógica e estudo de caso, qualquer recomendação individualizada poderia ser inadequada, genérica ou sem base suficiente nas necessidades reais do estudante.
 
 ENCAMINHAMENTO:
-Preencher as informações pendentes e retornar ao módulo Plano AEE - IA para geração do plano completo.
+Preencher as informações pendentes no sistema e retornar ao módulo Plano AEE - IA para geração do Plano AEE completo.
 """.strip()
 
-    else:
-        st.success("✅ Dados mínimos encontrados. Gerando Plano AEE personalizado com IA.")
+                else:
+                    st.success("✅ Dados mínimos encontrados. Gerando Plano AEE personalizado com IA.")
+                    st.session_state[f"paee_modo_{estudante_id}"] = "completo"
 
-        with st.spinner("Gerando Plano AEE com Inteligência e consultando as bases de conhecimento..."):
-            st.session_state[f"paee_ia_texto_{estudante_id}"] = gerar_paee_com_ia(
-                estudante,
-                avaliacao_ia,
-                entrevista_ia,
-                estudo_ia,
-            )
+                    with st.spinner("Gerando Plano AEE com Inteligência e consultando as bases de conhecimento..."):
+                        st.session_state[f"paee_ia_texto_{estudante_id}"] = gerar_paee_com_ia(
+                            estudante,
+                            avaliacao_ia,
+                            entrevista_ia,
+                            estudo_ia,
+                        )
+
             if f"paee_ia_texto_{estudante_id}" in st.session_state:
+                modo_paee = st.session_state.get(f"paee_modo_{estudante_id}", "completo")
+                titulo_area = "Roteiro diagnóstico inicial" if modo_paee == "roteiro" else "Plano AEE gerado pela IA"
+
                 texto_ia = st.text_area(
-                    "Sugestão gerada pela AEE IA",
+                    titulo_area,
                     st.session_state[f"paee_ia_texto_{estudante_id}"],
                     height=520,
                     key=f"texto_paee_ia_{estudante_id}",
@@ -4633,63 +4650,68 @@ Preencher as informações pendentes e retornar ao módulo Plano AEE - IA para g
                 with col_exp1:
                     export_buttons(texto_ia, f"PAEE_AEE_IA_{estudante[1]}", tipo_pdf="plano")
                 with col_exp2:
-                    if st.button("Salvar sugestão AEE IA no histórico", key=f"salvar_paee_ia_{estudante_id}"):
+                    if st.button("Salvar documento gerado no histórico", key=f"salvar_paee_ia_{estudante_id}"):
                         inserir_registro(
                             "paees",
                             ["estudante_id", "data_geracao", "conteudo"],
                             [estudante_id, hoje_str(), texto_ia],
                         )
-                        st.success("Sugestão AEE IA salva no histórico de PAEE.")
+                        st.success("Documento salvo no histórico de PAEE.")
                         st.rerun()
 
-                st.markdown("---")
-                st.markdown("### 🧩 Busca de modelos 3D para recursos pedagógicos")
-                st.write(
-                    "A IA analisa o Plano AEE gerado, sugere 5 objetos 3D pedagógicos e também permite busca manual em bancos de modelos."
-                )
+                if modo_paee == "roteiro":
+                    st.info(
+                        "🔒 A busca de modelos 3D e sugestões de recursos maker ficará disponível somente após "
+                        "a geração do Plano AEE completo, com entrevista, avaliação pedagógica e estudo de caso registrados."
+                    )
+                else:
+                    st.markdown("---")
+                    st.markdown("### 🧩 Busca de modelos 3D para recursos pedagógicos")
+                    st.write(
+                        "A IA analisa o Plano AEE gerado, sugere 5 objetos 3D pedagógicos e também permite busca manual em bancos de modelos."
+                    )
 
-                col_auto, col_manual = st.columns(2)
+                    col_auto, col_manual = st.columns(2)
 
-                with col_auto:
-                    st.markdown("#### 🤖 Sugestões automáticas da IA")
+                    with col_auto:
+                        st.markdown("#### 🤖 Sugestões automáticas da IA")
 
-                    if st.button("Gerar 5 sugestões de objetos 3D", key=f"btn_3d_auto_{estudante_id}"):
-                        with st.spinner("Analisando o Plano AEE e gerando sugestões de objetos 3D..."):
-                            termos_3d = gerar_termos_3d_com_ia(texto_ia)
-                            st.session_state[f"termos_3d_{estudante_id}"] = termos_3d
+                        if st.button("Gerar 5 sugestões de objetos 3D", key=f"btn_3d_auto_{estudante_id}"):
+                            with st.spinner("Analisando o Plano AEE e gerando sugestões de objetos 3D..."):
+                                termos_3d = gerar_termos_3d_com_ia(texto_ia)
+                                st.session_state[f"termos_3d_{estudante_id}"] = termos_3d
 
-                    if f"termos_3d_{estudante_id}" in st.session_state:
-                        for termo in st.session_state[f"termos_3d_{estudante_id}"]:
-                            st.markdown(f"##### 🔎 {termo}")
+                        if f"termos_3d_{estudante_id}" in st.session_state:
+                            for termo in st.session_state[f"termos_3d_{estudante_id}"]:
+                                st.markdown(f"##### 🔎 {termo}")
+
+                                c1, c2, c3 = st.columns(3)
+                                with c1:
+                                    st.link_button("MakerWorld", link_busca_makerworld(termo))
+                                with c2:
+                                    st.link_button("Printables", link_busca_printables(termo))
+                                with c3:
+                                    st.link_button("Thingiverse", link_busca_thingiverse(termo))
+
+                    with col_manual:
+                        st.markdown("#### 🔍 Busca manual de modelos 3D")
+
+                        termo_manual = st.text_input(
+                            "Digite o termo para buscar",
+                            placeholder="Ex: braille alphabet, tactile map, sensory toy...",
+                            key=f"busca_manual_3d_{estudante_id}",
+                        )
+
+                        if termo_manual.strip():
+                            st.markdown(f"##### Resultado para: {termo_manual}")
 
                             c1, c2, c3 = st.columns(3)
                             with c1:
-                                st.link_button("MakerWorld", link_busca_makerworld(termo))
+                                st.link_button("Buscar no MakerWorld", link_busca_makerworld(termo_manual))
                             with c2:
-                                st.link_button("Printables", link_busca_printables(termo))
+                                st.link_button("Buscar no Printables", link_busca_printables(termo_manual))
                             with c3:
-                                st.link_button("Thingiverse", link_busca_thingiverse(termo))
-
-                with col_manual:
-                    st.markdown("#### 🔍 Busca manual de modelos 3D")
-
-                    termo_manual = st.text_input(
-                        "Digite o termo para buscar",
-                        placeholder="Ex: braille alphabet, tactile map, sensory toy...",
-                        key=f"busca_manual_3d_{estudante_id}",
-                    )
-
-                    if termo_manual.strip():
-                        st.markdown(f"##### Resultado para: {termo_manual}")
-
-                        c1, c2, c3 = st.columns(3)
-                        with c1:
-                            st.link_button("Buscar no MakerWorld", link_busca_makerworld(termo_manual))
-                        with c2:
-                            st.link_button("Buscar no Printables", link_busca_printables(termo_manual))
-                        with c3:
-                            st.link_button("Buscar no Thingiverse", link_busca_thingiverse(termo_manual))
-
+                                st.link_button("Buscar no Thingiverse", link_busca_thingiverse(termo_manual))
         with st.container(border=True):
             st.markdown("### 📚 Base de Conhecimento IA")
             st.caption("Use esta seção para conferir e indexar os PDFs colocados nas pastas base_conhecimento/cientifica e base_conhecimento/pedagogica.")
