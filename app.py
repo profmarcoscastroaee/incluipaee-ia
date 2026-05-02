@@ -2748,6 +2748,259 @@ Coordenação/Gestão: _____________________________________
 Responsável: ____________________________________________
 """.strip()
 
+
+# ======================================================
+# RELATÓRIOS E ESTUDO DE CASO COM BASE NOS ATENDIMENTOS
+# ======================================================
+def calcular_resumo_atendimentos(estudante_id):
+    """Calcula indicadores simples a partir dos atendimentos registrados."""
+    atendimentos = listar_atendimentos(estudante_id)
+    if not atendimentos:
+        return {
+            "total": 0,
+            "media_resposta": 0,
+            "media_avanco": 0,
+            "media_dificuldade": 0,
+            "media_engajamento": 0,
+            "media_indice": 0,
+            "interpretacao": "Sem atendimentos registrados.",
+        }
+
+    respostas = []
+    avancos = []
+    dificuldades = []
+    engajamentos = []
+    indices = []
+
+    for a in atendimentos:
+        nivel_resposta = limitar_escala(a[8] if len(a) > 8 else 5)
+        nivel_avanco = limitar_escala(a[9] if len(a) > 9 else 5)
+        nivel_dificuldade = limitar_escala(a[10] if len(a) > 10 else 5)
+        nivel_engajamento = limitar_escala(a[11] if len(a) > 11 else 5)
+        indice = calcular_indice_geral(nivel_resposta, nivel_avanco, nivel_dificuldade, nivel_engajamento)
+
+        respostas.append(nivel_resposta)
+        avancos.append(nivel_avanco)
+        dificuldades.append(nivel_dificuldade)
+        engajamentos.append(nivel_engajamento)
+        indices.append(indice)
+
+    media_indice = round(sum(indices) / len(indices), 1)
+
+    return {
+        "total": len(atendimentos),
+        "media_resposta": round(sum(respostas) / len(respostas), 1),
+        "media_avanco": round(sum(avancos) / len(avancos), 1),
+        "media_dificuldade": round(sum(dificuldades) / len(dificuldades), 1),
+        "media_engajamento": round(sum(engajamentos) / len(engajamentos), 1),
+        "media_indice": media_indice,
+        "interpretacao": interpretar_indice(media_indice),
+    }
+
+
+def gerar_relatorio_evolucao_sem_ia(estudante):
+    """Gera relatório de evolução sem depender da IA."""
+    resumo = calcular_resumo_atendimentos(estudante[0])
+    historico = listar_atendimentos_texto(estudante[0])
+
+    return f"""
+RELATÓRIO DE EVOLUÇÃO E QUALIDADE DO ATENDIMENTO - INCLUISRM
+
+Código interno do estudante: {estudante[1]}
+Ano/Série: {estudante[2] or 'Não informado.'}
+Turma: {estudante[3] or 'Não informado.'}
+Turno: {estudante[6] or 'Não informado.'}
+Perfil educacional: {estudante[4] or 'Não informado.'}
+
+1. Síntese quantitativa dos atendimentos
+Total de atendimentos registrados: {resumo['total']}
+Média da resposta do estudante: {resumo['media_resposta']}/10
+Média do avanço pedagógico: {resumo['media_avanco']}/10
+Média de dificuldade/barreira observada: {resumo['media_dificuldade']}/10
+Média de engajamento/participação: {resumo['media_engajamento']}/10
+Índice geral médio de evolução: {resumo['media_indice']}/10
+Interpretação geral: {resumo['interpretacao']}
+
+2. Histórico pedagógico considerado
+{historico}
+
+3. Análise pedagógica inicial
+A análise deve considerar os objetivos trabalhados, as atividades realizadas, as respostas do estudante, os avanços, as dificuldades, o engajamento e os encaminhamentos registrados nos atendimentos.
+
+4. Recomendações para continuidade
+- Manter registros objetivos e frequentes dos atendimentos.
+- Acompanhar a evolução por meio das escalas registradas.
+- Ajustar estratégias quando houver aumento das barreiras ou baixa participação.
+- Articular o acompanhamento com família, gestão escolar e professores da sala comum, quando necessário.
+
+5. Assinaturas
+Professor(a) AEE: _______________________________________
+Coordenação/Gestão: _____________________________________
+Responsável: ____________________________________________
+""".strip()
+
+
+def gerar_relatorio_evolucao_atendimentos_ia(estudante):
+    """Gera relatório analítico com IA com base nos atendimentos."""
+    client = obter_cliente_openai()
+    if client is None:
+        return gerar_relatorio_evolucao_sem_ia(estudante)
+
+    resumo = calcular_resumo_atendimentos(estudante[0])
+    historico = listar_atendimentos_texto(estudante[0])
+
+    prompt = f"""
+Você é especialista em Atendimento Educacional Especializado, educação inclusiva e análise pedagógica.
+
+Elabore um RELATÓRIO DE EVOLUÇÃO E QUALIDADE DO ATENDIMENTO com base exclusivamente nos dados abaixo.
+Não invente informações. Quando os dados forem insuficientes, registre essa limitação.
+
+DADOS DO ESTUDANTE:
+Código interno: {estudante[1]}
+Ano/Série: {estudante[2]}
+Turma: {estudante[3]}
+Turno: {estudante[6]}
+Perfil educacional: {estudante[4]}
+Observações cadastrais: {estudante[5]}
+
+INDICADORES CALCULADOS:
+Total de atendimentos: {resumo['total']}
+Média da resposta: {resumo['media_resposta']}/10
+Média do avanço: {resumo['media_avanco']}/10
+Média da dificuldade/barreira: {resumo['media_dificuldade']}/10
+Média do engajamento: {resumo['media_engajamento']}/10
+Índice geral médio: {resumo['media_indice']}/10
+Interpretação: {resumo['interpretacao']}
+
+REGISTROS DE ATENDIMENTO:
+{historico}
+
+Estruture o relatório assim:
+1. Identificação pedagógica segura
+2. Síntese dos atendimentos realizados
+3. Análise da evolução pedagógica
+4. Análise do engajamento e participação
+5. Barreiras e dificuldades observadas
+6. Qualidade dos registros pedagógicos
+7. Recomendações pedagógicas para o AEE
+8. Encaminhamentos sugeridos
+9. Considerações finais
+
+Use linguagem técnica, clara e institucional. Não inclua dados sensíveis como CPF, RG ou endereço.
+"""
+
+    try:
+        resposta = client.responses.create(
+            model="gpt-4.1-mini",
+            input=prompt,
+        )
+        return resposta.output_text
+    except Exception as e:
+        return f"IA temporariamente indisponível. Foi gerado um relatório sem IA.\n\nDetalhe técnico: {e}\n\n" + gerar_relatorio_evolucao_sem_ia(estudante)
+
+
+def gerar_estudo_caso_atendimentos_ia(estudante):
+    """Gera uma sugestão de estudo de caso a partir dos atendimentos registrados."""
+    client = obter_cliente_openai()
+    historico = listar_atendimentos_texto(estudante[0])
+    resumo = calcular_resumo_atendimentos(estudante[0])
+
+    if client is None:
+        return f"""
+SUGESTÃO DE ESTUDO DE CASO COM BASE NOS ATENDIMENTOS - SEM IA
+
+Código interno: {estudante[1]}
+Perfil educacional: {estudante[4] or 'Não informado.'}
+Total de atendimentos analisados: {resumo['total']}
+Índice geral médio: {resumo['media_indice']}/10
+Interpretação: {resumo['interpretacao']}
+
+1. Contextualização
+O estudante possui registros de atendimentos no AEE que devem ser analisados considerando objetivos trabalhados, atividades realizadas, respostas, avanços, dificuldades, engajamento e encaminhamentos.
+
+2. Potencialidades
+Descrever com base nos registros de resposta, avanços e engajamento.
+
+3. Dificuldades/barreiras
+Descrever com base nos campos de dificuldades observadas e escala de barreira.
+
+4. Evolução observada
+Descrever a evolução com base no histórico abaixo.
+
+HISTÓRICO:
+{historico}
+""".strip()
+
+    prompt = f"""
+Você é especialista em Atendimento Educacional Especializado.
+
+Com base nos registros de atendimentos abaixo, elabore uma SUGESTÃO DE ESTUDO DE CASO pedagógico para o AEE.
+Use somente os dados fornecidos. Não invente diagnóstico, laudo, CID ou dados pessoais.
+
+DADOS DO ESTUDANTE:
+Código interno: {estudante[1]}
+Ano/Série: {estudante[2]}
+Turma: {estudante[3]}
+Turno: {estudante[6]}
+Perfil educacional: {estudante[4]}
+Observações: {estudante[5]}
+
+INDICADORES DOS ATENDIMENTOS:
+Total: {resumo['total']}
+Resposta média: {resumo['media_resposta']}/10
+Avanço médio: {resumo['media_avanco']}/10
+Dificuldade média: {resumo['media_dificuldade']}/10
+Engajamento médio: {resumo['media_engajamento']}/10
+Índice geral médio: {resumo['media_indice']}/10
+Interpretação: {resumo['interpretacao']}
+
+ATENDIMENTOS:
+{historico}
+
+Estruture em:
+1. Contextualização
+2. Potencialidades observadas
+3. Dificuldades/barreiras identificadas
+4. Evolução observada nos atendimentos
+5. Estratégias pedagógicas recomendadas
+6. Intervenções e encaminhamentos sugeridos
+7. Considerações finais
+
+Linguagem técnica, pedagógica e institucional.
+"""
+
+    try:
+        resposta = client.responses.create(
+            model="gpt-4.1-mini",
+            input=prompt,
+        )
+        return resposta.output_text
+    except Exception as e:
+        return f"IA temporariamente indisponível. Detalhe técnico: {e}\n\n" + gerar_relatorio_evolucao_sem_ia(estudante)
+
+
+def salvar_estudo_caso_gerado_por_ia(estudante_id, texto_gerado):
+    """Salva a sugestão de estudo gerada pela IA no histórico de estudos de caso."""
+    campos = [
+        "estudante_id", "data_registro", "contextualizacao", "queixa_principal",
+        "potencialidades", "dificuldades", "estrategias", "intervencoes",
+        "avaliacao", "consideracoes"
+    ]
+    valores = [
+        estudante_id,
+        hoje_str(),
+        texto_gerado,
+        "Gerado com base nos registros de atendimento do AEE.",
+        "Ver sugestão gerada no campo Contextualização.",
+        "Ver sugestão gerada no campo Contextualização.",
+        "Ver sugestão gerada no campo Contextualização.",
+        "Ver sugestão gerada no campo Contextualização.",
+        "Ver sugestão gerada no campo Contextualização.",
+        "Registro gerado por IA a partir dos atendimentos. Revisar antes de uso oficial.",
+    ]
+    inserir_registro("estudos_caso", campos, valores)
+
+
 # ======================================================
 # DATAFRAMES / GRÁFICOS
 # ======================================================
@@ -2962,7 +3215,6 @@ elif menu == "Cadastro do Estudante":
                         try:
                             cadastrar_estudante(codigo.strip(), ano_serie, turma, turno, perfil, observacoes, ", ".join(dias), horario)
                             st.success("Estudante cadastrado com sucesso.")
-                           
                             resetar_form("cadastro_estudante")
                             st.rerun()
 
@@ -3614,6 +3866,35 @@ elif menu == "Estudo de Caso":
                     st.success("Estudo de caso GRE salvo.")
                     st.rerun()
 
+        with st.container(border=True):
+            st.markdown("### 🤖 Gerar sugestão de Estudo de Caso com base nos atendimentos")
+            st.write("A IA analisa os registros de atendimento do estudante e monta uma sugestão de Estudo de Caso. Revise o texto antes de usar oficialmente.")
+
+            atendimentos_estudo = listar_atendimentos(estudante_id)
+            if not atendimentos_estudo:
+                st.info("Ainda não há atendimentos registrados para gerar a sugestão de Estudo de Caso.")
+            else:
+                resumo_estudo = calcular_resumo_atendimentos(estudante_id)
+                c1, c2, c3, c4 = st.columns(4)
+                c1.metric("Atendimentos", resumo_estudo["total"])
+                c2.metric("Avanço médio", f"{resumo_estudo['media_avanco']}/10")
+                c3.metric("Engajamento", f"{resumo_estudo['media_engajamento']}/10")
+                c4.metric("Índice geral", f"{resumo_estudo['media_indice']}/10")
+
+                if st.button("Gerar Estudo de Caso com IA", key=f"gerar_estudo_atendimentos_ia_{estudante_id}"):
+                    with st.spinner("Gerando sugestão de Estudo de Caso a partir dos atendimentos..."):
+                        st.session_state[f"estudo_caso_ia_{estudante_id}"] = gerar_estudo_caso_atendimentos_ia(estudante)
+
+                if f"estudo_caso_ia_{estudante_id}" in st.session_state:
+                    texto_estudo_ia = st.session_state[f"estudo_caso_ia_{estudante_id}"]
+                    st.text_area("Sugestão gerada", texto_estudo_ia, height=420, key=f"preview_estudo_ia_{estudante_id}")
+                    export_buttons(texto_estudo_ia, f"Estudo_Caso_IA_Atendimentos_{estudante[1]}", tipo_pdf="estudo")
+
+                    if st.button("Salvar sugestão no histórico de Estudo de Caso", key=f"salvar_estudo_ia_{estudante_id}"):
+                        salvar_estudo_caso_gerado_por_ia(estudante_id, texto_estudo_ia)
+                        st.success("Sugestão salva no histórico de Estudo de Caso. Revise antes de uso oficial.")
+                        st.rerun()
+
         estudos = listar_por_estudante(
             "estudos_caso",
             CAMPOS_ESTUDO_CASO,
@@ -4123,7 +4404,7 @@ elif menu == "Atendimentos do Dia":
                                 st.session_state["agenda_id_em_registro"] = agenda_id
                                 st.session_state["atendimento_estudante_id"] = estudante_id
                                 st.session_state["atendimento_data"] = data_ag
-                                st.session_state["menu_atual"] = "Atendimentos"
+                                st.info("Presença confirmada. Acesse o menu 'Atendimentos' para concluir o registro pedagógico.")
                                 st.rerun()
                         with col2:
                             motivo_falta = st.text_input("Motivo/observação da falta", key=f"motivo_falta_{agenda_id}")
@@ -4155,6 +4436,8 @@ elif menu == "Relatórios GRE":
                 [
                     "Matrícula SRM / Cadastro seguro",
                     "Relatório consolidado GRE",
+                    "Relatório de evolução e qualidade do atendimento",
+                    "Relatório de evolução com IA",
                     "Última avaliação pedagógica",
                     "Último estudo de caso",
                     "Último Plano AEE / PAEE",
@@ -4166,6 +4449,14 @@ elif menu == "Relatórios GRE":
                     texto = texto_matricula_srm(estudante)
                     tipo_pdf = "matricula_srm"
                     nome = f"Matricula_SRM_{estudante[1]}"
+                elif tipo == "Relatório de evolução e qualidade do atendimento":
+                    texto = gerar_relatorio_evolucao_sem_ia(estudante)
+                    tipo_pdf = "relatorio"
+                    nome = f"Relatorio_Evolucao_Qualidade_{estudante[1]}"
+                elif tipo == "Relatório de evolução com IA":
+                    texto = gerar_relatorio_evolucao_atendimentos_ia(estudante)
+                    tipo_pdf = "relatorio"
+                    nome = f"Relatorio_Evolucao_IA_{estudante[1]}"
                 elif tipo == "Última avaliação pedagógica":
                     av = ultima_avaliacao(estudante_id)
                     texto = texto_avaliacao(estudante, ("", *av)) if av else "Nenhuma avaliação registrada."
