@@ -245,11 +245,85 @@ header {visibility: hidden;}
 # ======================================================
 # BANCO DE DADOS
 # ======================================================
+# ======================================================
+# CONEXÃO COM BANCO DE DADOS
+# - No Render: usa PostgreSQL pela variável DATABASE_URL
+# - Localmente: se não houver DATABASE_URL, usa SQLite para testes
+# ======================================================
+try:
+    import psycopg2
+except Exception:
+    psycopg2 = None
+
+DATABASE_URL = os.getenv("DATABASE_URL")
+USAR_POSTGRES = bool(DATABASE_URL)
+
+if psycopg2 is not None:
+    INTEGRITY_ERRORS = (sqlite3.IntegrityError, psycopg2.IntegrityError)
+else:
+    INTEGRITY_ERRORS = (sqlite3.IntegrityError,)
+
+
+class CursorPostgresCompat:
+    """Pequena camada de compatibilidade para reaproveitar o código escrito para SQLite.
+    Converte placeholders ? para %s e AUTOINCREMENT para SERIAL.
+    """
+    def __init__(self, cursor):
+        self.cursor = cursor
+
+    def execute(self, query, params=None):
+        query = query.replace("SERIAL PRIMARY KEY", "SERIAL PRIMARY KEY")
+        query = query.replace("?", "%s")
+        if params is None:
+            return self.cursor.execute(query)
+        return self.cursor.execute(query, params)
+
+    def fetchone(self):
+        return self.cursor.fetchone()
+
+    def fetchall(self):
+        return self.cursor.fetchall()
+
+    def close(self):
+        return self.cursor.close()
+
+
+class ConexaoPostgresCompat:
+    def __init__(self, conn):
+        self.conn = conn
+
+    def cursor(self):
+        return CursorPostgresCompat(self.conn.cursor())
+
+    def commit(self):
+        return self.conn.commit()
+
+    def rollback(self):
+        return self.conn.rollback()
+
+    def close(self):
+        return self.conn.close()
+
+
 def conectar():
+    if USAR_POSTGRES:
+        if psycopg2 is None:
+            raise RuntimeError("psycopg2-binary não está instalado. Adicione psycopg2-binary ao requirements.txt")
+        return ConexaoPostgresCompat(psycopg2.connect(DATABASE_URL))
     return sqlite3.connect(DB_PATH)
 
 
 def coluna_existe(cursor, tabela, coluna):
+    if USAR_POSTGRES:
+        cursor.execute(
+            """
+            SELECT column_name
+            FROM information_schema.columns
+            WHERE table_name = %s AND column_name = %s
+            """,
+            (tabela, coluna),
+        )
+        return cursor.fetchone() is not None
     cursor.execute(f"PRAGMA table_info({tabela})")
     return coluna in [c[1] for c in cursor.fetchall()]
 
@@ -266,7 +340,7 @@ def criar_tabelas():
     cursor.execute(
         """
         CREATE TABLE IF NOT EXISTS estudantes (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             codigo TEXT UNIQUE NOT NULL,
             ano_serie TEXT,
             turma TEXT,
@@ -283,7 +357,7 @@ def criar_tabelas():
     cursor.execute(
         """
         CREATE TABLE IF NOT EXISTS professores (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             nome_referencia TEXT,
             escola TEXT,
             regional TEXT,
@@ -299,7 +373,7 @@ def criar_tabelas():
     cursor.execute(
         """
         CREATE TABLE IF NOT EXISTS estudante_professor (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             estudante_id INTEGER NOT NULL,
             professor_id INTEGER NOT NULL,
             criado_em TEXT,
@@ -313,7 +387,7 @@ def criar_tabelas():
     cursor.execute(
         """
         CREATE TABLE IF NOT EXISTS entrevistas_familia (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             estudante_id INTEGER NOT NULL,
             data_registro TEXT,
             rotina TEXT,
@@ -418,7 +492,7 @@ def criar_tabelas():
     cursor.execute(
         """
         CREATE TABLE IF NOT EXISTS avaliacoes (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             estudante_id INTEGER NOT NULL,
             data_registro TEXT,
             barreiras TEXT,
@@ -436,7 +510,7 @@ def criar_tabelas():
     cursor.execute(
         """
         CREATE TABLE IF NOT EXISTS estudos_caso (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             estudante_id INTEGER NOT NULL,
             data_registro TEXT,
             contextualizacao TEXT,
@@ -496,7 +570,7 @@ def criar_tabelas():
     cursor.execute(
         """
         CREATE TABLE IF NOT EXISTS planos_aee (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             estudante_id INTEGER NOT NULL,
             data_registro TEXT,
             objetivos_gerais TEXT,
@@ -516,7 +590,7 @@ def criar_tabelas():
     cursor.execute(
         """
         CREATE TABLE IF NOT EXISTS paees (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             estudante_id INTEGER NOT NULL,
             data_geracao TEXT,
             conteudo TEXT,
@@ -528,7 +602,7 @@ def criar_tabelas():
     cursor.execute(
         """
         CREATE TABLE IF NOT EXISTS relatorios (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             estudante_id INTEGER NOT NULL,
             data_geracao TEXT,
             titulo TEXT,
@@ -541,7 +615,7 @@ def criar_tabelas():
     cursor.execute(
         """
         CREATE TABLE IF NOT EXISTS atendimentos (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             estudante_id INTEGER NOT NULL,
             data_atendimento TEXT,
             objetivo TEXT,
@@ -577,7 +651,7 @@ def criar_tabelas():
     cursor.execute(
         """
         CREATE TABLE IF NOT EXISTS agenda (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             estudante_id INTEGER NOT NULL,
             data_agendamento TEXT,
             dia_semana TEXT,
@@ -603,7 +677,7 @@ def criar_tabelas():
     cursor.execute(
         """
         CREATE TABLE IF NOT EXISTS documentos_gre_gerados (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             estudante_id INTEGER,
             tipo_documento TEXT,
             nome_arquivo TEXT,
@@ -3780,7 +3854,7 @@ elif menu == "Cadastro do Estudante":
                             resetar_form("cadastro_estudante")
                             st.rerun()
 
-                        except sqlite3.IntegrityError:
+                        except INTEGRITY_ERRORS:
                             st.error("Este código já existe. Use outro código interno.")
 
     with col_lista:
