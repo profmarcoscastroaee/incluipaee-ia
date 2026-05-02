@@ -591,15 +591,6 @@ def criar_tabelas():
         """
     )
 
-    # Campos de controle operacional da agenda
-    # Permitem transformar um agendamento em atendimento, presença ou falta.
-    for coluna, definicao in [
-        ("status_presenca", "TEXT DEFAULT 'Agendado'"),
-        ("atendimento_id", "INTEGER"),
-        ("observacao_presenca", "TEXT"),
-    ]:
-        adicionar_coluna_se_nao_existe(cursor, "agenda", coluna, definicao)
-
     conn.commit()
     conn.close()
 
@@ -1294,31 +1285,21 @@ def salvar_atendimento(
     nivel_avanco, nivel_dificuldade, nivel_engajamento, nivel_evolucao,
     encaminhamentos,
 ):
-    """Salva um atendimento e retorna o ID criado.
-    Esse retorno permite vincular o registro ao agendamento do dia.
-    """
-    conn = conectar()
-    cursor = conn.cursor()
-    cursor.execute(
-        """
-        INSERT INTO atendimentos (
-            estudante_id, data_atendimento, objetivo, atividade, resposta_estudante,
-            avancos, dificuldades, evolucao, qtd_atividades, nivel_resposta,
-            nivel_avanco, nivel_dificuldade, nivel_engajamento, nivel_evolucao,
-            encaminhamentos
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """,
-        (
+    inserir_registro(
+        "atendimentos",
+        [
+            "estudante_id", "data_atendimento", "objetivo", "atividade", "resposta_estudante",
+            "avancos", "dificuldades", "evolucao", "qtd_atividades", "nivel_resposta",
+            "nivel_avanco", "nivel_dificuldade", "nivel_engajamento", "nivel_evolucao",
+            "encaminhamentos",
+        ],
+        [
             estudante_id, data_atendimento, objetivo, atividade, resposta_estudante,
             avancos, dificuldades, evolucao, qtd_atividades, nivel_resposta,
             nivel_avanco, nivel_dificuldade, nivel_engajamento, nivel_evolucao,
             encaminhamentos,
-        ),
+        ],
     )
-    atendimento_id = cursor.lastrowid
-    conn.commit()
-    conn.close()
-    return atendimento_id
 
 
 def listar_atendimentos(estudante_id):
@@ -1388,14 +1369,8 @@ def excluir_atendimento(atendimento_id):
 def salvar_agendamento(estudante_id, data_agendamento, dia_semana, hora_inicio, hora_fim, tipo_atendimento, observacoes):
     inserir_registro(
         "agenda",
-        [
-            "estudante_id", "data_agendamento", "dia_semana", "hora_inicio",
-            "hora_fim", "tipo_atendimento", "observacoes", "status_presenca", "criado_em"
-        ],
-        [
-            estudante_id, data_agendamento, dia_semana, hora_inicio, hora_fim,
-            tipo_atendimento, observacoes, "Agendado", hoje_str()
-        ],
+        ["estudante_id", "data_agendamento", "dia_semana", "hora_inicio", "hora_fim", "tipo_atendimento", "observacoes", "criado_em"],
+        [estudante_id, data_agendamento, dia_semana, hora_inicio, hora_fim, tipo_atendimento, observacoes, hoje_str()],
     )
 
 
@@ -1406,9 +1381,7 @@ def listar_agenda():
         """
         SELECT agenda.id, estudantes.codigo, estudantes.ano_serie, estudantes.perfil,
                agenda.data_agendamento, agenda.dia_semana, agenda.hora_inicio,
-               agenda.hora_fim, agenda.tipo_atendimento, agenda.observacoes,
-               COALESCE(agenda.status_presenca, 'Agendado') AS status_presenca,
-               agenda.observacao_presenca, agenda.atendimento_id
+               agenda.hora_fim, agenda.tipo_atendimento, agenda.observacoes
         FROM agenda
         JOIN estudantes ON estudantes.id = agenda.estudante_id
         ORDER BY agenda.data_agendamento, agenda.hora_inicio
@@ -1417,62 +1390,6 @@ def listar_agenda():
     dados = cursor.fetchall()
     conn.close()
     return dados
-
-
-def listar_agenda_por_data(data_texto):
-    conn = conectar()
-    cursor = conn.cursor()
-    cursor.execute(
-        """
-        SELECT agenda.id, agenda.estudante_id, estudantes.codigo, estudantes.ano_serie, estudantes.turma,
-               estudantes.perfil, agenda.data_agendamento, agenda.dia_semana, agenda.hora_inicio,
-               agenda.hora_fim, agenda.tipo_atendimento, agenda.observacoes,
-               COALESCE(agenda.status_presenca, 'Agendado') AS status_presenca,
-               agenda.observacao_presenca, agenda.atendimento_id
-        FROM agenda
-        JOIN estudantes ON estudantes.id = agenda.estudante_id
-        WHERE agenda.data_agendamento = ?
-        ORDER BY agenda.hora_inicio, estudantes.codigo
-        """,
-        (data_texto,),
-    )
-    dados = cursor.fetchall()
-    conn.close()
-    return dados
-
-
-def atualizar_status_agendamento(agenda_id, status_presenca, observacao_presenca=None, atendimento_id=None):
-    conn = conectar()
-    cursor = conn.cursor()
-    cursor.execute(
-        """
-        UPDATE agenda
-        SET status_presenca = ?, observacao_presenca = COALESCE(?, observacao_presenca),
-            atendimento_id = COALESCE(?, atendimento_id)
-        WHERE id = ?
-        """,
-        (status_presenca, observacao_presenca, atendimento_id, agenda_id),
-    )
-    conn.commit()
-    conn.close()
-
-
-def buscar_agendamento(agenda_id):
-    conn = conectar()
-    cursor = conn.cursor()
-    cursor.execute(
-        """
-        SELECT id, estudante_id, data_agendamento, dia_semana, hora_inicio, hora_fim,
-               tipo_atendimento, observacoes, COALESCE(status_presenca, 'Agendado'),
-               observacao_presenca, atendimento_id
-        FROM agenda
-        WHERE id = ?
-        """,
-        (agenda_id,),
-    )
-    dado = cursor.fetchone()
-    conn.close()
-    return dado
 
 
 def listar_agenda_com_id():
@@ -2685,321 +2602,589 @@ Classificar como: Alta, Média ou Baixa.
     return resposta.output_text
 
 
+# ======================================================
+# DOCUMENTOS GRE - MODELOS INSTITUCIONAIS COM CAMPOS SIGILOSOS EM BRANCO
+# ======================================================
+def linha_preenchimento(rotulo, tamanho=60):
+    return f"{rotulo}: " + "_" * tamanho
+
+
+def valor_ou_linha(valor, rotulo="", tamanho=60, sigiloso=False):
+    """Preenche somente dados não sigilosos já existentes no sistema."""
+    if sigiloso:
+        return linha_preenchimento(rotulo, tamanho) if rotulo else "_" * tamanho
+    if valor not in (None, "", "Não informado"):
+        return str(valor)
+    return linha_preenchimento(rotulo, tamanho) if rotulo else "Não informado."
+
+
+def marcar_opcao(valor, esperado):
+    valor = str(valor or "").strip().lower()
+    esperado = str(esperado or "").strip().lower()
+    return "(X)" if valor == esperado else "( )"
+
+
+def texto_campos_sensiveis_gre_estudante():
+    return """
+DADOS SIGILOSOS / PREENCHIMENTO MANUAL NO WORD OU IMPRESSO
+Nome completo do(a) estudante: ___________________________________________
+Data de nascimento: ____/____/________
+CPF/RG do(a) estudante: _________________________________________________
+Matrícula oficial do(a) estudante: _______________________________________
+Nome do(a) responsável: _________________________________________________
+CPF do(a) responsável: _________________________________________________
+Contato telefônico do(a) responsável: ___________________________________
+Endereço completo: ______________________________________________________
+Número do NIS: __________________________________________________________
+Número do Cartão SUS: __________________________________________________
+Filiação: _______________________________________________________________
+""".strip()
+
+
+def texto_cabecalho_gre(titulo):
+    return f"""
+SECRETARIA DE EDUCAÇÃO E ESPORTES
+GERÊNCIA METROPOLITANA NORTE DE EDUCAÇÃO
+CGDE - COORDENAÇÃO GERAL DE DESENVOLVIMENTO DA EDUCAÇÃO
+NÚCLEO / UNIDADE DE EDUCAÇÃO INCLUSIVA, DIREITOS HUMANOS E CIDADANIA
+
+{titulo}
+""".strip()
+
+
+def texto_ficha_professor_gre(professor=None):
+    if professor is None:
+        professor = buscar_professor_responsavel()
+
+    if not professor:
+        return "Nenhum professor AEE cadastrado."
+
+    return f"""
+{texto_cabecalho_gre("FICHA DE IDENTIFICAÇÃO PROFESSOR(A) AEE")}
+
+ANO LETIVO: ______________________
+
+1. IDENTIFICAÇÃO PESSOAL
+Nome: {professor[1] or 'Não informado.'}
+Data de nascimento: ____/____/________
+Matrícula: ___________________________________________
+Endereço: ____________________________________________
+Filiação: ____________________________________________
+País de nacionalidade: _______________________________
+CPF: _________________________________________________
+UF de nascimento: ______ Município de nascimento: __________________________
+
+Profissional escolar com deficiência, Transtorno do Espectro do Autismo e/ou Altas Habilidades/Superdotação?
+( ) Não   ( ) Sim. Qual? _________________________________________________
+
+Telefones para contato: _________________________________________________
+E-mail: _________________________________________________________________
+
+2. FORMAÇÃO ACADÊMICA
+Maior nível de escolaridade concluída: {professor[4] or 'Não informado.'}
+
+Dados sobre graduação:
+Curso: _________________________________________________________________
+Instituição: ____________________________________________________________
+Ano de conclusão: _________________________
+
+Dados sobre pós-graduação:
+( ) Especialização   ( ) Mestrado   ( ) Doutorado   ( ) Não tem pós concluída
+Curso: _________________________________________________________________
+Instituição: ____________________________________________________________
+Ano de conclusão: _________________________
+
+Outras informações relevantes quanto à qualificação profissional:
+{professor[7] or '________________________________________________________________________________'}
+
+3. IDENTIFICAÇÃO PROFISSIONAL
+Escola que atua na rede: {professor[2] or 'Não informado.'}
+Telefone institucional: _________________________________________________
+Regional: {professor[3] or 'Não informado.'}
+Horário / carga horária: {professor[5] or 'Não informado.'}
+Turno de atuação: {professor[6] or 'Não informado.'}
+Acumulação: ___________________________________________
+Trabalha em outra rede? ( ) Sim   ( ) Não
+Rede que atua: _________________________________________
+Horário: ____________________ Telefone: ________________________________
+
+____________________, ____ de __________________________ de ____________
+
+Assinatura do(a) professor(a): __________________________________________
+""".strip()
+
+
+def texto_matricula_srm_gre(estudante):
+    return f"""
+{texto_cabecalho_gre("MATRÍCULA PARA O ATENDIMENTO EDUCACIONAL ESPECIALIZADO NA SALA DE RECURSOS MULTIFUNCIONAIS - SRM")}
+
+Escola: ________________________________________________
+Estudante: _____________________________________________
+Ano: {estudante[2] or 'Não informado.'}   Turma: {estudante[3] or 'Não informado.'}   Turno: {estudante[6] or 'Não informado.'}
+Ano letivo: ______________________
+
+1. IDENTIFICAÇÃO SEGURA NO SISTEMA
+Código interno: {estudante[1] or 'Não informado.'}
+Perfil educacional informado: {estudante[4] or 'Não informado.'}
+Dias preferenciais de atendimento: {estudante[7] or 'Não informado.'}
+Horário preferencial: {estudante[8] or 'Não informado.'}
+
+{texto_campos_sensiveis_gre_estudante()}
+
+2. REQUERIMENTO DE MATRÍCULA / TERMO DE CIÊNCIA DO SERVIÇO DE AEE
+Nome da Instituição de Ensino da SRM: ___________________________________
+Local e data: ______________________, ____ de __________________ de ______
+
+Nome do(a) estudante: _________________________________________________
+Data de nascimento: ____/____/________
+Turma: {estudante[3] or 'Não informado.'}   Turno: {estudante[6] or 'Não informado.'}
+Filiação: ______________________________________________________________
+Endereço: ______________________________________________________________
+Recebe auxílio? ( ) Não   ( ) Sim   Número do NIS: ______________________
+Número do Cartão SUS: _________________________________________________
+
+3. INDICAÇÃO DO PÚBLICO-ALVO DA EDUCAÇÃO ESPECIAL
+( ) Deficiência Auditiva        ( ) Surdo(a)        ( ) Usa aparelho auditivo
+( ) Surdocegueira
+( ) Deficiência Intelectual     ( ) Síndrome de Down
+( ) Altas habilidades/Superdotação
+( ) Deficiência Visual          ( ) Cegueira        ( ) Baixa visão
+( ) Transtorno do Espectro do Autismo - TEA
+( ) Deficiência Física          ( ) Usuário(a) de cadeira de rodas
+( ) Deficiência Múltipla. Quais? ________________________________________
+( ) Outro: ______________________________________________________________
+
+Perfil registrado no sistema: {estudante[4] or 'Não informado.'}
+
+4. AUTORIZAÇÕES
+Autorização para retirar o(a) estudante da escola:
+( ) Deixar a escola sozinho(a)
+( ) Deixar a escola apenas acompanhado(a)
+
+Nome do acompanhante | Parentesco/relação social | Documento | Telefone
+_______________________________________________________________________
+_______________________________________________________________________
+
+Permissão para uso e divulgação da imagem para fins educacionais e pedagógicos:
+( ) Sim   ( ) Não
+
+Matrícula no Atendimento Educacional Especializado - AEE, realizado na Sala de Recursos Multifuncionais desta escola,
+nos dias de {estudante[7] or '_______________________'} no horário de {estudante[8] or '________ às ________'}.
+
+5. TERMO DE CIÊNCIA
+Eu, ____________________________________________, CPF nº ______________________________,
+responsável pelo(a) estudante ____________________________________________, regularmente matriculado(a)
+na escola ____________________________________________, no ano {estudante[2] or '_____'} turma {estudante[3] or '_____'} turno {estudante[6] or '_____'},
+declaro estar ciente do Serviço do Atendimento Educacional Especializado disponibilizado pela Unidade Escolar.
+Autorizo e me comprometo com a participação e frequência deste(a) estudante aos Atendimentos Educacionais
+Especializados na Sala de Recursos Multifuncionais desta Unidade Educacional.
+
+Declaro ter ciência de que o descumprimento do compromisso acima poderá resultar na perda da vaga neste serviço.
+
+Data: ____/____/________
+
+Assinatura do responsável: ______________________________________________
+Professor(a) da SRM / AEE: ______________________________________________
+Gestão / Coordenação Pedagógica: ________________________________________
+""".strip()
+
+
+def texto_entrevista_familia_gre(estudante, entrevista=None):
+    if entrevista is None:
+        entrevista = ultima_linha("entrevistas_familia", CAMPOS_ENTREVISTA_FAMILIA, estudante[0])
+
+    dados = dict(zip(CAMPOS_ENTREVISTA_FAMILIA, entrevista or []))
+    def v(campo):
+        valor = dados.get(campo)
+        return valor if valor not in (None, "") else "Não informado."
+
+    return f"""
+{texto_cabecalho_gre("ENTREVISTA COM A FAMÍLIA")}
+
+Escola: ________________________________________________
+Estudante: _____________________________________________
+Ano letivo: ______________________
+Código interno no sistema: {estudante[1] or 'Não informado.'}
+Ano/Série: {estudante[2] or 'Não informado.'}   Turma: {estudante[3] or 'Não informado.'}   Turno: {estudante[6] or 'Não informado.'}
+
+{texto_campos_sensiveis_gre_estudante()}
+
+1. INFORMAÇÕES DIVERSAS
+A família participa de algum programa de auxílio governamental? {v('auxilio_governamental')}
+Qual(is): {v('auxilio_quais')}
+Há histórico familiar de doenças graves, deficiência ou transtornos? {v('historico_familiar')}
+Qual(is): {v('historico_quais')}
+Já repetiu de ano? {v('repetiu_ano')}   Quantas vezes? {v('repetiu_qtd')}
+Trocou de escola? {v('trocou_escola')}   Quantas vezes? {v('trocou_qtd')}
+Motivo da troca: {v('motivo_troca')}
+Situação em relação à escola: {v('situacao_escolar')}
+Demonstra interesse em frequentar a escola: {v('interesse_escola')}
+Cuida/organiza seus materiais: {v('organiza_materiais')}
+Apresenta resistência à escola: {v('resistencia_escola')}
+Relaciona-se bem com colegas: {v('relacao_colegas')}
+Relaciona-se bem com professores: {v('relacao_professores')}
+Leva alimentação de casa: {v('leva_alimentacao')}
+Alimenta-se da merenda escolar: {v('merenda_escolar')}
+Possui alergia alimentar: {v('alergia_alimentar')}   Qual(is): {v('alergia_quais')}
+Outras observações: {v('obs_diversas')}
+
+2. SOBRE A ESCOLHA DA ESCOLA
+Motivo da escolha: {v('motivo_escolha')}
+Outros motivos: {v('outros_motivos')}
+O que conhece sobre o serviço do AEE: {v('conhecimento_aee')}
+
+3. INFORMAÇÕES SOBRE A SAÚDE
+Possui doença preexistente: {v('doenca_preexistente')}
+Convulsões: {v('convulsoes')}
+Acompanhamentos profissionais: {v('acompanhamentos')}
+Outro acompanhamento: {v('acompanhamento_outro')}
+Frequência: {v('frequencia_acompanhamento')}   Outra: {v('frequencia_outro')}
+Alimentação saudável: {v('alimentacao_saudavel')}
+Seletividade alimentar: {v('seletividade_alimentar')}
+Dieta sensorial: {v('dieta_sensorial')}
+Usa suplemento alimentar: {v('suplemento_alimentar')}   Qual: {v('suplemento_qual')}
+Alimenta-se por sonda: {v('alimenta_sonda')}
+Dorme bem: {v('dorme_bem')}
+Faz uso de medicação: {v('medicacao')}   Qual(is): {v('medicacao_qual')}
+Tempo de medicação/tratamentos realizados: {v('tempo_medicacao_tratamentos')}
+Outras observações de saúde: {v('obs_saude')}
+
+4. DESENVOLVIMENTO PSICOMOTOR
+Lateralidade: {v('lateralidade')}
+Estereotipias: {v('estereotipias')}   Qual(is): {v('estereotipias_quais')}
+Segura objetos com as duas mãos: {v('segura_objetos_duas_maos')}
+Tamanho dos objetos que segura: {v('tamanho_objetos')}
+Faz a pega correta do lápis: {v('pega_lapis')}
+Engatinhou: {v('engatinhou')}   Andou com que idade: {v('idade_andou')}
+Usa fraldas na escola: {v('usa_fraldas')}
+Usa sonda de alívio: {v('usa_sonda_alivio')}
+Autonomia nas atividades: {v('autonomia_atividades')}
+Outras atividades de autonomia: {v('autonomia_outros')}
+Atende comandos: {v('atende_comandos')}
+Gosta do toque: {v('gosta_toque')}
+Outras observações psicomotoras: {v('obs_psicomotor')}
+
+5. LINGUAGEM
+Verbal: {v('verbal')}
+Consegue se comunicar: {v('consegue_comunicar')}
+Problemas na fala: {v('problemas_fala')}
+Ecolalia: {v('ecolalia')}
+Consegue dar recado: {v('da_recado')}
+Usa comunicação alternativa: {v('comunicacao_alternativa')}   Qual: {v('comunicacao_alternativa_qual')}
+
+6. SOCIALIZAÇÃO
+Relação com pai: {v('relacao_pai')}
+Relação com mãe: {v('relacao_mae')}
+Relação com parentes: {v('relacao_parentes')}
+Relação com irmãos: {v('relacao_irmaos')}
+Relação com outros estudantes: {v('relacao_estudantes')}
+Tem melhor amigo(a): {v('tem_melhor_amigo')}   Tipo: {v('tipo_melhor_amigo')}
+Adapta-se ao ambiente: {v('adapta_ambiente')}
+Flexível na rotina: {v('flexivel_rotina')}
+Respeita regras: {v('respeita_regras')}
+Chora com facilidade: {v('chora_facilidade')}
+Brinca como: {v('brinca_como')}
+Interesses e lazer: {v('interesses_lazer')}
+O que a família mais gosta no(a) estudante: {v('familia_gosta')}
+O que a família considera necessário melhorar: {v('familia_nao_gosta')}
+Ambiente físico em casa para estudos/brincadeiras: {v('ambiente_estudo_casa')}
+
+7. CONTEXTO FAMILIAR
+Principais habilidades:
+{v('habilidades')}
+
+Principais oportunidades de melhoria:
+{v('oportunidades_melhoria')}
+
+8. OUTRAS INFORMAÇÕES
+{v('outras_info_familia')}
+
+____________________, ____ de __________________________ de ____________
+Assinatura do responsável: ______________________________________________
+Professor(a) AEE: ______________________________________________________
+""".strip()
+
+
+def texto_estudo_plano_aee_gre(estudante, estudo=None, plano=None):
+    if estudo is None:
+        estudo = ultima_linha("estudos_caso", CAMPOS_ESTUDO_CASO, estudante[0])
+    if plano is None:
+        plano = ultima_linha(
+            "planos_aee",
+            ["data_registro", "objetivos_gerais", "objetivos_especificos", "habilidades_prioritarias", "recursos_acessibilidade", "estrategias", "organizacao_atendimento", "parcerias", "avaliacao_acompanhamento", "observacoes"],
+            estudante[0],
+        )
+
+    dados_estudo = dict(zip(CAMPOS_ESTUDO_CASO, estudo or []))
+    def e(campo):
+        valor = dados_estudo.get(campo)
+        return valor if valor not in (None, "") else "Não informado."
+
+    dados_plano = {}
+    if plano:
+        chaves = ["data_registro", "objetivos_gerais", "objetivos_especificos", "habilidades_prioritarias", "recursos_acessibilidade", "estrategias", "organizacao_atendimento", "parcerias", "avaliacao_acompanhamento", "observacoes"]
+        dados_plano = dict(zip(chaves, plano))
+
+    def p(campo):
+        valor = dados_plano.get(campo)
+        return valor if valor not in (None, "") else "Não informado."
+
+    return f"""
+{texto_cabecalho_gre("ESTUDO DE CASO E PLANO DE ATENDIMENTO EDUCACIONAL ESPECIALIZADO")}
+
+O Plano de Atendimento Educacional Especializado deverá garantir os registros avaliativos do estudante público-alvo da educação especial, considerando as observações do professor do AEE, a eliminação de barreiras e a busca por recursos de acessibilidade necessários à promoção da autonomia e da aprendizagem.
+
+PARTE 1 - IDENTIFICAÇÃO DO(A) ESTUDANTE
+Código interno: {estudante[1] or 'Não informado.'}
+Ano/Série cadastrado: {estudante[2] or 'Não informado.'}
+Turma: {estudante[3] or 'Não informado.'}   Turno: {estudante[6] or 'Não informado.'}
+Perfil educacional: {estudante[4] or 'Não informado.'}
+
+{texto_campos_sensiveis_gre_estudante()}
+
+1.5 Etapa/modalidade: {e('etapa_modalidade')}
+Ano/etapa: {e('ano_etapa')}
+1.6 Turma e turno: {estudante[3] or 'Não informado.'} / {estudante[6] or 'Não informado.'}
+1.7 Apresenta laudo? {e('laudo')}
+1.8 Apresenta deficiência? {e('deficiencia')}   CID: {e('cid')}
+1.9 Altas habilidades/superdotação: {e('altas_habilidades')}
+1.10 Usuário de BPC? {e('bpc')}
+1.11 Escola do ensino comum: {e('escola_nome')}
+1.12 Unidade educacional onde é atendido pelo AEE: {e('unidade_aee')}
+1.13 Gestor(a) e contato: {e('gestor_nome')} - {e('gestor_contato')}
+1.14 Professor(a) AEE e contato: {e('professor_nome')} - {e('professor_contato')}
+1.15 Matrícula do(a) professor(a) AEE: {e('matricula_professor')}
+1.16 Especialidade do(a) professor(a) AEE: {e('especialidade_professor')}
+1.17 Período de elaboração do plano - início: {e('periodo_inicio')}
+1.18 Data final: {e('periodo_fim')}
+1.19 Frequência de atendimento na SRM: {e('frequencia_atendimento') or estudante[7] or 'Não informado.'}
+1.20 Tempo de atendimento por semana: {e('tempo_atendimento_semana')}
+1.21 Formato do atendimento: {e('formato_atendimento')}
+
+PARTE 2 - ESTUDO DE CASO / PERCURSO EDUCACIONAL
+Relato sobre o trajeto educacional em turmas comuns e no AEE anterior:
+{e('percurso_educacional')}
+
+2.1 Motivo de encaminhamento ao AEE:
+{e('motivo_encaminhamento_aee') or e('queixa_principal')}
+
+2.2 Precisa de transporte escolar inclusivo? {e('precisa_transporte_inclusivo')}
+2.2.1 Recebe transporte escolar inclusivo? {e('recebe_transporte_inclusivo')}
+2.3 Precisa de profissional de apoio? {e('precisa_profissional_apoio')}
+Justificativa: {e('justificativa_apoio')}
+2.3.1 É acompanhado por profissional de apoio? {e('acompanhado_profissional_apoio')}
+Nome do apoio: {e('nome_profissional_apoio')}
+2.4 Recursos de tecnologia educacional e/ou assistiva utilizados:
+{e('recursos_tecnologia_assistiva')}
+2.5 Observações relevantes para o ambiente educacional/acompanhamento terapêutico:
+{e('observacoes_ambiente_educacional')}
+2.6 Habilidades observadas e desenvolvidas:
+{e('habilidades_observadas') or e('potencialidades')}
+2.7 Habilidades que precisam ser desenvolvidas:
+{e('habilidades_a_desenvolver') or e('dificuldades')}
+2.8 Indicadores de altas habilidades/superdotação:
+{e('indicadores_altas_habilidades')}
+2.9 Caso seja pessoa surda, recursos utilizados:
+{e('recursos_surdez')}
+Observações sobre surdez/audição/comunicação:
+{e('observacoes_surdez')}
+
+SÍNTESE PEDAGÓGICA DO ESTUDO DE CASO
+Contextualização:
+{e('contextualizacao')}
+
+Potencialidades:
+{e('potencialidades')}
+
+Dificuldades/barreiras observadas:
+{e('dificuldades')}
+
+Estratégias pedagógicas já utilizadas:
+{e('estrategias')}
+
+Intervenções/encaminhamentos sugeridos:
+{e('intervencoes')}
+
+Avaliação:
+{e('avaliacao')}
+
+Considerações finais:
+{e('consideracoes')}
+
+PARTE 3 - PLANO DE ATENDIMENTO EDUCACIONAL ESPECIALIZADO
+1. Habilidades prioritárias que serão trabalhadas na SRM:
+{p('habilidades_prioritarias')}
+
+2. Recursos de acessibilidade que serão disponibilizados:
+{p('recursos_acessibilidade')}
+
+3. Objetivos do AEE
+3.1 Objetivo geral:
+{p('objetivos_gerais')}
+
+3.2 Objetivos específicos:
+{p('objetivos_especificos')}
+
+4. Metodologias e estratégias
+Metodologia / estratégias:
+{p('estrategias')}
+
+Organização do atendimento:
+{p('organizacao_atendimento')}
+
+5. Ações no âmbito da escola / gestão / educador de apoio:
+( ) Implemento de tecnologia assistiva
+( ) Solicitação de Profissional de Apoio
+( ) Solicitação de Professor do AEE
+( ) Formação continuada com temática da educação inclusiva
+( ) Parcerias com saúde, UBS, USF, Conselho Tutelar, CREAS e CRAS
+( ) Articulação sobre PDDE equidade
+( ) Articulação de horários entre professor AEE, sala comum e apoio
+( ) Solicitação de transporte escolar inclusivo
+( ) Outros: ______________________________________________________________
+
+6. Barreiras identificadas na comunidade escolar:
+( ) Barreiras atitudinais
+( ) Barreiras arquitetônicas
+( ) Barreiras comunicacionais
+( ) Barreiras curriculares
+( ) Outros: ______________________________________________________________
+
+7. Parcerias realizadas pelo AEE:
+{p('parcerias')}
+
+8. Avaliação e acompanhamento:
+{p('avaliacao_acompanhamento')}
+
+9. Observações:
+{p('observacoes')}
+
+____________________, ____ de __________________________ de ____________
+Professor(a) AEE: _______________________________________
+Coordenação/Gestão: _____________________________________
+Responsável: ____________________________________________
+""".strip()
+
+
+def resumo_indicadores_atendimentos(estudante_id):
+    atendimentos = listar_atendimentos(estudante_id)
+    if not atendimentos:
+        return "Nenhum atendimento registrado."
+    total = len(atendimentos)
+    def media(indice):
+        valores = []
+        for a in atendimentos:
+            try:
+                valores.append(float(a[indice]))
+            except Exception:
+                pass
+        return round(sum(valores)/len(valores), 1) if valores else "Não informado"
+    return f"""
+Total de atendimentos registrados: {total}
+Média da resposta do estudante: {media(8)}/10
+Média do avanço pedagógico: {media(9)}/10
+Média da dificuldade/barreira observada: {media(10)}/10
+Média do engajamento/participação: {media(11)}/10
+Média do índice geral de evolução: {media(12)}/10
+""".strip()
+
+
 def gerar_relatorio_gre_texto(estudante):
     avaliacao = ultima_avaliacao(estudante[0])
-    entrevista = ultima_linha(
-        "entrevistas_familia",
-        CAMPOS_ENTREVISTA_FAMILIA,
-        estudante[0],
-    )
-    estudo = ultima_linha(
-        "estudos_caso",
-        CAMPOS_ESTUDO_CASO,
-        estudante[0],
-    )
+    entrevista = ultima_linha("entrevistas_familia", CAMPOS_ENTREVISTA_FAMILIA, estudante[0])
+    estudo = ultima_linha("estudos_caso", CAMPOS_ESTUDO_CASO, estudante[0])
     plano = ultima_linha(
         "planos_aee",
         ["data_registro", "objetivos_gerais", "objetivos_especificos", "habilidades_prioritarias", "recursos_acessibilidade", "estrategias", "organizacao_atendimento", "parcerias", "avaliacao_acompanhamento", "observacoes"],
         estudante[0],
     )
-    atendimentos = listar_atendimentos(estudante[0])
 
     return f"""
-RELATÓRIO CONSOLIDADO GRE - INCLUISRM
+{texto_cabecalho_gre("RELATÓRIO CONSOLIDADO GRE - ATENDIMENTO EDUCACIONAL ESPECIALIZADO")}
 
-1. Identificação segura
-Código interno: {estudante[1]}
+1. IDENTIFICAÇÃO SEGURA DO ESTUDANTE
+Código interno: {estudante[1] or 'Não informado.'}
 Ano/Série: {estudante[2] or 'Não informado.'}
 Turma: {estudante[3] or 'Não informado.'}
 Turno: {estudante[6] or 'Não informado.'}
 Perfil educacional: {estudante[4] or 'Não informado.'}
+Dias de atendimento: {estudante[7] or 'Não informado.'}
+Horário preferencial: {estudante[8] or 'Não informado.'}
 
-Professor(a) AEE responsável:
+{texto_campos_sensiveis_gre_estudante()}
+
+2. PROFESSOR(A) AEE RESPONSÁVEL
 {texto_professores_vinculados(estudante[0])}
 
-Campos sensíveis para preenchimento manual:
-Nome completo: ___________________________________________
-CPF/RG: _________________________________________________
-Responsável: ____________________________________________
-
-2. Cadastro pedagógico
+3. SÍNTESE DO CADASTRO PEDAGÓGICO
 {estudante[5] or 'Não informado.'}
 
-3. Entrevista com a família
-{texto_entrevista(estudante, ('', *entrevista)) if entrevista else 'Nenhuma entrevista registrada.'}
+4. SÍNTESE DA ENTREVISTA COM A FAMÍLIA
+{texto_entrevista_familia_gre(estudante, entrevista) if entrevista else 'Nenhuma entrevista registrada.'}
 
-4. Avaliação pedagógica
+5. AVALIAÇÃO PEDAGÓGICA
 {texto_avaliacao(estudante, ('', *avaliacao)) if avaliacao else 'Nenhuma avaliação registrada.'}
 
-5. Estudo de caso
-{texto_estudo_caso(estudante, ('', *estudo)) if estudo else 'Nenhum estudo de caso registrado.'}
+6. ESTUDO DE CASO E PLANO AEE
+{texto_estudo_plano_aee_gre(estudante, estudo, plano) if (estudo or plano) else 'Nenhum estudo de caso ou plano registrado.'}
 
-6. Plano AEE / PAEE
-{texto_plano_aee(estudante, ('', *plano)) if plano else 'Nenhum plano AEE / PAEE registrado.'}
+7. INDICADORES DOS ATENDIMENTOS
+{resumo_indicadores_atendimentos(estudante[0])}
 
-7. Síntese dos atendimentos
-Total de atendimentos registrados: {len(atendimentos)}
-
+8. HISTÓRICO DOS ATENDIMENTOS
 {listar_atendimentos_texto(estudante[0])}
 
-8. Assinaturas
+9. ENCAMINHAMENTOS GERAIS
+_______________________________________________________________________
+_______________________________________________________________________
+_______________________________________________________________________
+
+10. CONSIDERAÇÕES FINAIS
+_______________________________________________________________________
+_______________________________________________________________________
+_______________________________________________________________________
+
+11. ASSINATURAS
 Professor(a) AEE: _______________________________________
 Coordenação/Gestão: _____________________________________
 Responsável: ____________________________________________
 """.strip()
 
 
-# ======================================================
-# RELATÓRIOS E ESTUDO DE CASO COM BASE NOS ATENDIMENTOS
-# ======================================================
-def calcular_resumo_atendimentos(estudante_id):
-    """Calcula indicadores simples a partir dos atendimentos registrados."""
-    atendimentos = listar_atendimentos(estudante_id)
-    if not atendimentos:
-        return {
-            "total": 0,
-            "media_resposta": 0,
-            "media_avanco": 0,
-            "media_dificuldade": 0,
-            "media_engajamento": 0,
-            "media_indice": 0,
-            "interpretacao": "Sem atendimentos registrados.",
-        }
-
-    respostas = []
-    avancos = []
-    dificuldades = []
-    engajamentos = []
-    indices = []
-
-    for a in atendimentos:
-        nivel_resposta = limitar_escala(a[8] if len(a) > 8 else 5)
-        nivel_avanco = limitar_escala(a[9] if len(a) > 9 else 5)
-        nivel_dificuldade = limitar_escala(a[10] if len(a) > 10 else 5)
-        nivel_engajamento = limitar_escala(a[11] if len(a) > 11 else 5)
-        indice = calcular_indice_geral(nivel_resposta, nivel_avanco, nivel_dificuldade, nivel_engajamento)
-
-        respostas.append(nivel_resposta)
-        avancos.append(nivel_avanco)
-        dificuldades.append(nivel_dificuldade)
-        engajamentos.append(nivel_engajamento)
-        indices.append(indice)
-
-    media_indice = round(sum(indices) / len(indices), 1)
-
-    return {
-        "total": len(atendimentos),
-        "media_resposta": round(sum(respostas) / len(respostas), 1),
-        "media_avanco": round(sum(avancos) / len(avancos), 1),
-        "media_dificuldade": round(sum(dificuldades) / len(dificuldades), 1),
-        "media_engajamento": round(sum(engajamentos) / len(engajamentos), 1),
-        "media_indice": media_indice,
-        "interpretacao": interpretar_indice(media_indice),
-    }
-
-
-def gerar_relatorio_evolucao_sem_ia(estudante):
-    """Gera relatório de evolução sem depender da IA."""
-    resumo = calcular_resumo_atendimentos(estudante[0])
-    historico = listar_atendimentos_texto(estudante[0])
-
+def texto_pacote_gre_completo(estudante):
     return f"""
-RELATÓRIO DE EVOLUÇÃO E QUALIDADE DO ATENDIMENTO - INCLUISRM
+PACOTE GRE COMPLETO - INCLUISRM
+Código interno do estudante: {estudante[1] or 'Não informado.'}
 
-Código interno do estudante: {estudante[1]}
-Ano/Série: {estudante[2] or 'Não informado.'}
-Turma: {estudante[3] or 'Não informado.'}
-Turno: {estudante[6] or 'Não informado.'}
-Perfil educacional: {estudante[4] or 'Não informado.'}
+======================================================================
+DOCUMENTO 1 - FICHA DE IDENTIFICAÇÃO PROFESSOR(A) AEE
+======================================================================
+{texto_ficha_professor_gre()}
 
-1. Síntese quantitativa dos atendimentos
-Total de atendimentos registrados: {resumo['total']}
-Média da resposta do estudante: {resumo['media_resposta']}/10
-Média do avanço pedagógico: {resumo['media_avanco']}/10
-Média de dificuldade/barreira observada: {resumo['media_dificuldade']}/10
-Média de engajamento/participação: {resumo['media_engajamento']}/10
-Índice geral médio de evolução: {resumo['media_indice']}/10
-Interpretação geral: {resumo['interpretacao']}
 
-2. Histórico pedagógico considerado
-{historico}
+======================================================================
+DOCUMENTO 2 - MATRÍCULA SRM / TERMO DE CIÊNCIA
+======================================================================
+{texto_matricula_srm_gre(estudante)}
 
-3. Análise pedagógica inicial
-A análise deve considerar os objetivos trabalhados, as atividades realizadas, as respostas do estudante, os avanços, as dificuldades, o engajamento e os encaminhamentos registrados nos atendimentos.
 
-4. Recomendações para continuidade
-- Manter registros objetivos e frequentes dos atendimentos.
-- Acompanhar a evolução por meio das escalas registradas.
-- Ajustar estratégias quando houver aumento das barreiras ou baixa participação.
-- Articular o acompanhamento com família, gestão escolar e professores da sala comum, quando necessário.
+======================================================================
+DOCUMENTO 3 - ENTREVISTA COM A FAMÍLIA
+======================================================================
+{texto_entrevista_familia_gre(estudante)}
 
-5. Assinaturas
-Professor(a) AEE: _______________________________________
-Coordenação/Gestão: _____________________________________
-Responsável: ____________________________________________
+
+======================================================================
+DOCUMENTO 4 - ESTUDO DE CASO E PLANO AEE
+======================================================================
+{texto_estudo_plano_aee_gre(estudante)}
+
+
+======================================================================
+DOCUMENTO 5 - RELATÓRIO CONSOLIDADO GRE
+======================================================================
+{gerar_relatorio_gre_texto(estudante)}
 """.strip()
-
-
-def gerar_relatorio_evolucao_atendimentos_ia(estudante):
-    """Gera relatório analítico com IA com base nos atendimentos."""
-    client = obter_cliente_openai()
-    if client is None:
-        return gerar_relatorio_evolucao_sem_ia(estudante)
-
-    resumo = calcular_resumo_atendimentos(estudante[0])
-    historico = listar_atendimentos_texto(estudante[0])
-
-    prompt = f"""
-Você é especialista em Atendimento Educacional Especializado, educação inclusiva e análise pedagógica.
-
-Elabore um RELATÓRIO DE EVOLUÇÃO E QUALIDADE DO ATENDIMENTO com base exclusivamente nos dados abaixo.
-Não invente informações. Quando os dados forem insuficientes, registre essa limitação.
-
-DADOS DO ESTUDANTE:
-Código interno: {estudante[1]}
-Ano/Série: {estudante[2]}
-Turma: {estudante[3]}
-Turno: {estudante[6]}
-Perfil educacional: {estudante[4]}
-Observações cadastrais: {estudante[5]}
-
-INDICADORES CALCULADOS:
-Total de atendimentos: {resumo['total']}
-Média da resposta: {resumo['media_resposta']}/10
-Média do avanço: {resumo['media_avanco']}/10
-Média da dificuldade/barreira: {resumo['media_dificuldade']}/10
-Média do engajamento: {resumo['media_engajamento']}/10
-Índice geral médio: {resumo['media_indice']}/10
-Interpretação: {resumo['interpretacao']}
-
-REGISTROS DE ATENDIMENTO:
-{historico}
-
-Estruture o relatório assim:
-1. Identificação pedagógica segura
-2. Síntese dos atendimentos realizados
-3. Análise da evolução pedagógica
-4. Análise do engajamento e participação
-5. Barreiras e dificuldades observadas
-6. Qualidade dos registros pedagógicos
-7. Recomendações pedagógicas para o AEE
-8. Encaminhamentos sugeridos
-9. Considerações finais
-
-Use linguagem técnica, clara e institucional. Não inclua dados sensíveis como CPF, RG ou endereço.
-"""
-
-    try:
-        resposta = client.responses.create(
-            model="gpt-4.1-mini",
-            input=prompt,
-        )
-        return resposta.output_text
-    except Exception as e:
-        return f"IA temporariamente indisponível. Foi gerado um relatório sem IA.\n\nDetalhe técnico: {e}\n\n" + gerar_relatorio_evolucao_sem_ia(estudante)
-
-
-def gerar_estudo_caso_atendimentos_ia(estudante):
-    """Gera uma sugestão de estudo de caso a partir dos atendimentos registrados."""
-    client = obter_cliente_openai()
-    historico = listar_atendimentos_texto(estudante[0])
-    resumo = calcular_resumo_atendimentos(estudante[0])
-
-    if client is None:
-        return f"""
-SUGESTÃO DE ESTUDO DE CASO COM BASE NOS ATENDIMENTOS - SEM IA
-
-Código interno: {estudante[1]}
-Perfil educacional: {estudante[4] or 'Não informado.'}
-Total de atendimentos analisados: {resumo['total']}
-Índice geral médio: {resumo['media_indice']}/10
-Interpretação: {resumo['interpretacao']}
-
-1. Contextualização
-O estudante possui registros de atendimentos no AEE que devem ser analisados considerando objetivos trabalhados, atividades realizadas, respostas, avanços, dificuldades, engajamento e encaminhamentos.
-
-2. Potencialidades
-Descrever com base nos registros de resposta, avanços e engajamento.
-
-3. Dificuldades/barreiras
-Descrever com base nos campos de dificuldades observadas e escala de barreira.
-
-4. Evolução observada
-Descrever a evolução com base no histórico abaixo.
-
-HISTÓRICO:
-{historico}
-""".strip()
-
-    prompt = f"""
-Você é especialista em Atendimento Educacional Especializado.
-
-Com base nos registros de atendimentos abaixo, elabore uma SUGESTÃO DE ESTUDO DE CASO pedagógico para o AEE.
-Use somente os dados fornecidos. Não invente diagnóstico, laudo, CID ou dados pessoais.
-
-DADOS DO ESTUDANTE:
-Código interno: {estudante[1]}
-Ano/Série: {estudante[2]}
-Turma: {estudante[3]}
-Turno: {estudante[6]}
-Perfil educacional: {estudante[4]}
-Observações: {estudante[5]}
-
-INDICADORES DOS ATENDIMENTOS:
-Total: {resumo['total']}
-Resposta média: {resumo['media_resposta']}/10
-Avanço médio: {resumo['media_avanco']}/10
-Dificuldade média: {resumo['media_dificuldade']}/10
-Engajamento médio: {resumo['media_engajamento']}/10
-Índice geral médio: {resumo['media_indice']}/10
-Interpretação: {resumo['interpretacao']}
-
-ATENDIMENTOS:
-{historico}
-
-Estruture em:
-1. Contextualização
-2. Potencialidades observadas
-3. Dificuldades/barreiras identificadas
-4. Evolução observada nos atendimentos
-5. Estratégias pedagógicas recomendadas
-6. Intervenções e encaminhamentos sugeridos
-7. Considerações finais
-
-Linguagem técnica, pedagógica e institucional.
-"""
-
-    try:
-        resposta = client.responses.create(
-            model="gpt-4.1-mini",
-            input=prompt,
-        )
-        return resposta.output_text
-    except Exception as e:
-        return f"IA temporariamente indisponível. Detalhe técnico: {e}\n\n" + gerar_relatorio_evolucao_sem_ia(estudante)
-
-
-def salvar_estudo_caso_gerado_por_ia(estudante_id, texto_gerado):
-    """Salva a sugestão de estudo gerada pela IA no histórico de estudos de caso."""
-    campos = [
-        "estudante_id", "data_registro", "contextualizacao", "queixa_principal",
-        "potencialidades", "dificuldades", "estrategias", "intervencoes",
-        "avaliacao", "consideracoes"
-    ]
-    valores = [
-        estudante_id,
-        hoje_str(),
-        texto_gerado,
-        "Gerado com base nos registros de atendimento do AEE.",
-        "Ver sugestão gerada no campo Contextualização.",
-        "Ver sugestão gerada no campo Contextualização.",
-        "Ver sugestão gerada no campo Contextualização.",
-        "Ver sugestão gerada no campo Contextualização.",
-        "Ver sugestão gerada no campo Contextualização.",
-        "Registro gerado por IA a partir dos atendimentos. Revisar antes de uso oficial.",
-    ]
-    inserir_registro("estudos_caso", campos, valores)
-
 
 # ======================================================
 # DATAFRAMES / GRÁFICOS
@@ -3121,9 +3306,8 @@ with st.sidebar:
             "Avaliação Pedagógica",
             "Estudo de Caso",
             "Plano AEE - Inteligência",
-            "Agenda de Atendimentos",
-            "Atendimentos do Dia",
             "Atendimentos",
+            "Agenda de Atendimentos",
             "Relatórios GRE",
             "Administração",
         ],
@@ -3866,35 +4050,6 @@ elif menu == "Estudo de Caso":
                     st.success("Estudo de caso GRE salvo.")
                     st.rerun()
 
-        with st.container(border=True):
-            st.markdown("### 🤖 Gerar sugestão de Estudo de Caso com base nos atendimentos")
-            st.write("A IA analisa os registros de atendimento do estudante e monta uma sugestão de Estudo de Caso. Revise o texto antes de usar oficialmente.")
-
-            atendimentos_estudo = listar_atendimentos(estudante_id)
-            if not atendimentos_estudo:
-                st.info("Ainda não há atendimentos registrados para gerar a sugestão de Estudo de Caso.")
-            else:
-                resumo_estudo = calcular_resumo_atendimentos(estudante_id)
-                c1, c2, c3, c4 = st.columns(4)
-                c1.metric("Atendimentos", resumo_estudo["total"])
-                c2.metric("Avanço médio", f"{resumo_estudo['media_avanco']}/10")
-                c3.metric("Engajamento", f"{resumo_estudo['media_engajamento']}/10")
-                c4.metric("Índice geral", f"{resumo_estudo['media_indice']}/10")
-
-                if st.button("Gerar Estudo de Caso com IA", key=f"gerar_estudo_atendimentos_ia_{estudante_id}"):
-                    with st.spinner("Gerando sugestão de Estudo de Caso a partir dos atendimentos..."):
-                        st.session_state[f"estudo_caso_ia_{estudante_id}"] = gerar_estudo_caso_atendimentos_ia(estudante)
-
-                if f"estudo_caso_ia_{estudante_id}" in st.session_state:
-                    texto_estudo_ia = st.session_state[f"estudo_caso_ia_{estudante_id}"]
-                    st.text_area("Sugestão gerada", texto_estudo_ia, height=420, key=f"preview_estudo_ia_{estudante_id}")
-                    export_buttons(texto_estudo_ia, f"Estudo_Caso_IA_Atendimentos_{estudante[1]}", tipo_pdf="estudo")
-
-                    if st.button("Salvar sugestão no histórico de Estudo de Caso", key=f"salvar_estudo_ia_{estudante_id}"):
-                        salvar_estudo_caso_gerado_por_ia(estudante_id, texto_estudo_ia)
-                        st.success("Sugestão salva no histórico de Estudo de Caso. Revise antes de uso oficial.")
-                        st.rerun()
-
         estudos = listar_por_estudante(
             "estudos_caso",
             CAMPOS_ESTUDO_CASO,
@@ -4164,49 +4319,18 @@ elif menu == "Plano AEE - Inteligência":
 # ======================================================
 elif menu == "Atendimentos":
     st.markdown('<div class="subtitulo">📌 Registro dos atendimentos</div>', unsafe_allow_html=True)
-    st.write("Registre atendimentos avulsos ou complete um atendimento iniciado a partir da agenda.")
-
     estudantes = listar_estudantes()
     if not estudantes:
         st.info("Cadastre um estudante primeiro.")
     else:
         ids, mapa = opcoes_estudantes_por_id(estudantes)
-
-        agenda_id_em_registro = st.session_state.get("agenda_id_em_registro")
-        estudante_preselecionado = st.session_state.get("atendimento_estudante_id")
-        data_preselecionada = st.session_state.get("atendimento_data")
-
-        indice_padrao = 0
-        if estudante_preselecionado in ids:
-            indice_padrao = ids.index(estudante_preselecionado)
-
-        estudante_id = st.selectbox(
-            "Selecione o estudante",
-            ids,
-            index=indice_padrao,
-            format_func=lambda x: mapa[x],
-            key="atendimento_estudante",
-            disabled=bool(agenda_id_em_registro),
-        )
+        estudante_id = st.selectbox("Selecione o estudante", ids, format_func=lambda x: mapa[x], key="atendimento_estudante")
         estudante = buscar_estudante(estudante_id)
-
-        if agenda_id_em_registro:
-            ag = buscar_agendamento(agenda_id_em_registro)
-            if ag:
-                st.success(
-                    f"Atendimento iniciado pela agenda: {ag[2]} • {ag[4]} às {ag[5]} • {ag[6]}"
-                )
-                if st.button("Cancelar vínculo com a agenda"):
-                    st.session_state.pop("agenda_id_em_registro", None)
-                    st.session_state.pop("atendimento_estudante_id", None)
-                    st.session_state.pop("atendimento_data", None)
-                    st.rerun()
 
         with st.container(border=True):
             st.markdown("### Novo atendimento")
-            data_padrao = data_para_date(data_preselecionada) if data_preselecionada else datetime.now().date()
             with st.form("form_atendimento"):
-                data_atendimento = st.date_input("Data do atendimento", value=data_padrao)
+                data_atendimento = st.date_input("Data do atendimento")
                 objetivo = st.text_area("Objetivo trabalhado")
                 atividade = st.text_area("Atividade realizada")
                 resposta = st.text_area("Resposta do estudante")
@@ -4220,25 +4344,12 @@ elif menu == "Atendimentos":
                 indice = calcular_indice_geral(nivel_resposta, nivel_avanco, nivel_dificuldade, nivel_engajamento)
                 st.info(f"Índice geral calculado automaticamente: {indice}/10")
                 encaminhamentos = st.text_area("Encaminhamentos")
-
                 if st.form_submit_button("Salvar atendimento"):
-                    atendimento_id = salvar_atendimento(
+                    salvar_atendimento(
                         estudante_id, data_atendimento.strftime("%d/%m/%Y"), objetivo, atividade, resposta,
                         avancos, dificuldades, evolucao, 1, nivel_resposta, nivel_avanco,
                         nivel_dificuldade, nivel_engajamento, indice, encaminhamentos,
                     )
-
-                    if agenda_id_em_registro:
-                        atualizar_status_agendamento(
-                            agenda_id_em_registro,
-                            "Atendimento registrado",
-                            "Presença confirmada e atendimento registrado.",
-                            atendimento_id,
-                        )
-                        st.session_state.pop("agenda_id_em_registro", None)
-                        st.session_state.pop("atendimento_estudante_id", None)
-                        st.session_state.pop("atendimento_data", None)
-
                     st.success("Atendimento registrado.")
                     st.rerun()
 
@@ -4269,8 +4380,6 @@ elif menu == "Atendimentos":
 # ======================================================
 elif menu == "Agenda de Atendimentos":
     st.markdown('<div class="subtitulo">📅 Agenda de Atendimentos</div>', unsafe_allow_html=True)
-    st.write("Organize os atendimentos antes do registro pedagógico. Depois, use a tela Atendimentos do Dia para confirmar presença ou falta.")
-
     estudantes = listar_estudantes()
     if not estudantes:
         st.info("Cadastre um estudante primeiro.")
@@ -4301,14 +4410,11 @@ elif menu == "Agenda de Atendimentos":
 
     agenda = listar_agenda()
     with st.container(border=True):
-        st.markdown("### 📆 Agenda geral")
+        st.markdown("### 📆 Agenda semanal")
         if agenda:
             df = pd.DataFrame(
                 agenda,
-                columns=[
-                    "ID", "Código", "Ano/Série", "Perfil", "Data", "Dia", "Início", "Fim",
-                    "Tipo", "Observações", "Status", "Observação de presença", "Atendimento ID"
-                ],
+                columns=["ID", "Código", "Ano/Série", "Perfil", "Data", "Dia", "Início", "Fim", "Tipo", "Observações"],
             )
             st.dataframe(df, use_container_width=True, hide_index=True)
 
@@ -4328,7 +4434,7 @@ elif menu == "Agenda de Atendimentos":
                         st.download_button("Baixar PDF da agenda", f, "Agenda_INCLUISRM.pdf", "application/pdf")
 
             for _, row in df.iterrows():
-                with st.expander(f"{row['Data']} - {row['Início']} - {row['Código']} - {row['Status']}"):
+                with st.expander(f"{row['Data']} - {row['Início']} - {row['Código']}"):
                     st.write(row.to_dict())
                     if st.button("Excluir agendamento", key=f"exc_ag_{row['ID']}"):
                         excluir_agendamento(int(row["ID"]))
@@ -4339,89 +4445,23 @@ elif menu == "Agenda de Atendimentos":
 
 
 # ======================================================
-# ATENDIMENTOS DO DIA
-# ======================================================
-elif menu == "Atendimentos do Dia":
-    st.markdown('<div class="subtitulo">✅ Atendimentos do Dia</div>', unsafe_allow_html=True)
-    st.write("Confira os estudantes agendados, registre presença ou falta e abra o formulário de atendimento quando houver comparecimento.")
-
-    data_consulta = st.date_input("Selecione a data", value=datetime.now().date(), key="data_atendimentos_dia")
-    data_texto = data_consulta.strftime("%d/%m/%Y")
-    agenda_dia = listar_agenda_por_data(data_texto)
-
-    with st.container(border=True):
-        st.markdown(f"### Agenda do dia {data_texto}")
-
-        if not agenda_dia:
-            st.info("Nenhum estudante agendado para esta data.")
-        else:
-            df_dia = pd.DataFrame(
-                agenda_dia,
-                columns=[
-                    "ID", "Estudante ID", "Código", "Ano/Série", "Turma", "Perfil", "Data",
-                    "Dia", "Início", "Fim", "Tipo", "Observações", "Status",
-                    "Observação de presença", "Atendimento ID"
-                ],
-            )
-
-            col_a, col_b, col_c, col_d = st.columns(4)
-            col_a.metric("Agendados", len(df_dia))
-            col_b.metric("Compareceram", int(df_dia["Status"].isin(["Compareceu", "Atendimento registrado"]).sum()))
-            col_c.metric("Faltas", int((df_dia["Status"] == "Faltou").sum()))
-            col_d.metric("Pendentes", int((df_dia["Status"] == "Agendado").sum()))
-
-            st.dataframe(df_dia.drop(columns=["Estudante ID", "Atendimento ID"]), use_container_width=True, hide_index=True)
-
-            st.markdown("### Lista operacional")
-            for item in agenda_dia:
-                (
-                    agenda_id, estudante_id, codigo, ano_serie, turma, perfil, data_ag, dia_semana,
-                    hora_inicio, hora_fim, tipo, observacoes, status, obs_presenca, atendimento_id
-                ) = item
-
-                with st.expander(f"{hora_inicio} - {codigo} | {ano_serie or 'Ano não informado'} | Status: {status}"):
-                    st.write(f"**Estudante:** {codigo}")
-                    st.write(f"**Perfil:** {perfil or 'Não informado'}")
-                    st.write(f"**Tipo:** {tipo}")
-                    st.write(f"**Horário:** {hora_inicio} às {hora_fim}")
-                    if observacoes:
-                        st.write(f"**Observações do agendamento:** {observacoes}")
-                    if obs_presenca:
-                        st.write(f"**Observação de presença/falta:** {obs_presenca}")
-
-                    if status == "Atendimento registrado":
-                        st.success("Atendimento já registrado para este agendamento.")
-                    elif status == "Faltou":
-                        st.warning("Falta registrada.")
-                        if st.button("Reabrir como agendado", key=f"reabrir_{agenda_id}"):
-                            atualizar_status_agendamento(agenda_id, "Agendado", "Registro reaberto para nova decisão.", None)
-                            st.rerun()
-                    else:
-                        col1, col2 = st.columns(2)
-                        with col1:
-                            if st.button("✅ Compareceu / registrar atendimento", key=f"compareceu_{agenda_id}"):
-                                atualizar_status_agendamento(agenda_id, "Compareceu", "Presença confirmada. Aguardando registro do atendimento.", None)
-                                st.session_state["agenda_id_em_registro"] = agenda_id
-                                st.session_state["atendimento_estudante_id"] = estudante_id
-                                st.session_state["atendimento_data"] = data_ag
-                                st.info("Presença confirmada. Acesse o menu 'Atendimentos' para concluir o registro pedagógico.")
-                                st.rerun()
-                        with col2:
-                            motivo_falta = st.text_input("Motivo/observação da falta", key=f"motivo_falta_{agenda_id}")
-                            if st.button("❌ Registrar falta", key=f"faltou_{agenda_id}"):
-                                obs = motivo_falta.strip() or "Falta registrada sem justificativa informada."
-                                atualizar_status_agendamento(agenda_id, "Faltou", obs, None)
-                                st.success("Falta registrada.")
-                                st.rerun()
-
-
-
-# ======================================================
 # RELATÓRIOS GRE
 # ======================================================
 elif menu == "Relatórios GRE":
     st.markdown('<div class="subtitulo">📄 Relatórios GRE</div>', unsafe_allow_html=True)
+    st.markdown(
+        """
+        <div class="descricao">
+        Gere os documentos solicitados pela GRE a partir dos dados já cadastrados no sistema.
+        Os campos sigilosos permanecem em branco para preenchimento manual no Word ou após impressão.
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
     estudantes = listar_estudantes()
+    professores = listar_professores()
+
     if not estudantes:
         st.info("Cadastre um estudante primeiro.")
     else:
@@ -4430,62 +4470,81 @@ elif menu == "Relatórios GRE":
         estudante = buscar_estudante(estudante_id)
 
         with st.container(border=True):
-            st.markdown("### Gerar documentos")
+            st.markdown("### 📌 Documentos GRE disponíveis")
             tipo = st.selectbox(
-                "Documento",
+                "Escolha o documento que deseja gerar",
                 [
-                    "Matrícula SRM / Cadastro seguro",
-                    "Relatório consolidado GRE",
-                    "Relatório de evolução e qualidade do atendimento",
-                    "Relatório de evolução com IA",
-                    "Última avaliação pedagógica",
-                    "Último estudo de caso",
-                    "Último Plano AEE / PAEE",
+                    "Ficha de Identificação Professor(a) AEE",
+                    "Matrícula SRM / Termo de Ciência",
+                    "Entrevista com a Família",
+                    "Estudo de Caso e Plano AEE",
+                    "Relatório Consolidado GRE",
+                    "Pacote GRE Completo",
                 ],
             )
 
-            if st.button("Gerar documento"):
-                if tipo == "Matrícula SRM / Cadastro seguro":
-                    texto = texto_matricula_srm(estudante)
+            st.info(
+                "Os campos como nome completo, CPF, endereço, telefone pessoal, NIS, Cartão SUS e dados familiares sensíveis ficarão em branco para preenchimento manual."
+            )
+
+            if st.button("Gerar documento GRE", key="gerar_documento_gre"):
+                if tipo == "Ficha de Identificação Professor(a) AEE":
+                    texto = texto_ficha_professor_gre()
+                    tipo_pdf = "professor"
+                    nome = "Ficha_Professor_AEE_GRE"
+
+                elif tipo == "Matrícula SRM / Termo de Ciência":
+                    texto = texto_matricula_srm_gre(estudante)
                     tipo_pdf = "matricula_srm"
-                    nome = f"Matricula_SRM_{estudante[1]}"
-                elif tipo == "Relatório de evolução e qualidade do atendimento":
-                    texto = gerar_relatorio_evolucao_sem_ia(estudante)
-                    tipo_pdf = "relatorio"
-                    nome = f"Relatorio_Evolucao_Qualidade_{estudante[1]}"
-                elif tipo == "Relatório de evolução com IA":
-                    texto = gerar_relatorio_evolucao_atendimentos_ia(estudante)
-                    tipo_pdf = "relatorio"
-                    nome = f"Relatorio_Evolucao_IA_{estudante[1]}"
-                elif tipo == "Última avaliação pedagógica":
-                    av = ultima_avaliacao(estudante_id)
-                    texto = texto_avaliacao(estudante, ("", *av)) if av else "Nenhuma avaliação registrada."
-                    tipo_pdf = "avaliacao"
-                    nome = f"Avaliacao_Pedagogica_{estudante[1]}"
-                elif tipo == "Último estudo de caso":
-                    est = ultima_linha("estudos_caso", ["data_registro", "contextualizacao", "queixa_principal", "potencialidades", "dificuldades", "estrategias", "intervencoes", "avaliacao", "consideracoes"], estudante_id)
-                    texto = texto_estudo_caso(estudante, ("", *est)) if est else "Nenhum estudo de caso registrado."
+                    nome = f"Matricula_SRM_Termo_Ciencia_{estudante[1]}"
+
+                elif tipo == "Entrevista com a Família":
+                    entrevista = ultima_linha("entrevistas_familia", CAMPOS_ENTREVISTA_FAMILIA, estudante_id)
+                    texto = texto_entrevista_familia_gre(estudante, entrevista)
+                    tipo_pdf = "entrevista"
+                    nome = f"Entrevista_Familia_GRE_{estudante[1]}"
+
+                elif tipo == "Estudo de Caso e Plano AEE":
+                    estudo = ultima_linha("estudos_caso", CAMPOS_ESTUDO_CASO, estudante_id)
+                    plano = ultima_linha(
+                        "planos_aee",
+                        ["data_registro", "objetivos_gerais", "objetivos_especificos", "habilidades_prioritarias", "recursos_acessibilidade", "estrategias", "organizacao_atendimento", "parcerias", "avaliacao_acompanhamento", "observacoes"],
+                        estudante_id,
+                    )
+                    texto = texto_estudo_plano_aee_gre(estudante, estudo, plano)
                     tipo_pdf = "estudo"
-                    nome = f"Estudo_Caso_{estudante[1]}"
-                elif tipo == "Último Plano AEE / PAEE":
-                    pl = ultima_linha("planos_aee", ["data_registro", "objetivos_gerais", "objetivos_especificos", "habilidades_prioritarias", "recursos_acessibilidade", "estrategias", "organizacao_atendimento", "parcerias", "avaliacao_acompanhamento", "observacoes"], estudante_id)
-                    texto = texto_plano_aee(estudante, ("", *pl)) if pl else "Nenhum Plano AEE / PAEE registrado."
-                    tipo_pdf = "plano"
-                    nome = f"Plano_AEE_PAEE_{estudante[1]}"
-                else:
+                    nome = f"Estudo_Caso_Plano_AEE_GRE_{estudante[1]}"
+
+                elif tipo == "Relatório Consolidado GRE":
                     texto = gerar_relatorio_gre_texto(estudante)
                     tipo_pdf = "relatorio"
-                    nome = f"Relatorio_GRE_{estudante[1]}"
+                    nome = f"Relatorio_Consolidado_GRE_{estudante[1]}"
+
+                else:
+                    texto = texto_pacote_gre_completo(estudante)
+                    tipo_pdf = "relatorio"
+                    nome = f"Pacote_GRE_Completo_{estudante[1]}"
 
                 st.session_state["gre_texto"] = texto
                 st.session_state["gre_nome"] = nome
                 st.session_state["gre_tipo_pdf"] = tipo_pdf
+                st.session_state["gre_tipo"] = tipo
 
         if "gre_texto" in st.session_state:
             with st.container(border=True):
-                st.markdown("### Documento gerado")
-                st.text_area("Pré-visualização", st.session_state["gre_texto"], height=520)
+                st.markdown(f"### Documento gerado: {st.session_state.get('gre_tipo', '')}")
+                st.text_area("Pré-visualização", st.session_state["gre_texto"], height=560)
                 export_buttons(st.session_state["gre_texto"], st.session_state["gre_nome"], tipo_pdf=st.session_state["gre_tipo_pdf"])
+
+        with st.container(border=True):
+            st.markdown("### 🧾 Conferência dos dados usados")
+            st.write(f"**Código interno:** {estudante[1]}")
+            st.write(f"**Ano/Série:** {estudante[2] or 'Não informado'}")
+            st.write(f"**Turma:** {estudante[3] or 'Não informado'}")
+            st.write(f"**Turno:** {estudante[6] or 'Não informado'}")
+            st.write(f"**Perfil educacional:** {estudante[4] or 'Não informado'}")
+            st.write(f"**Professor(a) AEE:** {texto_professores_vinculados(estudante_id)}")
+            st.write("**Campos sigilosos:** permanecerão em branco no documento gerado.")
 
 
 # ======================================================
