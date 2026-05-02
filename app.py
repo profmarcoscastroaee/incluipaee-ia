@@ -4563,26 +4563,64 @@ elif menu == "Plano AEE - IA":
                 st.session_state.pop(f"termos_3d_{estudante_id}", None)
                 st.rerun()
 
-            if gerar_ai:
-                avaliacao_ia = ultima_avaliacao(estudante_id)
-                entrevista_ia = ultima_linha("entrevistas_familia", CAMPOS_ENTREVISTA_FAMILIA, estudante_id)
-                estudo_ia = ultima_linha("estudos_caso", CAMPOS_ESTUDO_CASO, estudante_id)
+if gerar_ai:
+    avaliacao_ia = ultima_avaliacao(estudante_id)
+    entrevista_ia = ultima_linha("entrevistas_familia", CAMPOS_ENTREVISTA_FAMILIA, estudante_id)
+    estudo_ia = ultima_linha("estudos_caso", CAMPOS_ESTUDO_CASO, estudante_id)
 
-                if not avaliacao_ia:
-                    st.warning("Ainda não há avaliação pedagógica registrada. A sugestão será gerada com dados limitados.")
-                if not entrevista_ia:
-                    st.warning("Ainda não há entrevista com a família registrada. A sugestão será gerada com dados limitados.")
-                if not estudo_ia:
-                    st.warning("Ainda não há estudo de caso GRE registrado. A sugestão será gerada com dados limitados.")
+    pendencias = []
 
-                with st.spinner("Gerando Plano AEE com Inteligência e consultando as bases de conhecimento..."):
-                    st.session_state[f"paee_ia_texto_{estudante_id}"] = gerar_paee_com_ia(
-                        estudante,
-                        avaliacao_ia,
-                        entrevista_ia,
-                        estudo_ia,
-                    )
+    if not entrevista_ia:
+        pendencias.append("Entrevista com a família")
+    if not avaliacao_ia:
+        pendencias.append("Avaliação pedagógica")
+    if not estudo_ia:
+        pendencias.append("Estudo de caso")
 
+    if pendencias:
+        st.warning("⚠️ Ainda não há dados suficientes para gerar um Plano AEE personalizado.")
+        st.info(
+            "O sistema irá gerar apenas um roteiro diagnóstico inicial, sem sugerir recursos específicos "
+            "ou materiais individualizados."
+        )
+
+        texto_pendencias = "\n".join([f"- {p}" for p in pendencias])
+
+        st.session_state[f"paee_ia_texto_{estudante_id}"] = f"""
+ROTEIRO DIAGNÓSTICO INICIAL - INCLUISRM
+
+Código interno do estudante: {estudante[1]}
+
+O sistema identificou que ainda faltam informações essenciais para a elaboração de um Plano AEE personalizado.
+
+Pendências identificadas:
+{texto_pendencias}
+
+ORIENTAÇÃO PEDAGÓGICA:
+Antes de gerar sugestões individualizadas de recursos, tecnologias assistivas, atividades plugadas, atividades desplugadas ou materiais maker, recomenda-se completar o fluxo pedagógico inicial:
+
+1. Realizar a entrevista com a família.
+2. Registrar a avaliação pedagógica.
+3. Elaborar o estudo de caso.
+4. Somente após essas etapas, gerar o Plano AEE - IA completo.
+
+JUSTIFICATIVA:
+Sem esses registros, o sistema não deve sugerir materiais específicos, pois isso poderia gerar recomendações sem base suficiente nas necessidades reais do estudante.
+
+ENCAMINHAMENTO:
+Preencher as informações pendentes e retornar ao módulo Plano AEE - IA para geração do plano completo.
+""".strip()
+
+    else:
+        st.success("✅ Dados mínimos encontrados. Gerando Plano AEE personalizado com IA.")
+
+        with st.spinner("Gerando Plano AEE com Inteligência e consultando as bases de conhecimento..."):
+            st.session_state[f"paee_ia_texto_{estudante_id}"] = gerar_paee_com_ia(
+                estudante,
+                avaliacao_ia,
+                entrevista_ia,
+                estudo_ia,
+            )
             if f"paee_ia_texto_{estudante_id}" in st.session_state:
                 texto_ia = st.text_area(
                     "Sugestão gerada pela AEE IA",
