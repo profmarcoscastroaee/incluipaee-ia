@@ -4567,7 +4567,10 @@ elif menu == "Plano AEE - IA":
                 st.session_state.pop(f"paee_modo_{estudante_id}", None)
                 st.session_state.pop(f"termos_3d_{estudante_id}", None)
                 st.rerun()
+# BOTÃO
+            gerar_ai = st.button("🤖 Gerar Plano AEE com IA")
 
+# AÇÃO
             if gerar_ai:
                 avaliacao_ia = ultima_avaliacao(estudante_id)
                 entrevista_ia = ultima_linha("entrevistas_familia", CAMPOS_ENTREVISTA_FAMILIA, estudante_id)
