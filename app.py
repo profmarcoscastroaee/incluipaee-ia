@@ -415,6 +415,9 @@ def criar_tabelas():
     # Campos ampliados da Entrevista com a Família
     # Mantém compatibilidade com bancos antigos e adiciona as novas colunas automaticamente.
     for coluna, definicao in [
+        # Controle histórico da entrevista familiar por ano letivo
+        ("ano_letivo", "TEXT"),
+        ("tipo_registro", "TEXT"),
         ("auxilio_governamental", "TEXT"),
         ("auxilio_quais", "TEXT"),
         ("historico_familiar", "TEXT"),
@@ -516,6 +519,17 @@ def criar_tabelas():
         )
         """
     )
+
+    # Controle histórico por ano letivo e apoio da IA para Avaliação Pedagógica.
+    # Mantém compatibilidade com bancos antigos e adiciona as novas colunas automaticamente.
+    for coluna, definicao in [
+        ("ano_letivo", "TEXT"),
+        ("tipo_registro", "TEXT"),
+        ("avaliacao_anterior_id", "INTEGER"),
+        ("analise_comparativa_ia", "TEXT"),
+        ("sugestao_nova_avaliacao_ia", "TEXT"),
+    ]:
+        adicionar_coluna_se_nao_existe(cursor, "avaliacoes", coluna, definicao)
 
     cursor.execute(
         """
@@ -745,6 +759,7 @@ DIAS_SEMANA = [
 
 CAMPOS_ENTREVISTA_FAMILIA = [
     "data_registro",
+    "ano_letivo", "tipo_registro",
     "auxilio_governamental", "auxilio_quais", "historico_familiar", "historico_quais",
     "repetiu_ano", "repetiu_qtd", "trocou_escola", "trocou_qtd", "motivo_troca",
     "situacao_escolar", "interesse_escola", "organiza_materiais", "resistencia_escola",
@@ -767,6 +782,23 @@ CAMPOS_ENTREVISTA_FAMILIA = [
     "respeita_regras", "chora_facilidade", "brinca_como", "interesses_lazer",
     "familia_gosta", "familia_nao_gosta", "ambiente_estudo_casa",
     "habilidades", "oportunidades_melhoria", "outras_info_familia",
+]
+
+OPCOES_TIPO_ENTREVISTA_FAMILIA = [
+    "Registro histórico",
+    "Entrevista familiar atual",
+]
+
+CAMPOS_AVALIACAO = [
+    "data_registro",
+    "ano_letivo", "tipo_registro", "avaliacao_anterior_id", "analise_comparativa_ia", "sugestao_nova_avaliacao_ia",
+    "barreiras", "potencialidades", "comunicacao", "interacao", "autonomia", "aprendizagem", "resumo_laudo",
+]
+
+OPCOES_TIPO_AVALIACAO = [
+    "Registro histórico",
+    "Avaliação pedagógica atual",
+    "Nova avaliação com base em avaliação anterior",
 ]
 
 CAMPOS_ESTUDO_CASO = [
@@ -1391,11 +1423,33 @@ def ultima_linha(tabela, campos, estudante_id):
 # ======================================================
 # CRUD - AVALIAÇÃO
 # ======================================================
-def salvar_avaliacao(estudante_id, barreiras, potencialidades, comunicacao, interacao, autonomia, aprendizagem, resumo_laudo):
+def salvar_avaliacao(
+    estudante_id,
+    barreiras,
+    potencialidades,
+    comunicacao,
+    interacao,
+    autonomia,
+    aprendizagem,
+    resumo_laudo,
+    ano_letivo="",
+    tipo_registro="Avaliação pedagógica atual",
+    avaliacao_anterior_id=None,
+    analise_comparativa_ia="",
+    sugestao_nova_avaliacao_ia="",
+):
     inserir_registro(
         "avaliacoes",
-        ["estudante_id", "data_registro", "barreiras", "potencialidades", "comunicacao", "interacao", "autonomia", "aprendizagem", "resumo_laudo"],
-        [estudante_id, hoje_str(), barreiras, potencialidades, comunicacao, interacao, autonomia, aprendizagem, resumo_laudo],
+        [
+            "estudante_id", "data_registro",
+            "ano_letivo", "tipo_registro", "avaliacao_anterior_id", "analise_comparativa_ia", "sugestao_nova_avaliacao_ia",
+            "barreiras", "potencialidades", "comunicacao", "interacao", "autonomia", "aprendizagem", "resumo_laudo",
+        ],
+        [
+            estudante_id, hoje_str(),
+            ano_letivo, tipo_registro, avaliacao_anterior_id, analise_comparativa_ia, sugestao_nova_avaliacao_ia,
+            barreiras, potencialidades, comunicacao, interacao, autonomia, aprendizagem, resumo_laudo,
+        ],
     )
 
 
@@ -1403,7 +1457,7 @@ def salvar_avaliacao(estudante_id, barreiras, potencialidades, comunicacao, inte
 def listar_avaliacoes(estudante_id):
     return listar_por_estudante(
         "avaliacoes",
-        ["data_registro", "barreiras", "potencialidades", "comunicacao", "interacao", "autonomia", "aprendizagem", "resumo_laudo"],
+        CAMPOS_AVALIACAO,
         estudante_id,
     )
 
@@ -1412,9 +1466,22 @@ def listar_avaliacoes(estudante_id):
 def ultima_avaliacao(estudante_id):
     return ultima_linha(
         "avaliacoes",
-        ["data_registro", "barreiras", "potencialidades", "comunicacao", "interacao", "autonomia", "aprendizagem", "resumo_laudo"],
+        CAMPOS_AVALIACAO,
         estudante_id,
     )
+
+
+@st.cache_data(ttl=30, show_spinner=False)
+def buscar_avaliacao_por_id(avaliacao_id):
+    conn = conectar()
+    cursor = conn.cursor()
+    cursor.execute(
+        f"SELECT id, {', '.join(CAMPOS_AVALIACAO)} FROM avaliacoes WHERE id=?",
+        (avaliacao_id,),
+    )
+    dado = cursor.fetchone()
+    conn.close()
+    return dado
 
 
 # ======================================================
@@ -2029,34 +2096,51 @@ ________________________________________________________
 
 
 def texto_avaliacao(estudante, a):
+    # Formato esperado: a = (id, data_registro, ano_letivo, tipo_registro,
+    # avaliacao_anterior_id, analise_comparativa_ia, sugestao_nova_avaliacao_ia,
+    # barreiras, potencialidades, comunicacao, interacao, autonomia, aprendizagem, resumo_laudo)
+    dados = dict(zip(["id"] + CAMPOS_AVALIACAO, a))
+
+    def v(campo):
+        valor = dados.get(campo)
+        return valor if valor not in (None, "") else "Não informado."
+
     return f"""
-AVALIAÇÃO PEDAGÓGICA INICIAL - INCLUISRM
+AVALIAÇÃO PEDAGÓGICA - INCLUISRM
 
 Código interno do estudante: {estudante[1]}
-Data do registro: {a[1]}
+Data do registro: {v('data_registro')}
+Ano letivo: {v('ano_letivo')}
+Tipo de registro: {v('tipo_registro')}
+Avaliação anterior vinculada: {v('avaliacao_anterior_id')}
 
 Barreiras enfrentadas:
-{a[2] or 'Não informado.'}
+{v('barreiras')}
 
 Potencialidades e habilidades:
-{a[3] or 'Não informado.'}
+{v('potencialidades')}
 
 Comunicação:
-{a[4] or 'Não informado.'}
+{v('comunicacao')}
 
 Interação social:
-{a[5] or 'Não informado.'}
+{v('interacao')}
 
 Autonomia:
-{a[6] or 'Não informado.'}
+{v('autonomia')}
 
 Aprendizagem:
-{a[7] or 'Não informado.'}
+{v('aprendizagem')}
 
 Resumo pedagógico do laudo, sem identificação:
-{a[8] or 'Não informado.'}
-""".strip()
+{v('resumo_laudo')}
 
+Análise comparativa gerada com IA:
+{v('analise_comparativa_ia')}
+
+Sugestão de nova avaliação pedagógica gerada com IA:
+{v('sugestao_nova_avaliacao_ia')}
+""".strip()
 
 def texto_entrevista(estudante, e):
     dados = dict(zip(CAMPOS_ENTREVISTA_FAMILIA, e[1:]))
@@ -2069,6 +2153,8 @@ ENTREVISTA COM A FAMÍLIA - INCLUISRM
 
 Código interno do estudante: {estudante[1]}
 Data do registro: {v('data_registro')}
+Ano letivo: {v('ano_letivo')}
+Tipo de registro: {v('tipo_registro')}
 
 Campos sensíveis para preenchimento manual:
 Nome do estudante: _______________________________________
@@ -2177,6 +2263,267 @@ Principais oportunidades de melhoria:
 Assinatura do responsável:
 ________________________________________________________
 """.strip()
+
+
+def buscar_entrevista_familia_por_id(registro_id):
+    """Busca uma entrevista familiar completa pelo ID, mantendo o formato (id, campos...)."""
+    conn = conectar()
+    cursor = conn.cursor()
+    cursor.execute(
+        f"SELECT id, {', '.join(CAMPOS_ENTREVISTA_FAMILIA)} FROM entrevistas_familia WHERE id=?",
+        (registro_id,),
+    )
+    dado = cursor.fetchone()
+    conn.close()
+    return dado
+
+
+def _normalizar_valor_comparacao(valor):
+    if valor is None:
+        return ""
+    texto = str(valor).strip()
+    if texto.lower() in ["", "não informado", "nao informado", "none", "null"]:
+        return ""
+    return texto
+
+
+def _dict_entrevista_familia(registro):
+    if not registro:
+        return {}
+    return dict(zip(["id"] + CAMPOS_ENTREVISTA_FAMILIA, registro))
+
+
+def gerar_relatorio_comparativo_entrevistas_familia(estudante, entrevista_anterior=None, entrevista_atual=None):
+    """Gera relatório comparativo manual/regra de entrevistas familiares, sem IA.
+    Objetivo: identificar mudanças no contexto familiar que possam influenciar participação,
+    autorregulação, vínculo, rotina, saúde, socialização e aprendizagem.
+    """
+    registros = listar_por_estudante("entrevistas_familia", CAMPOS_ENTREVISTA_FAMILIA, estudante[0])
+    if not registros or len(registros) < 2:
+        return f"""
+RELATÓRIO COMPARATIVO DAS ENTREVISTAS COM A FAMÍLIA - INCLUISRM
+
+Código interno do estudante: {estudante[1] or 'Não informado.'}
+
+Ainda não há entrevistas familiares suficientes para comparação.
+Registre pelo menos duas entrevistas, preferencialmente de anos letivos diferentes, para gerar uma análise comparativa.
+""".strip()
+
+    if entrevista_anterior is None or entrevista_atual is None:
+        # Como listar_por_estudante retorna do mais recente para o mais antigo, usa as duas últimas registradas.
+        entrevista_atual = registros[0]
+        entrevista_anterior = registros[1]
+
+    ant = _dict_entrevista_familia(entrevista_anterior)
+    atu = _dict_entrevista_familia(entrevista_atual)
+
+    rotulos = {
+        "auxilio_governamental": "Participação em programa de auxílio governamental",
+        "auxilio_quais": "Programas de auxílio informados",
+        "historico_familiar": "Histórico familiar de doenças, deficiência ou transtornos",
+        "historico_quais": "Históricos familiares informados",
+        "repetiu_ano": "Repetência",
+        "repetiu_qtd": "Quantidade de repetências",
+        "trocou_escola": "Mudança de escola",
+        "trocou_qtd": "Quantidade de mudanças de escola",
+        "motivo_troca": "Motivo da troca de escola",
+        "situacao_escolar": "Situação escolar",
+        "interesse_escola": "Interesse em frequentar a escola",
+        "organiza_materiais": "Organização dos materiais",
+        "resistencia_escola": "Resistência à escola",
+        "relacao_colegas": "Relação com colegas",
+        "relacao_professores": "Relação com professores",
+        "doenca_preexistente": "Doença preexistente",
+        "convulsoes": "Convulsões",
+        "acompanhamentos": "Acompanhamentos profissionais",
+        "frequencia_acompanhamento": "Frequência dos acompanhamentos",
+        "alimentacao_saudavel": "Alimentação saudável",
+        "seletividade_alimentar": "Seletividade alimentar",
+        "dieta_sensorial": "Dieta sensorial",
+        "dorme_bem": "Sono",
+        "medicacao": "Uso de medicação",
+        "medicacao_qual": "Medicações informadas",
+        "lateralidade": "Lateralidade",
+        "estereotipias": "Estereotipias observadas",
+        "autonomia_atividades": "Atividades de autonomia",
+        "atende_comandos": "Atende comandos",
+        "gosta_toque": "Aceitação do toque",
+        "verbal": "Comunicação verbal",
+        "consegue_comunicar": "Capacidade de comunicação",
+        "problemas_fala": "Problemas na fala",
+        "ecolalia": "Ecolalia",
+        "comunicacao_alternativa": "Uso de comunicação alternativa",
+        "relacao_pai": "Relação com o pai",
+        "relacao_mae": "Relação com a mãe",
+        "relacao_parentes": "Relação com outros parentes",
+        "relacao_irmaos": "Relação com irmãos",
+        "relacao_estudantes": "Relação com outros estudantes",
+        "tem_melhor_amigo": "Presença de melhor amigo(a)",
+        "adapta_ambiente": "Adaptação ao ambiente",
+        "flexivel_rotina": "Flexibilidade na rotina",
+        "respeita_regras": "Respeito às regras",
+        "chora_facilidade": "Choro com facilidade",
+        "brinca_como": "Forma de brincar",
+        "interesses_lazer": "Interesses e lazer",
+        "familia_gosta": "Aspectos que a família mais valoriza",
+        "familia_nao_gosta": "Aspectos que a família aponta para melhorar",
+        "ambiente_estudo_casa": "Ambiente físico em casa para estudo/brincadeiras",
+        "habilidades": "Habilidades percebidas pela família",
+        "oportunidades_melhoria": "Oportunidades de melhoria percebidas pela família",
+        "outras_info_familia": "Outras informações familiares relevantes",
+    }
+
+    campos_ignorar = {"id", "data_registro", "ano_letivo", "tipo_registro"}
+    campos_sensiveis_pedagogicos = {
+        "relacao_pai", "relacao_mae", "relacao_parentes", "relacao_irmaos",
+        "ambiente_estudo_casa", "familia_gosta", "familia_nao_gosta", "outras_info_familia",
+        "interesse_escola", "resistencia_escola", "chora_facilidade", "flexivel_rotina",
+        "dorme_bem", "medicacao", "medicacao_qual", "seletividade_alimentar",
+        "acompanhamentos", "interesses_lazer", "adapta_ambiente"
+    }
+
+    alteracoes = []
+    destaques = []
+    for campo in CAMPOS_ENTREVISTA_FAMILIA:
+        if campo in campos_ignorar:
+            continue
+        valor_ant = _normalizar_valor_comparacao(ant.get(campo))
+        valor_atu = _normalizar_valor_comparacao(atu.get(campo))
+        if valor_ant != valor_atu:
+            rotulo = rotulos.get(campo, campo.replace("_", " ").capitalize())
+            linha = f"- {rotulo}: antes: {valor_ant or 'não informado'} | atual: {valor_atu or 'não informado'}"
+            alteracoes.append(linha)
+            if campo in campos_sensiveis_pedagogicos:
+                destaques.append(linha)
+
+    if alteracoes:
+        texto_alteracoes = "\n".join(alteracoes)
+    else:
+        texto_alteracoes = "Não foram identificadas alterações objetivas nos campos comparados."
+
+    if destaques:
+        texto_destaques = "\n".join(destaques)
+    else:
+        texto_destaques = "Não foram identificadas alterações em campos familiares de maior impacto pedagógico imediato."
+
+    return f"""
+RELATÓRIO COMPARATIVO DAS ENTREVISTAS COM A FAMÍLIA - INCLUISRM
+
+Código interno do estudante: {estudante[1] or 'Não informado.'}
+Ano/Série atual: {estudante[2] or 'Não informado.'}
+Turma: {estudante[3] or 'Não informado.'}
+Perfil educacional informado: {estudante[4] or 'Não informado.'}
+
+Entrevista anterior:
+- ID do registro: {ant.get('id') or 'Não informado.'}
+- Data do registro: {ant.get('data_registro') or 'Não informado.'}
+- Ano letivo: {ant.get('ano_letivo') or 'Não informado.'}
+- Tipo de registro: {ant.get('tipo_registro') or 'Não informado.'}
+
+Entrevista atual/comparada:
+- ID do registro: {atu.get('id') or 'Não informado.'}
+- Data do registro: {atu.get('data_registro') or 'Não informado.'}
+- Ano letivo: {atu.get('ano_letivo') or 'Não informado.'}
+- Tipo de registro: {atu.get('tipo_registro') or 'Não informado.'}
+
+1. OBJETIVO DO RELATÓRIO
+Este relatório compara entrevistas familiares registradas em momentos diferentes, com o objetivo de identificar alterações no contexto familiar, na rotina, na saúde, na socialização, na comunicação, na autonomia e nas condições de apoio ao estudante. A comparação apoia a leitura pedagógica do professor do AEE, especialmente quando mudanças familiares podem influenciar autorregulação, comportamento, participação escolar, vínculo afetivo, aprendizagem e necessidade de acolhimento.
+
+2. ALTERAÇÕES IDENTIFICADAS ENTRE AS ENTREVISTAS
+{texto_alteracoes}
+
+3. CAMPOS DE ATENÇÃO PEDAGÓGICA E FAMILIAR
+{texto_destaques}
+
+4. LEITURA PEDAGÓGICA PARA ACOMPANHAMENTO
+As alterações registradas devem ser analisadas com cuidado pelo professor do AEE, em diálogo com a família, equipe pedagógica e professores da sala comum. Mudanças como perda de familiar, alteração de moradia, novos responsáveis, conflitos familiares, mudança no sono, alimentação, medicação, humor, rotina ou vínculo podem repercutir diretamente na participação do estudante, na autorregulação emocional e na resposta às intervenções pedagógicas.
+
+5. ENCAMINHAMENTOS SUGERIDOS PARA REGISTRO MANUAL
+- Verificar se as alterações familiares coincidem com mudanças no comportamento, frequência, participação ou desempenho escolar.
+- Registrar observações nos atendimentos do AEE, especialmente sinais de desregulação, isolamento, agitação, tristeza, resistência à escola ou mudança na interação social.
+- Dialogar com a família para compreender melhor o contexto atual, sem exposição de dados sensíveis.
+- Atualizar, se necessário, a Avaliação Pedagógica, o Estudo de Caso e o Plano AEE/PAEE.
+- Acionar a equipe pedagógica ou rede de apoio da escola quando houver necessidade de acolhimento, cuidado emocional ou acompanhamento intersetorial.
+
+6. OBSERVAÇÃO IMPORTANTE
+Este relatório pode ser gerado em modo comparativo manual/regra ou com apoio de IA na etapa de análise. A entrevista familiar permanece sempre como registro manual e fiel ao que foi informado pela família; a IA não cria, altera nem preenche entrevistas. Quando utilizada, a IA apenas apoia a leitura comparativa para subsidiar a decisão pedagógica do professor do AEE.
+
+Professor(a) AEE: _______________________________________
+Coordenação/Gestão: _____________________________________
+Data: ____/____/________
+""".strip()
+
+
+def gerar_analise_ia_comparativo_entrevistas_familia(estudante, entrevista_anterior=None, entrevista_atual=None, observacao_professor=""):
+    """Gera análise comparativa com IA a partir de duas entrevistas familiares.
+    A IA NÃO cria nem altera entrevistas; apenas analisa diferenças para apoiar o AEE.
+    """
+    client = obter_cliente_openai()
+    if client is None:
+        return "IA não configurada. Configure OPENAI_API_KEY para usar esta função."
+
+    if entrevista_anterior is None or entrevista_atual is None:
+        return "Selecione duas entrevistas familiares diferentes para gerar a análise com IA."
+
+    ant = _dict_entrevista_familia(entrevista_anterior)
+    atu = _dict_entrevista_familia(entrevista_atual)
+    relatorio_base = gerar_relatorio_comparativo_entrevistas_familia(
+        estudante,
+        entrevista_anterior=entrevista_anterior,
+        entrevista_atual=entrevista_atual,
+    )
+
+    prompt = f"""
+Você é especialista em Atendimento Educacional Especializado (AEE), educação inclusiva e análise pedagógica contextual.
+
+TAREFA:
+Analise comparativamente duas entrevistas familiares do mesmo estudante.
+
+REGRA CENTRAL:
+A IA NÃO deve criar, alterar, complementar ou inventar dados da entrevista familiar.
+A entrevista é um registro manual e fiel ao que a família informou.
+Sua função é apenas analisar as diferenças entre os registros e apoiar a leitura pedagógica do professor do AEE.
+
+IDENTIFICAÇÃO NÃO SENSÍVEL DO ESTUDANTE:
+Código interno: {estudante[1] or 'Não informado'}
+Ano/Série: {estudante[2] or 'Não informado'}
+Turma: {estudante[3] or 'Não informado'}
+Perfil educacional informado: {estudante[4] or 'Não informado'}
+
+ENTREVISTA ANTERIOR / BASE:
+{ant}
+
+ENTREVISTA ATUAL / COMPARADA:
+{atu}
+
+RELATÓRIO COMPARATIVO BASE GERADO PELO SISTEMA:
+{relatorio_base}
+
+OBSERVAÇÃO DO PROFESSOR DO AEE PARA ORIENTAR A ANÁLISE:
+{observacao_professor or 'Não informada.'}
+
+RESPONDA EM LINGUAGEM INSTITUCIONAL, CUIDADOSA E PEDAGÓGICA, COM AS SEÇÕES:
+1. Síntese comparativa geral
+2. Mudanças na estrutura familiar e rede de apoio
+3. Mudanças na rotina, saúde, sono, alimentação ou acompanhamento
+4. Possíveis sinais de desregulação observáveis no contexto escolar
+5. Possíveis avanços ou fatores de proteção
+6. Pontos de atenção para o professor do AEE
+7. Sugestões pedagógicas de acompanhamento, sem diagnóstico clínico
+8. Cuidados éticos: dados que precisam ser confirmados com família/equipe antes de qualquer encaminhamento
+
+LIMITES:
+- Não diagnosticar.
+- Não afirmar causalidade sem evidência.
+- Não expor dados sensíveis desnecessários.
+- Não inventar fatos.
+- Usar expressões como “pode indicar”, “sugere atenção”, “recomenda-se observar”, quando houver incerteza.
+"""
+    try:
+        resposta = client.responses.create(model="gpt-4.1-mini", input=prompt)
+        return resposta.output_text
+    except Exception as e:
+        return f"Não foi possível gerar a análise comparativa com IA agora. Erro: {e}"
 
 
 def texto_campos_sensiveis_em_branco_estudante():
@@ -2618,6 +2965,74 @@ Proposta inicial de novo Estudo de Caso, com contextualização, potencialidades
         return analise.strip(), sugestao.strip()
     except Exception as e:
         return "", f"Não foi possível gerar o novo estudo de caso com IA agora. Erro: {e}"
+
+
+
+def gerar_nova_avaliacao_pedagogica_com_ia(estudante, avaliacao_anterior=None, estudo_caso=None, entrevista=None, atendimentos=None, ano_novo=""):
+    """Gera análise comparativa e sugestão de nova Avaliação Pedagógica com IA.
+    A resposta é apoio pedagógico: não substitui a avaliação do professor do AEE.
+    """
+    client = obter_cliente_openai()
+    if client is None:
+        return "", "IA não configurada. Configure OPENAI_API_KEY para usar esta função."
+
+    texto_avaliacao_anterior = texto_avaliacao(estudante, avaliacao_anterior) if avaliacao_anterior else "Nenhuma avaliação anterior selecionada."
+    texto_estudo = texto_estudo_caso(estudante, estudo_caso) if estudo_caso else "Nenhum estudo de caso localizado."
+    texto_entrevista = str(entrevista or "Nenhuma entrevista com família localizada.")
+    texto_atendimentos = "\n".join([str(a) for a in (atendimentos or [])[:12]]) or "Nenhum atendimento registrado."
+
+    prompt = f"""
+Você é um especialista em Atendimento Educacional Especializado (AEE) e em avaliação pedagógica inclusiva.
+Analise os registros abaixo e produza uma resposta institucional, pedagógica e objetiva para apoiar o professor do AEE na construção de uma nova Avaliação Pedagógica.
+
+REGRAS IMPORTANTES:
+- Não invente dados pessoais nem diagnósticos.
+- Não substitua a decisão pedagógica do professor.
+- Trabalhe apenas com os dados fornecidos.
+- Use linguagem adequada para documento escolar.
+- Foque em barreiras, potencialidades, comunicação, interação social, autonomia, aprendizagem e recomendações pedagógicas.
+- Sugira recursos acessíveis, atividades pedagógicas, recursos maker/3D quando coerente e atividades plugadas/desplugadas.
+- Evite termos clínicos conclusivos; mantenha foco educacional.
+
+ESTUDANTE:
+Código interno: {estudante[1]}
+Ano/Série atual: {estudante[2]}
+Turma: {estudante[3]}
+Perfil educacional: {estudante[4]}
+Ano letivo da nova avaliação: {ano_novo}
+
+AVALIAÇÃO PEDAGÓGICA ANTERIOR:
+{texto_avaliacao_anterior}
+
+ESTUDO DE CASO DISPONÍVEL:
+{texto_estudo}
+
+ENTREVISTA COM A FAMÍLIA:
+{texto_entrevista}
+
+ATENDIMENTOS REGISTRADOS:
+{texto_atendimentos}
+
+Responda exatamente com duas seções:
+
+[ANALISE_COMPARATIVA]
+Texto comparando a avaliação anterior com os registros atuais, destacando avanços, permanências, novas barreiras, potencialidades e pontos de atenção.
+
+[SUGESTAO_NOVA_AVALIACAO]
+Proposta inicial de nova Avaliação Pedagógica, organizada nos tópicos: barreiras enfrentadas, potencialidades e habilidades, comunicação, interação social, autonomia, aprendizagem, resumo pedagógico e recomendações para intervenção no AEE.
+"""
+    try:
+        resposta = client.responses.create(model="gpt-4.1-mini", input=prompt)
+        texto = resposta.output_text or ""
+        analise = texto
+        sugestao = texto
+        if "[SUGESTAO_NOVA_AVALIACAO]" in texto:
+            partes = texto.split("[SUGESTAO_NOVA_AVALIACAO]", 1)
+            analise = partes[0].replace("[ANALISE_COMPARATIVA]", "").strip()
+            sugestao = partes[1].strip()
+        return analise.strip(), sugestao.strip()
+    except Exception as e:
+        return "", f"Não foi possível gerar a nova avaliação pedagógica com IA agora. Erro: {e}"
 
 
 # ======================================================
@@ -3390,7 +3805,8 @@ def texto_entrevista_familia_gre(estudante, entrevista=None):
 
 Escola: ________________________________________________
 Estudante: _____________________________________________
-Ano letivo: ______________________
+Ano letivo: {v('ano_letivo')}
+Tipo de registro: {v('tipo_registro')}
 Código interno no sistema: {estudante[1] or 'Não informado.'}
 Ano/Série: {estudante[2] or 'Não informado.'}   Turma: {estudante[3] or 'Não informado.'}   Turno: {estudante[6] or 'Não informado.'}
 
@@ -4227,6 +4643,29 @@ elif menu == "Entrevista com a Família":
             st.caption("Dados organizados conforme o roteiro de entrevista familiar do AEE. Campos sensíveis continuam para preenchimento manual nos documentos impressos.")
 
             with st.form("form_entrevista_completa"):
+                ano_padrao_entrevista = str(datetime.now().year)
+                anos_opcoes_entrevista = [str(a) for a in range(2020, datetime.now().year + 4)]
+                idx_ano_entrevista = anos_opcoes_entrevista.index(ano_padrao_entrevista) if ano_padrao_entrevista in anos_opcoes_entrevista else 0
+
+                st.markdown("### 📅 Identificação do registro")
+                col_ano_ent, col_tipo_ent = st.columns(2)
+                with col_ano_ent:
+                    ano_letivo_entrevista = st.selectbox(
+                        "Ano letivo da entrevista familiar",
+                        anos_opcoes_entrevista,
+                        index=idx_ano_entrevista,
+                        key="entrevista_ano_letivo",
+                    )
+                with col_tipo_ent:
+                    tipo_registro_entrevista = st.selectbox(
+                        "Tipo de registro",
+                        OPCOES_TIPO_ENTREVISTA_FAMILIA,
+                        key="entrevista_tipo_registro",
+                    )
+                st.caption(
+                    "Use 'Registro histórico' para lançar entrevistas de anos anteriores e 'Entrevista familiar atual' para o ano em acompanhamento."
+                )
+
                 st.markdown("### 🧾 1. Informações diversas")
                 col1, col2 = st.columns(2)
                 with col1:
@@ -4387,7 +4826,7 @@ elif menu == "Entrevista com a Família":
                         "entrevistas_familia",
                         ["estudante_id"] + CAMPOS_ENTREVISTA_FAMILIA,
                         [
-                            estudante_id, hoje_str(),
+                            estudante_id, hoje_str(), ano_letivo_entrevista, tipo_registro_entrevista,
                             auxilio_governamental, auxilio_quais, historico_familiar, historico_quais,
                             repetiu_ano, str(repetiu_qtd), trocou_escola, str(trocou_qtd), motivo_troca,
                             situacao_escolar, interesse_escola, organiza_materiais, resistencia_escola,
@@ -4421,7 +4860,9 @@ elif menu == "Entrevista com a Família":
             st.markdown("### Histórico de entrevistas")
             if registros:
                 for r in registros:
-                    with st.expander(f"Entrevista em {r[1]}"):
+                    ano_reg = r[2] if len(r) > 2 and r[2] else "Ano não informado"
+                    tipo_reg = r[3] if len(r) > 3 and r[3] else "Registro"
+                    with st.expander(f"Entrevista em {r[1]} | {ano_reg} | {tipo_reg}"):
                         texto = texto_entrevista(estudante, r)
                         st.text(texto)
                         export_buttons(texto, f"Entrevista_Familia_{estudante[1]}_{r[0]}", tipo_pdf="entrevista")
@@ -4437,7 +4878,7 @@ elif menu == "Entrevista com a Família":
 # AVALIAÇÃO PEDAGÓGICA
 # ======================================================
 elif menu == "Avaliação Pedagógica":
-    st.markdown('<div class="subtitulo">📝 Avaliação pedagógica inicial</div>', unsafe_allow_html=True)
+    st.markdown('<div class="subtitulo">📝 Avaliação Pedagógica / Histórico por Ano Letivo</div>', unsafe_allow_html=True)
     estudantes = listar_estudantes()
     if not estudantes:
         st.info("Cadastre um estudante primeiro.")
@@ -4445,31 +4886,142 @@ elif menu == "Avaliação Pedagógica":
         ids, mapa = opcoes_estudantes_por_id(estudantes)
         estudante_id = st.selectbox("Selecione o estudante", ids, format_func=lambda x: mapa[x], key="avaliacao_estudante")
         estudante = buscar_estudante(estudante_id)
+        avaliacoes = listar_avaliacoes(estudante_id)
+
+        st.info(
+            "Este módulo permite registrar avaliações pedagógicas anteriores e criar novas avaliações com apoio da IA. "
+            "A sugestão gerada serve como apoio à análise do professor do AEE e não substitui sua decisão pedagógica."
+        )
+
+        anos_opcoes = [str(a) for a in range(2024, datetime.now().year + 4)]
+        ano_padrao = str(datetime.now().year)
+        idx_ano = anos_opcoes.index(ano_padrao) if ano_padrao in anos_opcoes else 0
 
         with st.container(border=True):
-            st.markdown("### Registro da avaliação")
+            st.markdown("### Configuração do registro")
+            col_ano, col_tipo = st.columns(2)
+            with col_ano:
+                ano_letivo = st.selectbox("Ano letivo da avaliação pedagógica", anos_opcoes, index=idx_ano, key="avaliacao_ano_letivo")
+            with col_tipo:
+                tipo_registro = st.selectbox("Tipo de registro", OPCOES_TIPO_AVALIACAO, key="avaliacao_tipo_registro")
+
+            opcoes_avaliacoes = {0: "Nenhuma avaliação anterior"}
+            for av in avaliacoes:
+                ano_av = av[2] or "Ano não informado"
+                tipo_av = av[3] or "Tipo não informado"
+                opcoes_avaliacoes[av[0]] = f"ID {av[0]} • {ano_av} • {tipo_av} • {av[1]}"
+
+            avaliacao_anterior_id = st.selectbox(
+                "Avaliação anterior para comparação",
+                list(opcoes_avaliacoes.keys()),
+                format_func=lambda x: opcoes_avaliacoes[x],
+                key="avaliacao_anterior_id_select",
+            )
+
+            foco_ia = st.text_area(
+                "Orientação para a IA (opcional)",
+                placeholder="Ex.: observar avanços em autonomia, comunicação, participação nas atividades e barreiras de aprendizagem.",
+                height=80,
+                key="avaliacao_foco_ia",
+            )
+
+            if st.button("🤖 Gerar sugestão de nova Avaliação Pedagógica com IA", key="btn_ia_avaliacao"):
+                av_base = buscar_avaliacao_por_id(avaliacao_anterior_id) if avaliacao_anterior_id else None
+                estudo_atual = ultima_linha("estudos_caso", CAMPOS_ESTUDO_CASO, estudante_id)
+                estudo_atual = ("", *estudo_atual) if estudo_atual else None
+                entrevista_atual = ultima_linha("entrevistas_familia", CAMPOS_ENTREVISTA_FAMILIA, estudante_id)
+                atendimentos_atuais = listar_atendimentos(estudante_id)
+                analise_ia, sugestao_ia = gerar_nova_avaliacao_pedagogica_com_ia(
+                    estudante,
+                    av_base,
+                    estudo_atual,
+                    entrevista_atual,
+                    atendimentos_atuais,
+                    ano_letivo,
+                )
+                if foco_ia.strip():
+                    analise_ia = f"Orientação do professor: {foco_ia.strip()}\n\n{analise_ia}".strip()
+                st.session_state["avaliacao_analise_ia"] = analise_ia
+                st.session_state["avaliacao_sugestao_ia"] = sugestao_ia
+                st.success("Sugestão gerada. Revise e ajuste manualmente antes de salvar.")
+
+            analise_previa = st.session_state.get("avaliacao_analise_ia", "")
+            sugestao_previa = st.session_state.get("avaliacao_sugestao_ia", "")
+            if analise_previa or sugestao_previa:
+                with st.expander("Prévia da análise e sugestão geradas com IA", expanded=True):
+                    st.markdown("**Análise comparativa:**")
+                    st.text_area("Análise comparativa IA", value=analise_previa, height=180, key="preview_analise_avaliacao_ia")
+                    st.markdown("**Sugestão de nova avaliação:**")
+                    st.text_area("Sugestão IA", value=sugestao_previa, height=260, key="preview_sugestao_avaliacao_ia")
+
+        with st.container(border=True):
+            st.markdown("### Registro manual / revisão da avaliação")
             with st.form("form_avaliacao"):
-                barreiras = st.text_area("Barreiras enfrentadas pelo estudante")
-                potencialidades = st.text_area("Potencialidades e habilidades já desenvolvidas")
-                comunicacao = st.text_area("Comunicação")
-                interacao = st.text_area("Interação social")
-                autonomia = st.text_area("Autonomia")
-                aprendizagem = st.text_area("Aprendizagem")
-                resumo_laudo = st.text_area("Resumo pedagógico do laudo, sem identificação")
-                if st.form_submit_button("Salvar avaliação"):
-                    salvar_avaliacao(estudante_id, barreiras, potencialidades, comunicacao, interacao, autonomia, aprendizagem, resumo_laudo)
-                    st.success("Avaliação salva.")
+                sugestao_base = st.session_state.get("avaliacao_sugestao_ia", "")
+                barreiras = st.text_area("Barreiras enfrentadas pelo estudante", value=sugestao_base if tipo_registro == "Nova avaliação com base em avaliação anterior" else "", height=120)
+                potencialidades = st.text_area("Potencialidades e habilidades já desenvolvidas", height=100)
+                comunicacao = st.text_area("Comunicação", height=90)
+                interacao = st.text_area("Interação social", height=90)
+                autonomia = st.text_area("Autonomia", height=90)
+                aprendizagem = st.text_area("Aprendizagem", height=100)
+                resumo_laudo = st.text_area("Resumo pedagógico do laudo, sem identificação", height=90)
+                analise_comparativa_ia = st.text_area(
+                    "Análise comparativa IA/manual",
+                    value=st.session_state.get("avaliacao_analise_ia", ""),
+                    height=150,
+                )
+                sugestao_nova_avaliacao_ia = st.text_area(
+                    "Sugestão IA/manual para nova avaliação",
+                    value=st.session_state.get("avaliacao_sugestao_ia", ""),
+                    height=180,
+                )
+
+                if st.form_submit_button("Salvar avaliação pedagógica"):
+                    salvar_avaliacao(
+                        estudante_id,
+                        barreiras,
+                        potencialidades,
+                        comunicacao,
+                        interacao,
+                        autonomia,
+                        aprendizagem,
+                        resumo_laudo,
+                        ano_letivo,
+                        tipo_registro,
+                        avaliacao_anterior_id if avaliacao_anterior_id else None,
+                        analise_comparativa_ia,
+                        sugestao_nova_avaliacao_ia,
+                    )
+                    st.session_state.pop("avaliacao_analise_ia", None)
+                    st.session_state.pop("avaliacao_sugestao_ia", None)
+                    st.success("Avaliação pedagógica salva.")
                     st.rerun()
 
         avaliacoes = listar_avaliacoes(estudante_id)
         with st.container(border=True):
-            st.markdown("### Histórico de avaliações")
+            st.markdown("### Histórico de avaliações pedagógicas")
             if avaliacoes:
+                df_av = pd.DataFrame(
+                    [
+                        {
+                            "ID": a[0],
+                            "Data": a[1],
+                            "Ano letivo": a[2] or "Não informado",
+                            "Tipo": a[3] or "Não informado",
+                            "Avaliação anterior": a[4] or "",
+                        }
+                        for a in avaliacoes
+                    ]
+                )
+                st.dataframe(df_av, use_container_width=True, hide_index=True)
+
                 for a in avaliacoes:
-                    with st.expander(f"Avaliação em {a[1]}"):
+                    ano_av = a[2] or "Ano não informado"
+                    tipo_av = a[3] or "Tipo não informado"
+                    with st.expander(f"Avaliação {ano_av} • {tipo_av} • {a[1]}"):
                         texto = texto_avaliacao(estudante, a)
                         st.text(texto)
-                        export_buttons(texto, f"Avaliacao_Pedagogica_{estudante[1]}_{a[0]}", tipo_pdf="avaliacao")
+                        export_buttons(texto, f"Avaliacao_Pedagogica_{estudante[1]}_{ano_av}_{a[0]}", tipo_pdf="avaliacao")
                         if st.button("Excluir avaliação", key=f"exc_av_{a[0]}"):
                             excluir_registro("avaliacoes", a[0])
                             st.success("Avaliação excluída.")
@@ -5207,6 +5759,7 @@ elif menu == "Relatórios GRE":
                     "Ficha de Identificação Professor(a) AEE",
                     "Matrícula SRM / Termo de Ciência",
                     "Entrevista com a Família",
+                    "Relatório Comparativo das Entrevistas Familiares",
                     "Estudo de Caso e Plano AEE",
                     "Relatório Consolidado GRE",
                     "Quadro Semanal - Ações/Práticas do Professor AEE",
@@ -5226,6 +5779,67 @@ elif menu == "Relatórios GRE":
             mes_qs = datetime.now().strftime("%m")
             ano_qs = datetime.now().strftime("%Y")
             df_quadro_qs = pd.DataFrame()
+
+            entrevista_comp_anterior_id = None
+            entrevista_comp_atual_id = None
+
+            if tipo == "Relatório Comparativo das Entrevistas Familiares":
+                st.markdown("### 👪 Configuração do relatório comparativo familiar")
+                entrevistas_familia = listar_por_estudante("entrevistas_familia", CAMPOS_ENTREVISTA_FAMILIA, estudante_id)
+                if len(entrevistas_familia) < 2:
+                    st.warning("Registre pelo menos duas entrevistas familiares para gerar o relatório comparativo.")
+                else:
+                    mapa_entrevistas = {
+                        e[0]: f"#{e[0]} | Data: {e[1] or 'Não informada'} | Ano: {(e[2] if len(e) > 2 else '') or 'Não informado'} | Tipo: {(e[3] if len(e) > 3 else '') or 'Não informado'}"
+                        for e in entrevistas_familia
+                    }
+                    ids_entrevistas = [e[0] for e in entrevistas_familia]
+                    col_ent_ant, col_ent_atu = st.columns(2)
+                    with col_ent_ant:
+                        entrevista_comp_anterior_id = st.selectbox(
+                            "Entrevista anterior/base",
+                            ids_entrevistas,
+                            index=1 if len(ids_entrevistas) > 1 else 0,
+                            format_func=lambda x: mapa_entrevistas[x],
+                            key="gre_entrevista_comparativa_anterior",
+                        )
+                    with col_ent_atu:
+                        entrevista_comp_atual_id = st.selectbox(
+                            "Entrevista atual/comparada",
+                            ids_entrevistas,
+                            index=0,
+                            format_func=lambda x: mapa_entrevistas[x],
+                            key="gre_entrevista_comparativa_atual",
+                        )
+                    if entrevista_comp_anterior_id == entrevista_comp_atual_id:
+                        st.info("Selecione duas entrevistas diferentes para uma comparação mais útil.")
+                    st.caption("A entrevista familiar continua manual. A IA pode ser usada apenas para analisar a comparação entre duas entrevistas, sem criar ou alterar respostas da família.")
+
+                    observacao_ia_entrevista = st.text_area(
+                        "Orientação para a análise com IA (opcional)",
+                        placeholder="Ex: observar possível impacto de luto, mudança de responsável, alteração na rotina ou sinais de desregulação.",
+                        key="gre_entrevista_observacao_ia",
+                    )
+
+                    if st.button("🤖 Gerar análise comparativa das entrevistas com IA", key="gre_entrevista_comparativa_ia"):
+                        entrevista_anterior_ia = buscar_entrevista_familia_por_id(entrevista_comp_anterior_id) if entrevista_comp_anterior_id else None
+                        entrevista_atual_ia = buscar_entrevista_familia_por_id(entrevista_comp_atual_id) if entrevista_comp_atual_id else None
+                        with st.spinner("Analisando comparação das entrevistas familiares com IA..."):
+                            st.session_state["analise_ia_entrevistas_familia"] = gerar_analise_ia_comparativo_entrevistas_familia(
+                                estudante,
+                                entrevista_anterior=entrevista_anterior_ia,
+                                entrevista_atual=entrevista_atual_ia,
+                                observacao_professor=observacao_ia_entrevista,
+                            )
+
+                    if "analise_ia_entrevistas_familia" in st.session_state:
+                        st.markdown("### 🤖 Análise comparativa com IA")
+                        st.text_area(
+                            "Análise editável antes de usar no relatório",
+                            st.session_state["analise_ia_entrevistas_familia"],
+                            height=360,
+                            key="gre_entrevista_analise_ia_texto",
+                        )
 
             if tipo == "Quadro Semanal - Ações/Práticas do Professor AEE":
                 st.markdown("### 📋 Configuração do Quadro Semanal")
@@ -5316,6 +5930,20 @@ elif menu == "Relatórios GRE":
                     texto = texto_entrevista_familia_gre(estudante, entrevista)
                     tipo_pdf = "entrevista"
                     nome = f"Entrevista_Familia_GRE_{estudante[1]}"
+
+                elif tipo == "Relatório Comparativo das Entrevistas Familiares":
+                    entrevista_anterior = buscar_entrevista_familia_por_id(entrevista_comp_anterior_id) if entrevista_comp_anterior_id else None
+                    entrevista_atual = buscar_entrevista_familia_por_id(entrevista_comp_atual_id) if entrevista_comp_atual_id else None
+                    texto = gerar_relatorio_comparativo_entrevistas_familia(
+                        estudante,
+                        entrevista_anterior=entrevista_anterior,
+                        entrevista_atual=entrevista_atual,
+                    )
+                    analise_ia = st.session_state.get("analise_ia_entrevistas_familia", "")
+                    if analise_ia:
+                        texto = texto + "\n\n7. ANÁLISE COMPARATIVA COM APOIO DE IA\n" + analise_ia + "\n\nObservação: a análise com IA é apoio à leitura pedagógica. A entrevista familiar permanece como registro manual e a decisão final cabe ao professor do AEE."
+                    tipo_pdf = "relatorio"
+                    nome = f"Relatorio_Comparativo_Entrevistas_Familiares_{estudante[1]}"
 
                 elif tipo == "Estudo de Caso e Plano AEE":
                     estudo = ultima_linha("estudos_caso", CAMPOS_ESTUDO_CASO, estudante_id)
