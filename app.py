@@ -5758,8 +5758,8 @@ elif menu == "Relatórios GRE":
                 [
                     "Ficha de Identificação Professor(a) AEE",
                     "Matrícula SRM / Termo de Ciência",
-                    "Entrevista com a Família",
                     "Relatório Comparativo das Entrevistas Familiares",
+                    "Registro da Entrevista Familiar (última registrada)",
                     "Estudo de Caso e Plano AEE",
                     "Relatório Consolidado GRE",
                     "Quadro Semanal - Ações/Práticas do Professor AEE",
@@ -5770,6 +5770,10 @@ elif menu == "Relatórios GRE":
             st.info(
                 "Os campos como nome completo, CPF, endereço, telefone pessoal, NIS, Cartão SUS e dados familiares sensíveis ficarão em branco para preenchimento manual."
             )
+            if tipo == "Relatório Comparativo das Entrevistas Familiares":
+                st.success("Este relatório será gerado a partir das entrevistas familiares já registradas no sistema, comparando uma entrevista anterior com uma entrevista atual. A IA atua apenas na análise comparativa, sem criar ou alterar respostas da família.")
+            elif tipo == "Registro da Entrevista Familiar (última registrada)":
+                st.warning("Este documento apenas imprime a última entrevista familiar registrada. Para analisar mudanças entre anos, escolha 'Relatório Comparativo das Entrevistas Familiares'.")
 
             # Configurações específicas do Quadro Semanal GRE
             data_inicio_qs = None
@@ -5925,11 +5929,11 @@ elif menu == "Relatórios GRE":
                     tipo_pdf = "matricula_srm"
                     nome = f"Matricula_SRM_Termo_Ciencia_{estudante[1]}"
 
-                elif tipo == "Entrevista com a Família":
+                elif tipo == "Registro da Entrevista Familiar (última registrada)":
                     entrevista = ultima_linha("entrevistas_familia", CAMPOS_ENTREVISTA_FAMILIA, estudante_id)
                     texto = texto_entrevista_familia_gre(estudante, entrevista)
                     tipo_pdf = "entrevista"
-                    nome = f"Entrevista_Familia_GRE_{estudante[1]}"
+                    nome = f"Registro_Entrevista_Familiar_GRE_{estudante[1]}"
 
                 elif tipo == "Relatório Comparativo das Entrevistas Familiares":
                     entrevista_anterior = buscar_entrevista_familia_por_id(entrevista_comp_anterior_id) if entrevista_comp_anterior_id else None
@@ -6012,7 +6016,12 @@ elif menu == "Relatórios GRE":
 
         if "gre_texto" in st.session_state:
             with st.container(border=True):
-                st.markdown(f"### Documento gerado: {st.session_state.get('gre_tipo', '')}")
+                titulo_preview = st.session_state.get('gre_tipo', '')
+                if titulo_preview == "Relatório Comparativo das Entrevistas Familiares":
+                    st.markdown("### Documento gerado: Relatório Comparativo das Entrevistas Familiares")
+                    st.caption("Este documento é produzido a partir de entrevistas já registradas no sistema e tem como objetivo analisar possíveis mudanças familiares, emocionais, comportamentais e pedagógicas ao longo do tempo.")
+                else:
+                    st.markdown(f"### Documento gerado: {titulo_preview}")
                 st.text_area("Pré-visualização", st.session_state["gre_texto"], height=560)
                 export_buttons(st.session_state["gre_texto"], st.session_state["gre_nome"], tipo_pdf=st.session_state["gre_tipo_pdf"])
                 if st.session_state.get("gre_tipo") == "Quadro Semanal - Ações/Práticas do Professor AEE" and "gre_docx_quadro" in st.session_state:
