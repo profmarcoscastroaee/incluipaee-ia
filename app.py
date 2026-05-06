@@ -313,6 +313,44 @@ def conectar():
     return sqlite3.connect(DB_PATH)
 
 
+def obter_conexao_pandas(conn):
+    """Retorna a conexão real para uso com pandas.
+    No PostgreSQL, a conexão do app é envolvida por ConexaoPostgresCompat;
+    o pandas precisa receber a conexão psycopg2 original.
+    """
+    return conn.conn if hasattr(conn, "conn") else conn
+
+
+def listar_tabelas_banco():
+    """Lista tabelas do banco atual com compatibilidade SQLite e PostgreSQL.
+    Evita o uso de sqlite_master quando o sistema está no Render/PostgreSQL.
+    """
+    conn = conectar()
+    conn_pandas = obter_conexao_pandas(conn)
+    if USAR_POSTGRES:
+        query = """
+        SELECT table_name AS name
+        FROM information_schema.tables
+        WHERE table_schema = 'public'
+          AND table_type = 'BASE TABLE'
+        ORDER BY table_name
+        """
+    else:
+        query = "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
+    df = pd.read_sql_query(query, conn_pandas)
+    conn.close()
+    return df["name"].tolist()
+
+
+def carregar_tabela_dataframe(tabela):
+    """Carrega uma tabela em DataFrame com conexão compatível com SQLite/PostgreSQL."""
+    conn = conectar()
+    conn_pandas = obter_conexao_pandas(conn)
+    df = pd.read_sql_query(f'SELECT * FROM {tabela}', conn_pandas)
+    conn.close()
+    return df
+
+
 def limpar_cache_dados():
     """Limpa os caches de consulta após qualquer gravação/edição/exclusão.
     Isso evita dados desatualizados depois de cadastrar, editar ou excluir registros.
@@ -6080,12 +6118,10 @@ elif menu == "Administração":
 
     with st.container(border=True):
         st.markdown("### Backup geral do banco")
-        conn = conectar()
-        tabelas = pd.read_sql_query("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name", conn)["name"].tolist()
+        tabelas = listar_tabelas_banco()
         backup = {}
         for tabela in tabelas:
-            backup[tabela] = pd.read_sql_query(f"SELECT * FROM {tabela}", conn)
-        conn.close()
+            backup[tabela] = carregar_tabela_dataframe(tabela)
 
         st.write("Tabelas encontradas:", ", ".join(tabelas))
 
