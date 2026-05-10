@@ -1399,7 +1399,7 @@ def render_app_header():
     st.markdown(
         """
         <div class="app-hero">
-            <span class="app-badge">AEE • Memória Pedagógica • Articulação Docente • IA • V13 GRE</span>
+            <span class="app-badge">AEE • Memória Pedagógica • Articulação Docente • IA • V20 Relatórios Visuais</span>
             <h1 class="app-title">INCLUISRM</h1>
             <p class="app-subtitle">Sistema Inteligente de Articulação Pedagógica Inclusiva</p>
         </div>
@@ -1451,6 +1451,224 @@ def gerar_docx_documento(conteudo, nome_base, tipo="documento"):
     return nome_arquivo
 
 
+
+# ======================================================
+# RELATÓRIOS VISUAIS - PLANO AEE IA
+# ======================================================
+def limpar_marcadores_relatorio(texto):
+    """Remove marcações simples de Markdown usadas pela IA para melhorar Word/PDF."""
+    texto = str(texto or "")
+    texto = texto.replace("**", "")
+    texto = re.sub(r"^#{1,6}\s*", "", texto, flags=re.MULTILINE)
+    texto = texto.replace("---", "")
+    return texto.strip()
+
+
+def eh_titulo_relatorio(linha):
+    linha = linha.strip()
+    if not linha:
+        return False
+    if linha.upper() == linha and len(linha) > 8:
+        return True
+    if re.match(r"^(\d+\.|SEMANA\s+\d+|ATENDIMENTO\s+\d+|Semana\s+\d+|Atendimento\s+\d+)", linha, flags=re.I):
+        return True
+    palavras_chave = [
+        "Identificação", "Objetivo", "Habilidades", "Recursos", "Estratégias", "Avaliação",
+        "Indicadores", "Ajustes", "Registro", "Organização", "Diagnóstico", "Sugestão"
+    ]
+    return any(linha.lower().startswith(k.lower()) for k in palavras_chave)
+
+
+def extrair_linhas_chave_valor(texto):
+    pares = []
+    for raw in str(texto or "").splitlines():
+        linha = limpar_marcadores_relatorio(raw).strip(" -•\t")
+        if ":" in linha and len(linha) < 140:
+            chave, valor = linha.split(":", 1)
+            if chave and valor and len(chave) <= 45:
+                pares.append((chave.strip(), valor.strip()))
+    return pares
+
+
+def gerar_docx_plano_aee_ia_visual(conteudo, nome_base, titulo_doc="PLANO MENSAL AEE - IA"):
+    """Gera Word com layout visual para planos IA: capa, cards, seções e tabela de atendimentos."""
+    from docx import Document
+    from docx.shared import Pt, RGBColor, Inches
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    from docx.enum.table import WD_TABLE_ALIGNMENT, WD_CELL_VERTICAL_ALIGNMENT
+    from docx.oxml import OxmlElement
+    from docx.oxml.ns import qn
+
+    def set_cell_bg(cell, fill):
+        tc_pr = cell._tc.get_or_add_tcPr()
+        shd = OxmlElement('w:shd')
+        shd.set(qn('w:fill'), fill)
+        tc_pr.append(shd)
+
+    def set_cell_text(cell, text, bold=False, color="111827", size=9):
+        cell.text = ""
+        p = cell.paragraphs[0]
+        r = p.add_run(str(text or ""))
+        r.bold = bold
+        r.font.size = Pt(size)
+        r.font.color.rgb = RGBColor.from_string(color)
+        cell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
+
+    nome_arquivo = f"plano_aee_ia_visual_{nome_base}.docx".replace("/", "-").replace("\\", "-")
+    doc = Document()
+    sec = doc.sections[0]
+    sec.top_margin = Inches(0.45)
+    sec.bottom_margin = Inches(0.45)
+    sec.left_margin = Inches(0.55)
+    sec.right_margin = Inches(0.55)
+
+    # Capa / cabeçalho
+    header = doc.add_table(rows=1, cols=2)
+    header.alignment = WD_TABLE_ALIGNMENT.CENTER
+    header.autofit = True
+    set_cell_bg(header.cell(0,0), "0F172A")
+    set_cell_bg(header.cell(0,1), "E0F2FE")
+    set_cell_text(header.cell(0,0), "INCLUISRM\nSistema Inteligente de Articulação Pedagógica Inclusiva", True, "FFFFFF", 11)
+    set_cell_text(header.cell(0,1), f"🧠 {titulo_doc}\nDocumento pedagógico gerado com apoio de IA", True, "0F172A", 12)
+
+    doc.add_paragraph("")
+
+    # Cards de identificação
+    pares = extrair_linhas_chave_valor(conteudo)[:8]
+    if pares:
+        doc.add_heading("Identificação segura", level=2)
+        t = doc.add_table(rows=0, cols=2)
+        t.alignment = WD_TABLE_ALIGNMENT.CENTER
+        for chave, valor in pares:
+            row = t.add_row().cells
+            set_cell_bg(row[0], "DBEAFE")
+            set_cell_bg(row[1], "F8FAFC")
+            set_cell_text(row[0], chave, True, "1E3A8A", 9)
+            set_cell_text(row[1], valor, False, "111827", 9)
+
+    doc.add_paragraph("")
+    doc.add_heading("Roteiro pedagógico do atendimento", level=2)
+
+    texto = limpar_marcadores_relatorio(conteudo)
+    for raw in texto.splitlines():
+        linha = raw.strip()
+        if not linha or linha == "---":
+            continue
+        if eh_titulo_relatorio(linha):
+            p = doc.add_paragraph()
+            r = p.add_run(linha)
+            r.bold = True
+            r.font.size = Pt(12)
+            r.font.color.rgb = RGBColor(30, 64, 175)
+            continue
+        if linha.startswith("-") or linha.startswith("•"):
+            p = doc.add_paragraph(style=None)
+            p.paragraph_format.left_indent = Inches(0.18)
+            r = p.add_run("• " + linha.lstrip("-• "))
+            r.font.size = Pt(10)
+            continue
+        p = doc.add_paragraph()
+        r = p.add_run(linha)
+        r.font.size = Pt(10)
+
+    doc.add_paragraph("")
+    foot = doc.add_table(rows=1, cols=1)
+    set_cell_bg(foot.cell(0,0), "F1F5F9")
+    set_cell_text(
+        foot.cell(0,0),
+        f"Documento gerado em {datetime.now().strftime('%d/%m/%Y %H:%M')} pelo INCLUISRM • LabTec3DI/UFRPE • Uso pedagógico no AEE",
+        False,
+        "475569",
+        8,
+    )
+
+    doc.save(nome_arquivo)
+    return nome_arquivo
+
+
+def gerar_pdf_plano_aee_ia_visual(conteudo, nome_base, titulo_doc="PLANO MENSAL AEE - IA"):
+    """Gera PDF com visual mais profissional usando cards, cores e seções."""
+    from reportlab.lib import colors
+    from reportlab.lib.enums import TA_CENTER, TA_LEFT
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+    from reportlab.lib.units import cm
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
+
+    nome_arquivo = f"plano_aee_ia_visual_{nome_base}.pdf".replace("/", "-").replace("\\", "-")
+    doc = SimpleDocTemplate(nome_arquivo, pagesize=A4, rightMargin=1.35*cm, leftMargin=1.35*cm, topMargin=1.15*cm, bottomMargin=1.15*cm)
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle("TitlePlanoIA", parent=styles["Title"], alignment=TA_CENTER, fontSize=16, leading=20, textColor=colors.HexColor("#0f172a"), spaceAfter=8)
+    subtitle_style = ParagraphStyle("SubtitlePlanoIA", parent=styles["Normal"], alignment=TA_CENTER, fontSize=9, textColor=colors.HexColor("#475569"), spaceAfter=12)
+    sec_style = ParagraphStyle("SecPlanoIA", parent=styles["Heading2"], fontSize=12, leading=15, textColor=colors.HexColor("#1d4ed8"), spaceBefore=8, spaceAfter=5)
+    normal_style = ParagraphStyle("NormalPlanoIA", parent=styles["Normal"], fontSize=9.5, leading=13, textColor=colors.HexColor("#111827"), spaceAfter=4)
+    bullet_style = ParagraphStyle("BulletPlanoIA", parent=normal_style, leftIndent=12, firstLineIndent=-8)
+    small_style = ParagraphStyle("SmallPlanoIA", parent=styles["Normal"], alignment=TA_CENTER, fontSize=8, textColor=colors.HexColor("#64748b"))
+
+    elementos = []
+    capa = Table(
+        [[Paragraph("<b>INCLUISRM</b><br/>Sistema Inteligente de Articulação Pedagógica Inclusiva", normal_style),
+          Paragraph(f"<b>🧠 {escape(titulo_doc)}</b><br/>Relatório visual de planejamento pedagógico", normal_style)]],
+        colWidths=[7.3*cm, 10.2*cm],
+    )
+    capa.setStyle(TableStyle([
+        ("BACKGROUND", (0,0), (0,0), colors.HexColor("#0f172a")),
+        ("TEXTCOLOR", (0,0), (0,0), colors.white),
+        ("BACKGROUND", (1,0), (1,0), colors.HexColor("#e0f2fe")),
+        ("BOX", (0,0), (-1,-1), 0.6, colors.HexColor("#cbd5e1")),
+        ("VALIGN", (0,0), (-1,-1), "MIDDLE"),
+        ("LEFTPADDING", (0,0), (-1,-1), 10),
+        ("RIGHTPADDING", (0,0), (-1,-1), 10),
+        ("TOPPADDING", (0,0), (-1,-1), 10),
+        ("BOTTOMPADDING", (0,0), (-1,-1), 10),
+    ]))
+    elementos.append(capa)
+    elementos.append(Spacer(1, 12))
+    elementos.append(Paragraph(titulo_doc, title_style))
+    elementos.append(Paragraph("Planejamento organizado em linguagem pedagógica, com foco em execução, registro e acompanhamento evolutivo.", subtitle_style))
+
+    pares = extrair_linhas_chave_valor(conteudo)[:8]
+    if pares:
+        dados = [[Paragraph("<b>Campo</b>", normal_style), Paragraph("<b>Informação</b>", normal_style)]]
+        for chave, valor in pares:
+            dados.append([Paragraph(escape(chave), normal_style), Paragraph(escape(valor), normal_style)])
+        tabela = Table(dados, colWidths=[5.2*cm, 12.3*cm])
+        tabela.setStyle(TableStyle([
+            ("BACKGROUND", (0,0), (-1,0), colors.HexColor("#1d4ed8")),
+            ("TEXTCOLOR", (0,0), (-1,0), colors.white),
+            ("BACKGROUND", (0,1), (0,-1), colors.HexColor("#dbeafe")),
+            ("BACKGROUND", (1,1), (1,-1), colors.HexColor("#f8fafc")),
+            ("GRID", (0,0), (-1,-1), 0.35, colors.HexColor("#cbd5e1")),
+            ("VALIGN", (0,0), (-1,-1), "TOP"),
+            ("LEFTPADDING", (0,0), (-1,-1), 7),
+            ("RIGHTPADDING", (0,0), (-1,-1), 7),
+            ("TOPPADDING", (0,0), (-1,-1), 5),
+            ("BOTTOMPADDING", (0,0), (-1,-1), 5),
+        ]))
+        elementos.append(tabela)
+        elementos.append(Spacer(1, 10))
+
+    texto = limpar_marcadores_relatorio(conteudo)
+    for raw in texto.splitlines():
+        linha = raw.strip()
+        if not linha:
+            continue
+        if eh_titulo_relatorio(linha):
+            elementos.append(Spacer(1, 4))
+            elementos.append(Paragraph(escape(linha), sec_style))
+        elif linha.startswith("-") or linha.startswith("•"):
+            elementos.append(Paragraph("• " + escape(linha.lstrip("-• ")), bullet_style))
+        else:
+            elementos.append(Paragraph(escape(linha), normal_style))
+
+    elementos.append(Spacer(1, 14))
+    rodape = Table([[Paragraph(f"Gerado em {datetime.now().strftime('%d/%m/%Y %H:%M')} pelo INCLUISRM • LabTec3DI/UFRPE • Documento pedagógico de apoio ao AEE", small_style)]], colWidths=[17.5*cm])
+    rodape.setStyle(TableStyle([("BACKGROUND", (0,0), (-1,-1), colors.HexColor("#f1f5f9")), ("BOX", (0,0), (-1,-1), 0.3, colors.HexColor("#cbd5e1")), ("TOPPADDING", (0,0), (-1,-1), 6), ("BOTTOMPADDING", (0,0), (-1,-1), 6)]))
+    elementos.append(rodape)
+    doc.build(elementos)
+    return nome_arquivo
+
+
 def export_buttons(texto, nome_base, tipo_pdf="documento"):
     col_txt, col_pdf, col_word = st.columns(3)
 
@@ -1465,7 +1683,10 @@ def export_buttons(texto, nome_base, tipo_pdf="documento"):
 
     with col_pdf:
         if st.button("Gerar PDF", key=f"gerar_pdf_{nome_base}_{tipo_pdf}"):
-            arquivo = gerar_pdf_documento(texto, nome_base, tipo=tipo_pdf)
+            if tipo_pdf == "plano_ia_visual":
+                arquivo = gerar_pdf_plano_aee_ia_visual(texto, nome_base)
+            else:
+                arquivo = gerar_pdf_documento(texto, nome_base, tipo=tipo_pdf)
             st.session_state[f"pdf_{nome_base}_{tipo_pdf}"] = arquivo
 
         if f"pdf_{nome_base}_{tipo_pdf}" in st.session_state:
@@ -1481,7 +1702,10 @@ def export_buttons(texto, nome_base, tipo_pdf="documento"):
     with col_word:
         if st.button("Gerar Word", key=f"gerar_docx_{nome_base}_{tipo_pdf}"):
             try:
-                arquivo = gerar_docx_documento(texto, nome_base, tipo=tipo_pdf)
+                if tipo_pdf == "plano_ia_visual":
+                    arquivo = gerar_docx_plano_aee_ia_visual(texto, nome_base)
+                else:
+                    arquivo = gerar_docx_documento(texto, nome_base, tipo=tipo_pdf)
                 st.session_state[f"docx_{nome_base}_{tipo_pdf}"] = arquivo
             except ModuleNotFoundError:
                 st.error("Biblioteca python-docx não instalada. Rode: pip install python-docx")
@@ -4763,7 +4987,7 @@ def gerar_plano_mensal_aee_ia(estudante, mes_referencia, ano_referencia, qtd_ate
     qtd = max(1, min(5, int(qtd_atendimentos_semana or 1)))
 
     fallback = f"""
-PLANO MENSAL DE ATENDIMENTO AEE - {mes_referencia.upper()}/{ano_referencia}
+PLANO MENSAL DE ATENDIMENTO EDUCACIONAL ESPECIALIZADO (AEE)
 
 Código interno: {estudante[1]}
 Quantidade prevista: {qtd} atendimento(s) por semana.
@@ -7753,7 +7977,7 @@ Modelo obrigatório para cada atendimento:
                 )
                 col_pm1, col_pm2 = st.columns([1, 1])
                 with col_pm1:
-                    export_buttons(plano_mensal_txt, f"Plano_Mensal_AEE_IA_{estudante[1]}_{mes_ref}_{ano_ref}", tipo_pdf="plano")
+                    export_buttons(plano_mensal_txt, f"Plano_Mensal_AEE_IA_{estudante[1]}_{mes_ref}_{ano_ref}", tipo_pdf="plano_ia_visual")
                 with col_pm2:
                     if st.button("💾 Salvar plano mensal no histórico", key=f"salvar_plano_mensal_v19_{estudante_id}"):
                         salvar_historico_plano_aee_ia(
