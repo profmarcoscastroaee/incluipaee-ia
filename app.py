@@ -592,6 +592,55 @@ def criar_tabelas():
         """
     )
 
+
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS escutas_docentes (
+            id SERIAL PRIMARY KEY,
+            estudante_id INTEGER NOT NULL,
+            data_registro TEXT,
+            ano_letivo TEXT,
+            professor_nome TEXT,
+            componente_curricular TEXT,
+            outro_componente TEXT,
+            turma TEXT,
+            tempo_acompanhamento TEXT,
+            participacao_sala TEXT,
+            comunicacao TEXT,
+            interacao_social TEXT,
+            aprendizagem TEXT,
+            barreiras_percebidas TEXT,
+            potencialidades_observadas TEXT,
+            estrategias_funcionam TEXT,
+            adaptacoes_utilizadas TEXT,
+            recomendacoes_docente TEXT,
+            nivel_participacao INTEGER DEFAULT 5,
+            nivel_autonomia INTEGER DEFAULT 5,
+            nivel_engajamento INTEGER DEFAULT 5,
+            observacoes TEXT,
+            FOREIGN KEY(estudante_id) REFERENCES estudantes(id)
+        )
+        """
+    )
+
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS relatorios_docente (
+            id SERIAL PRIMARY KEY,
+            estudante_id INTEGER NOT NULL,
+            data_geracao TEXT,
+            ano_letivo TEXT,
+            componente_destino TEXT,
+            professor_destino TEXT,
+            titulo TEXT,
+            conteudo TEXT,
+            fontes_utilizadas TEXT,
+            observacoes TEXT,
+            FOREIGN KEY(estudante_id) REFERENCES estudantes(id)
+        )
+        """
+    )
+
     cursor.execute(
         """
         CREATE TABLE IF NOT EXISTS estudos_caso (
@@ -873,6 +922,81 @@ OPCOES_TIPO_AVALIACAO = [
     "Avaliação pedagógica atual",
     "Nova avaliação com base em avaliação anterior",
     "Avaliação Pedagógica - Extra / Documento Livre",
+]
+
+
+OPCOES_AREAS_CONHECIMENTO = [
+    "Matemática",
+    "Português",
+    "História",
+    "Geografia",
+    "Ciências",
+    "Biologia",
+    "Física",
+    "Química",
+    "Artes",
+    "Educação Física",
+    "Inglês",
+    "Espanhol",
+    "Filosofia",
+    "Sociologia",
+    "Tecnologia / Computação",
+    "Projeto de Vida",
+    "Sala de Leitura",
+    "Outras",
+]
+
+OPCOES_ESTRATEGIAS_INCLUSIVAS = [
+    "Apoio visual",
+    "Rotina estruturada",
+    "Instruções curtas e objetivas",
+    "Tempo ampliado",
+    "Atividades concretas/manipuláveis",
+    "Mediação gradual",
+    "Atividades em dupla ou pequenos grupos",
+    "Comunicação alternativa/aumentativa",
+    "Tecnologia assistiva",
+    "Gamificação",
+    "Recursos sensoriais",
+    "Recursos de impressão 3D / maker",
+    "Leitura compartilhada",
+    "Avaliação oral ou por demonstração prática",
+    "Redução de cópia extensa",
+    "Outro",
+]
+
+CAMPOS_ESCUTA_DOCENTE = [
+    "data_registro",
+    "ano_letivo",
+    "professor_nome",
+    "componente_curricular",
+    "outro_componente",
+    "turma",
+    "tempo_acompanhamento",
+    "participacao_sala",
+    "comunicacao",
+    "interacao_social",
+    "aprendizagem",
+    "barreiras_percebidas",
+    "potencialidades_observadas",
+    "estrategias_funcionam",
+    "adaptacoes_utilizadas",
+    "recomendacoes_docente",
+    "nivel_participacao",
+    "nivel_autonomia",
+    "nivel_engajamento",
+    "observacoes",
+]
+
+CAMPOS_RELATORIO_DOCENTE = [
+    "data_geracao",
+    "ano_letivo",
+    "componente_destino",
+    "professor_destino",
+    "titulo",
+    "conteudo",
+    "fontes_utilizadas",
+    "observacoes",
 ]
 
 CAMPOS_ESTUDO_CASO = [
@@ -1650,6 +1774,413 @@ def excluir_documento_avaliacao(documento_id, caminho_arquivo):
     conn.commit()
     conn.close()
     limpar_cache_dados()
+
+
+# ======================================================
+# CRUD - ARTICULAÇÃO PEDAGÓGICA INCLUSIVA / ESCUTA DOCENTE
+# ======================================================
+def salvar_escuta_docente(
+    estudante_id,
+    ano_letivo,
+    professor_nome,
+    componente_curricular,
+    outro_componente,
+    turma,
+    tempo_acompanhamento,
+    participacao_sala,
+    comunicacao,
+    interacao_social,
+    aprendizagem,
+    barreiras_percebidas,
+    potencialidades_observadas,
+    estrategias_funcionam,
+    adaptacoes_utilizadas,
+    recomendacoes_docente,
+    nivel_participacao,
+    nivel_autonomia,
+    nivel_engajamento,
+    observacoes,
+):
+    inserir_registro(
+        "escutas_docentes",
+        [
+            "estudante_id",
+            "data_registro",
+            "ano_letivo",
+            "professor_nome",
+            "componente_curricular",
+            "outro_componente",
+            "turma",
+            "tempo_acompanhamento",
+            "participacao_sala",
+            "comunicacao",
+            "interacao_social",
+            "aprendizagem",
+            "barreiras_percebidas",
+            "potencialidades_observadas",
+            "estrategias_funcionam",
+            "adaptacoes_utilizadas",
+            "recomendacoes_docente",
+            "nivel_participacao",
+            "nivel_autonomia",
+            "nivel_engajamento",
+            "observacoes",
+        ],
+        [
+            estudante_id,
+            hoje_str(),
+            ano_letivo,
+            professor_nome,
+            componente_curricular,
+            outro_componente,
+            turma,
+            tempo_acompanhamento,
+            participacao_sala,
+            comunicacao,
+            interacao_social,
+            aprendizagem,
+            barreiras_percebidas,
+            potencialidades_observadas,
+            estrategias_funcionam,
+            adaptacoes_utilizadas,
+            recomendacoes_docente,
+            nivel_participacao,
+            nivel_autonomia,
+            nivel_engajamento,
+            observacoes,
+        ],
+    )
+
+
+@st.cache_data(ttl=30, show_spinner=False)
+def listar_escutas_docentes(estudante_id):
+    return listar_por_estudante("escutas_docentes", CAMPOS_ESCUTA_DOCENTE, estudante_id)
+
+
+def excluir_escuta_docente(escuta_id):
+    excluir_registro("escutas_docentes", escuta_id)
+
+
+def texto_escuta_docente(estudante, escuta):
+    dados = dict(zip(["id"] + CAMPOS_ESCUTA_DOCENTE, escuta))
+
+    def v(campo):
+        valor = dados.get(campo)
+        return valor if valor not in (None, "") else "Não informado."
+
+    componente = v("componente_curricular")
+    if componente == "Outras" and dados.get("outro_componente"):
+        componente = dados.get("outro_componente")
+
+    return f"""
+ARTICULAÇÃO PEDAGÓGICA INCLUSIVA - ESCUTA DOCENTE
+
+Código interno do estudante: {estudante[1]}
+Ano/Série: {estudante[2] or 'Não informado.'}
+Turma: {estudante[3] or 'Não informado.'}
+Data do registro: {v('data_registro')}
+Ano letivo: {v('ano_letivo')}
+
+Professor(a): {v('professor_nome')}
+Componente curricular / área: {componente}
+Turma observada: {v('turma')}
+Tempo de acompanhamento: {v('tempo_acompanhamento')}
+
+PARTICIPAÇÃO EM SALA:
+{v('participacao_sala')}
+
+COMUNICAÇÃO:
+{v('comunicacao')}
+
+INTERAÇÃO SOCIAL:
+{v('interacao_social')}
+
+APRENDIZAGEM:
+{v('aprendizagem')}
+
+BARREIRAS PERCEBIDAS:
+{v('barreiras_percebidas')}
+
+POTENCIALIDADES OBSERVADAS:
+{v('potencialidades_observadas')}
+
+ESTRATÉGIAS QUE FUNCIONAM:
+{v('estrategias_funcionam')}
+
+ADAPTAÇÕES UTILIZADAS:
+{v('adaptacoes_utilizadas')}
+
+RECOMENDAÇÕES DO DOCENTE:
+{v('recomendacoes_docente')}
+
+INDICADORES:
+Participação: {v('nivel_participacao')}/10
+Autonomia: {v('nivel_autonomia')}/10
+Engajamento: {v('nivel_engajamento')}/10
+
+OBSERVAÇÕES:
+{v('observacoes')}
+""".strip()
+
+
+def salvar_relatorio_docente(
+    estudante_id,
+    ano_letivo,
+    componente_destino,
+    professor_destino,
+    titulo,
+    conteudo,
+    fontes_utilizadas,
+    observacoes="",
+):
+    inserir_registro(
+        "relatorios_docente",
+        [
+            "estudante_id",
+            "data_geracao",
+            "ano_letivo",
+            "componente_destino",
+            "professor_destino",
+            "titulo",
+            "conteudo",
+            "fontes_utilizadas",
+            "observacoes",
+        ],
+        [
+            estudante_id,
+            hoje_str(),
+            ano_letivo,
+            componente_destino,
+            professor_destino,
+            titulo,
+            conteudo,
+            fontes_utilizadas,
+            observacoes,
+        ],
+    )
+
+
+@st.cache_data(ttl=30, show_spinner=False)
+def listar_relatorios_docente(estudante_id):
+    return listar_por_estudante("relatorios_docente", CAMPOS_RELATORIO_DOCENTE, estudante_id)
+
+
+def excluir_relatorio_docente(relatorio_id):
+    excluir_registro("relatorios_docente", relatorio_id)
+
+
+def texto_relatorio_docente(estudante, relatorio):
+    dados = dict(zip(["id"] + CAMPOS_RELATORIO_DOCENTE, relatorio))
+
+    def v(campo):
+        valor = dados.get(campo)
+        return valor if valor not in (None, "") else "Não informado."
+
+    return f"""
+{v('titulo')}
+
+Código interno do estudante: {estudante[1]}
+Ano/Série: {estudante[2] or 'Não informado.'}
+Turma: {estudante[3] or 'Não informado.'}
+Ano letivo: {v('ano_letivo')}
+Componente/área de destino: {v('componente_destino')}
+Professor(a) de destino: {v('professor_destino')}
+Data de geração: {v('data_geracao')}
+
+{v('conteudo')}
+
+FONTES UTILIZADAS PELO SISTEMA:
+{v('fontes_utilizadas')}
+
+OBSERVAÇÕES:
+{v('observacoes')}
+
+Observação institucional:
+Este relatório possui finalidade exclusivamente pedagógica. Seu objetivo é apoiar o planejamento inclusivo do docente, sem substituir a avaliação profissional do professor, da equipe pedagógica ou do AEE.
+""".strip()
+
+
+def montar_contexto_relatorio_docente(estudante_id, limite_atendimentos=12):
+    estudante = buscar_estudante(estudante_id)
+
+    avaliacoes = listar_avaliacoes(estudante_id)[:5]
+    estudos = listar_por_estudante("estudos_caso", CAMPOS_ESTUDO_CASO, estudante_id)[:3]
+    entrevistas = listar_por_estudante("entrevistas_familia", CAMPOS_ENTREVISTA_FAMILIA, estudante_id)[:2]
+    escutas = listar_escutas_docentes(estudante_id)[:10]
+    atendimentos = listar_atendimentos(estudante_id)[:limite_atendimentos]
+    documentos = listar_documentos_avaliacao(estudante_id)
+
+    textos_avaliacoes = []
+    for av in avaliacoes:
+        try:
+            textos_avaliacoes.append(texto_avaliacao(estudante, av))
+        except Exception:
+            textos_avaliacoes.append(str(av))
+
+    textos_estudos = []
+    for est in estudos:
+        try:
+            textos_estudos.append(texto_estudo_caso(estudante, est))
+        except Exception:
+            textos_estudos.append(str(est))
+
+    textos_escutas = []
+    for esc in escutas:
+        try:
+            textos_escutas.append(texto_escuta_docente(estudante, esc))
+        except Exception:
+            textos_escutas.append(str(esc))
+
+    texto_entrevistas = "\n\n".join([str(e) for e in entrevistas]) or "Nenhuma entrevista familiar localizada."
+    texto_atendimentos = "\n".join([str(a) for a in atendimentos]) or "Nenhum atendimento registrado."
+    texto_documentos = "\n".join([
+        f"- {d[4]} | Ano: {d[2] or 'não informado'} | Tipo: {d[3] or 'não informado'} | Obs.: {d[6] or ''}"
+        for d in documentos
+    ]) or "Nenhum documento histórico anexado."
+
+    fontes = []
+    if avaliacoes:
+        fontes.append(f"{len(avaliacoes)} avaliação(ões) pedagógica(s)")
+    if estudos:
+        fontes.append(f"{len(estudos)} estudo(s) de caso")
+    if escutas:
+        fontes.append(f"{len(escutas)} escuta(s) docente(s)")
+    if atendimentos:
+        fontes.append(f"{len(atendimentos)} atendimento(s)")
+    if documentos:
+        fontes.append(f"{len(documentos)} documento(s) histórico(s) anexado(s)")
+    if entrevistas:
+        fontes.append(f"{len(entrevistas)} entrevista(s) familiar(es) usada(s) apenas como contexto pedagógico")
+
+    contexto = f"""
+DADOS DO ESTUDANTE
+Código interno: {estudante[1]}
+Ano/Série: {estudante[2]}
+Turma: {estudante[3]}
+Perfil educacional cadastrado: {estudante[4]}
+Observações gerais do cadastro: {estudante[5] or ''}
+
+AVALIAÇÕES PEDAGÓGICAS / DOCUMENTOS LIVRES:
+{chr(10).join(textos_avaliacoes) if textos_avaliacoes else 'Nenhuma avaliação pedagógica localizada.'}
+
+ESTUDOS DE CASO:
+{chr(10).join(textos_estudos) if textos_estudos else 'Nenhum estudo de caso localizado.'}
+
+ESCUTAS DOCENTES DA SALA REGULAR:
+{chr(10).join(textos_escutas) if textos_escutas else 'Nenhuma escuta docente registrada.'}
+
+ATENDIMENTOS DO AEE:
+{texto_atendimentos}
+
+DOCUMENTOS HISTÓRICOS ANEXADOS:
+{texto_documentos}
+
+ENTREVISTAS FAMILIARES:
+{texto_entrevistas}
+""".strip()
+
+    return contexto, "; ".join(fontes) if fontes else "Nenhuma fonte registrada."
+
+
+def gerar_relatorio_apoio_docente_ia(
+    estudante_id,
+    ano_letivo,
+    componente_destino,
+    professor_destino="",
+    foco_docente="",
+):
+    estudante = buscar_estudante(estudante_id)
+    contexto, fontes = montar_contexto_relatorio_docente(estudante_id)
+
+    client = obter_cliente_openai()
+    if client is None:
+        conteudo_fallback = f"""
+1. SÍNTESE PEDAGÓGICA FUNCIONAL
+IA não configurada. Configure OPENAI_API_KEY para gerar a síntese automática. Ainda assim, o sistema reuniu as fontes pedagógicas disponíveis para revisão manual.
+
+2. POTENCIALIDADES OBSERVADAS
+Preencher com base nas avaliações pedagógicas, estudos de caso, escutas docentes e atendimentos registrados.
+
+3. BARREIRAS PEDAGÓGICAS OBSERVADAS
+Preencher com base nos registros do AEE e nas observações dos docentes da sala regular.
+
+4. ESTRATÉGIAS PEDAGÓGICAS RECOMENDADAS
+Preencher com orientações objetivas, como apoio visual, instruções curtas, mediação gradual, tempo ampliado e diferentes formas de participação.
+
+5. RECOMENDAÇÕES AVALIATIVAS
+Considerar participação, evolução individual, comunicação funcional, engajamento e diferentes formas de expressão do conhecimento.
+
+6. ORIENTAÇÕES PARA O DOCENTE
+Usar este relatório como apoio pedagógico, sem expor dados familiares ou informações sensíveis desnecessárias.
+
+Fontes reunidas: {fontes}
+""".strip()
+        return conteudo_fallback, fontes
+
+    prompt = f"""
+Você é um especialista em Atendimento Educacional Especializado, educação inclusiva, desenho universal para aprendizagem e articulação pedagógica entre AEE e sala regular.
+
+TAREFA:
+Gerar um RELATÓRIO PEDAGÓGICO DE APOIO AO DOCENTE para orientar o professor da área indicada, cruzando as informações do sistema.
+
+NOME DO RELATÓRIO:
+Relatório Pedagógico de Apoio ao Docente
+
+DESTINATÁRIO:
+Componente/área: {componente_destino}
+Professor(a): {professor_destino or 'Não informado'}
+Ano letivo: {ano_letivo}
+Foco solicitado pelo AEE: {foco_docente or 'Não informado'}
+
+REGRAS OBRIGATÓRIAS:
+- Não usar linguagem médica ou clínica.
+- Não expor dados familiares.
+- Não citar CPF, endereço, telefone, nomes de responsáveis ou dados sensíveis.
+- Não inventar informações.
+- Trabalhar somente com os dados fornecidos.
+- Usar linguagem pedagógica, objetiva, acolhedora e institucional.
+- O documento deve orientar o professor da sala regular, sem rotular o estudante.
+- Focar em participação, aprendizagem, barreiras, potencialidades, estratégias e avaliação inclusiva.
+- Quando os dados forem insuficientes, escrever que a informação não foi localizada nos registros.
+
+DADOS DISPONÍVEIS NO SISTEMA:
+{contexto}
+
+Produza o relatório com as seções abaixo:
+
+1. FINALIDADE DO DOCUMENTO
+Explique que o relatório apoia o planejamento pedagógico inclusivo do docente.
+
+2. SÍNTESE PEDAGÓGICA FUNCIONAL
+Síntese objetiva de como o estudante aprende, participa e responde às mediações.
+
+3. POTENCIALIDADES OBSERVADAS
+Listar potencialidades pedagógicas observadas nos registros.
+
+4. BARREIRAS PEDAGÓGICAS E DESAFIOS EM SALA
+Listar barreiras educacionais sem linguagem medicalizante.
+
+5. ESTRATÉGIAS QUE TENDEM A FAVORECER A PARTICIPAÇÃO
+Recomendações práticas para o docente da área.
+
+6. RECOMENDAÇÕES PARA ADAPTAÇÃO DAS ATIVIDADES
+Orientações de adaptação curricular, acessibilidade pedagógica e mediação.
+
+7. RECOMENDAÇÕES AVALIATIVAS
+Orientar formas de avaliação inclusiva considerando participação, evolução individual, comunicação, engajamento e diferentes formas de expressão.
+
+8. PONTOS DE ATENÇÃO PARA ARTICULAÇÃO COM O AEE
+Indicar como o professor pode dialogar com o AEE, sem expor dados sensíveis.
+
+9. FECHAMENTO INSTITUCIONAL
+Finalizar com uma mensagem pedagógica, acolhedora e profissional.
+"""
+    try:
+        resposta = client.responses.create(model="gpt-4.1-mini", input=prompt)
+        return (resposta.output_text or "").strip(), fontes
+    except Exception as e:
+        return f"Não foi possível gerar o relatório com IA agora. Erro: {e}", fontes
+
 
 
 # ======================================================
@@ -4493,6 +5024,7 @@ with st.sidebar:
             "Cadastro do Professor AEE",
             "Entrevista com a Família",
             "Avaliação Pedagógica",
+            "Articulação Pedagógica Inclusiva",
             "Estudo de Caso",
             "Plano AEE - IA",
             "Agenda de Atendimentos",
@@ -5356,6 +5888,352 @@ elif menu == "Avaliação Pedagógica":
                             st.rerun()
             else:
                 st.info("Nenhum documento anexado para este estudante.")
+
+
+# ======================================================
+# ARTICULAÇÃO PEDAGÓGICA INCLUSIVA - ESCUTA DOCENTE
+# ======================================================
+elif menu == "Articulação Pedagógica Inclusiva":
+    st.markdown('<div class="subtitulo">🤝 Articulação Pedagógica Inclusiva – Escuta Docente</div>', unsafe_allow_html=True)
+    estudantes = listar_estudantes()
+
+    if not estudantes:
+        st.info("Cadastre um estudante primeiro.")
+    else:
+        ids, mapa = opcoes_estudantes_por_id(estudantes)
+        estudante_id = st.selectbox(
+            "Selecione o estudante",
+            ids,
+            format_func=lambda x: mapa[x],
+            key="api_estudante",
+        )
+        estudante = buscar_estudante(estudante_id)
+
+        st.info(
+            "Este módulo registra a escuta dos professores da sala regular e gera o "
+            "Relatório Pedagógico de Apoio ao Docente por IA, cruzando avaliação pedagógica, "
+            "estudo de caso, atendimentos, documentos históricos e escutas docentes."
+        )
+
+        anos_opcoes = [str(a) for a in range(2024, datetime.now().year + 4)]
+        ano_padrao = str(datetime.now().year)
+        idx_ano = anos_opcoes.index(ano_padrao) if ano_padrao in anos_opcoes else 0
+
+        aba_escuta, aba_historico, aba_relatorio, aba_relatorios_salvos = st.tabs(
+            [
+                "Nova Escuta Docente",
+                "Histórico de Escutas",
+                "Gerar Relatório de Apoio ao Docente",
+                "Relatórios Salvos",
+            ]
+        )
+
+        with aba_escuta:
+            with st.container(border=True):
+                st.markdown("### Nova Escuta Docente da Sala Regular")
+                st.caption(
+                    "Use este formulário para registrar a percepção pedagógica do professor da área. "
+                    "Evite dados familiares, clínicos ou informações sensíveis que não sejam necessárias ao planejamento pedagógico."
+                )
+
+                with st.form("form_escuta_docente"):
+                    col1, col2 = st.columns(2)
+
+                    with col1:
+                        ano_letivo = st.selectbox(
+                            "Ano letivo",
+                            anos_opcoes,
+                            index=idx_ano,
+                            key="escuta_ano_letivo",
+                        )
+                        professor_nome = st.text_input(
+                            "Nome do professor(a) da área",
+                            placeholder="Ex.: Professor(a) de Matemática",
+                        )
+                        componente_curricular = st.selectbox(
+                            "Componente curricular / área",
+                            OPCOES_AREAS_CONHECIMENTO,
+                        )
+                        outro_componente = ""
+                        if componente_curricular == "Outras":
+                            outro_componente = st.text_input(
+                                "Informe o componente/área",
+                                placeholder="Digite a área ou componente curricular",
+                            )
+
+                    with col2:
+                        turma = st.text_input(
+                            "Turma",
+                            value=estudante[3] or "",
+                            placeholder="Ex.: 1º A",
+                        )
+                        tempo_acompanhamento = st.text_input(
+                            "Tempo que acompanha o estudante",
+                            placeholder="Ex.: desde o início do ano letivo, há dois meses...",
+                        )
+                        nivel_participacao = st.slider("Nível de participação em sala", 1, 10, 5)
+                        nivel_autonomia = st.slider("Nível de autonomia nas atividades", 1, 10, 5)
+                        nivel_engajamento = st.slider("Nível de engajamento", 1, 10, 5)
+
+                    participacao_sala = st.text_area(
+                        "Como o estudante participa das aulas?",
+                        height=110,
+                        placeholder="Descreva participação, atenção, realização das atividades, necessidade de mediação etc.",
+                    )
+                    comunicacao = st.text_area(
+                        "Comunicação em sala",
+                        height=90,
+                        placeholder="Como o estudante expressa dúvidas, responde às solicitações, comunica necessidades ou interage verbalmente/não verbalmente?",
+                    )
+                    interacao_social = st.text_area(
+                        "Interação social",
+                        height=90,
+                        placeholder="Como interage com colegas, professor e atividades em grupo?",
+                    )
+                    aprendizagem = st.text_area(
+                        "Aprendizagem no componente curricular",
+                        height=110,
+                        placeholder="O que consegue acompanhar? Em quais situações demonstra melhor compreensão?",
+                    )
+
+                    estrategias_selecionadas = st.multiselect(
+                        "Estratégias que parecem funcionar",
+                        OPCOES_ESTRATEGIAS_INCLUSIVAS,
+                    )
+                    adaptacoes_selecionadas = st.multiselect(
+                        "Adaptações já utilizadas pelo docente",
+                        OPCOES_ESTRATEGIAS_INCLUSIVAS,
+                    )
+
+                    barreiras_percebidas = st.text_area(
+                        "Barreiras percebidas",
+                        height=100,
+                        placeholder="Ex.: excesso de cópia, comandos longos, organização da atividade, comunicação, atenção, interação...",
+                    )
+                    potencialidades_observadas = st.text_area(
+                        "Potencialidades observadas",
+                        height=100,
+                        placeholder="Ex.: criatividade, memória visual, oralidade, interesse por tecnologia, raciocínio lógico, participação em atividades práticas...",
+                    )
+                    recomendacoes_docente = st.text_area(
+                        "Sugestões/recomendações do professor da área",
+                        height=100,
+                        placeholder="Registre o que o professor acredita que pode ajudar no processo de aprendizagem.",
+                    )
+                    observacoes = st.text_area(
+                        "Observações complementares",
+                        height=80,
+                    )
+
+                    salvar_escuta = st.form_submit_button("Salvar Escuta Docente")
+
+                if salvar_escuta:
+                    if not professor_nome.strip():
+                        st.warning("Informe o nome do professor(a) da área antes de salvar.")
+                    else:
+                        salvar_escuta_docente(
+                            estudante_id=estudante_id,
+                            ano_letivo=ano_letivo,
+                            professor_nome=professor_nome,
+                            componente_curricular=componente_curricular,
+                            outro_componente=outro_componente,
+                            turma=turma,
+                            tempo_acompanhamento=tempo_acompanhamento,
+                            participacao_sala=participacao_sala,
+                            comunicacao=comunicacao,
+                            interacao_social=interacao_social,
+                            aprendizagem=aprendizagem,
+                            barreiras_percebidas=barreiras_percebidas,
+                            potencialidades_observadas=potencialidades_observadas,
+                            estrategias_funcionam=", ".join(estrategias_selecionadas),
+                            adaptacoes_utilizadas=", ".join(adaptacoes_selecionadas),
+                            recomendacoes_docente=recomendacoes_docente,
+                            nivel_participacao=nivel_participacao,
+                            nivel_autonomia=nivel_autonomia,
+                            nivel_engajamento=nivel_engajamento,
+                            observacoes=observacoes,
+                        )
+                        st.success("Escuta docente salva com sucesso.")
+                        st.rerun()
+
+        with aba_historico:
+            with st.container(border=True):
+                st.markdown("### Histórico de Escutas Docentes")
+                escutas = listar_escutas_docentes(estudante_id)
+
+                if escutas:
+                    for esc in escutas:
+                        dados_esc = dict(zip(["id"] + CAMPOS_ESCUTA_DOCENTE, esc))
+                        esc_id = dados_esc.get("id")
+                        data_reg = dados_esc.get("data_registro") or "Data não informada"
+                        area = dados_esc.get("componente_curricular") or "Área não informada"
+                        prof = dados_esc.get("professor_nome") or "Professor não informado"
+
+                        with st.expander(f"{data_reg} | {area} | {prof}"):
+                            texto = texto_escuta_docente(estudante, esc)
+                            st.text(texto)
+                            export_buttons(texto, f"Escuta_Docente_{estudante[1]}_{esc_id}", tipo_pdf="escuta_docente")
+
+                            if st.button("Excluir escuta docente", key=f"excluir_escuta_{esc_id}"):
+                                excluir_escuta_docente(esc_id)
+                                st.success("Escuta docente excluída.")
+                                st.rerun()
+                else:
+                    st.info("Nenhuma escuta docente registrada para este estudante.")
+
+        with aba_relatorio:
+            with st.container(border=True):
+                st.markdown("### Relatório Pedagógico de Apoio ao Docente")
+                st.caption(
+                    "O relatório será gerado com IA a partir dos registros já existentes: avaliação pedagógica, "
+                    "estudo de caso, atendimentos, documentos históricos anexados e escutas docentes."
+                )
+
+                colr1, colr2 = st.columns(2)
+                with colr1:
+                    ano_relatorio = st.selectbox(
+                        "Ano letivo do relatório",
+                        anos_opcoes,
+                        index=idx_ano,
+                        key="relatorio_docente_ano",
+                    )
+                    componente_destino = st.selectbox(
+                        "Componente/área de destino",
+                        OPCOES_AREAS_CONHECIMENTO,
+                        key="relatorio_docente_componente",
+                    )
+                    if componente_destino == "Outras":
+                        componente_destino = st.text_input(
+                            "Informe o componente/área de destino",
+                            key="relatorio_docente_componente_outro",
+                        )
+
+                with colr2:
+                    professor_destino = st.text_input(
+                        "Professor(a) que receberá o relatório",
+                        placeholder="Opcional",
+                        key="relatorio_docente_professor_destino",
+                    )
+                    observacoes_relatorio = st.text_area(
+                        "Observações internas do AEE",
+                        height=90,
+                        placeholder="Opcional. Ex.: relatório para planejamento de atividades avaliativas do bimestre.",
+                        key="relatorio_docente_obs",
+                    )
+
+                foco_docente = st.text_area(
+                    "Foco para a IA",
+                    height=100,
+                    placeholder="Ex.: orientar o professor sobre participação, adaptação das atividades e formas avaliativas sem expor dados familiares.",
+                    key="relatorio_docente_foco",
+                )
+
+                contexto_previo, fontes_previas = montar_contexto_relatorio_docente(estudante_id)
+                with st.expander("Ver fontes que serão cruzadas pelo sistema"):
+                    st.write(fontes_previas)
+                    st.text_area(
+                        "Contexto reunido pelo sistema",
+                        value=contexto_previo,
+                        height=300,
+                        disabled=True,
+                    )
+
+                if st.button("🤖 Gerar Relatório Pedagógico de Apoio ao Docente", key="btn_gerar_relatorio_docente_ia"):
+                    conteudo, fontes = gerar_relatorio_apoio_docente_ia(
+                        estudante_id=estudante_id,
+                        ano_letivo=ano_relatorio,
+                        componente_destino=componente_destino,
+                        professor_destino=professor_destino,
+                        foco_docente=foco_docente,
+                    )
+                    st.session_state["relatorio_docente_conteudo"] = conteudo
+                    st.session_state["relatorio_docente_fontes"] = fontes
+                    st.success("Relatório gerado. Revise antes de salvar ou entregar ao docente.")
+
+                conteudo_gerado = st.session_state.get("relatorio_docente_conteudo", "")
+                fontes_geradas = st.session_state.get("relatorio_docente_fontes", fontes_previas)
+
+                if conteudo_gerado:
+                    st.markdown("### Prévia editável do relatório")
+                    conteudo_editado = st.text_area(
+                        "Revise o relatório antes de salvar",
+                        value=conteudo_gerado,
+                        height=520,
+                        key="relatorio_docente_editavel",
+                    )
+
+                    titulo_relatorio = "RELATÓRIO PEDAGÓGICO DE APOIO AO DOCENTE"
+                    texto_final = f"""
+{titulo_relatorio}
+
+Código interno do estudante: {estudante[1]}
+Ano/Série: {estudante[2] or 'Não informado.'}
+Turma: {estudante[3] or 'Não informado.'}
+Ano letivo: {ano_relatorio}
+Componente/área de destino: {componente_destino}
+Professor(a) de destino: {professor_destino or 'Não informado.'}
+Data de geração: {hoje_str()}
+
+{conteudo_editado}
+
+FONTES UTILIZADAS PELO SISTEMA:
+{fontes_geradas}
+
+Observação institucional:
+Este relatório possui finalidade exclusivamente pedagógica e objetiva apoiar práticas educacionais inclusivas no contexto escolar, sem expor dados familiares ou informações sensíveis desnecessárias.
+""".strip()
+
+                    st.text(texto_final)
+                    export_buttons(
+                        texto_final,
+                        f"Relatorio_Apoio_Docente_{estudante[1]}_{ano_relatorio}",
+                        tipo_pdf="relatorio_docente",
+                    )
+
+                    if st.button("Salvar relatório no histórico", key="btn_salvar_relatorio_docente"):
+                        salvar_relatorio_docente(
+                            estudante_id=estudante_id,
+                            ano_letivo=ano_relatorio,
+                            componente_destino=componente_destino,
+                            professor_destino=professor_destino,
+                            titulo=titulo_relatorio,
+                            conteudo=conteudo_editado,
+                            fontes_utilizadas=fontes_geradas,
+                            observacoes=observacoes_relatorio,
+                        )
+                        st.session_state.pop("relatorio_docente_conteudo", None)
+                        st.session_state.pop("relatorio_docente_fontes", None)
+                        st.success("Relatório salvo no histórico.")
+                        st.rerun()
+
+        with aba_relatorios_salvos:
+            with st.container(border=True):
+                st.markdown("### Relatórios Pedagógicos de Apoio ao Docente salvos")
+                relatorios = listar_relatorios_docente(estudante_id)
+
+                if relatorios:
+                    for rel in relatorios:
+                        dados_rel = dict(zip(["id"] + CAMPOS_RELATORIO_DOCENTE, rel))
+                        rel_id = dados_rel.get("id")
+                        data_rel = dados_rel.get("data_geracao") or "Data não informada"
+                        area_rel = dados_rel.get("componente_destino") or "Área não informada"
+
+                        with st.expander(f"{data_rel} | {area_rel}"):
+                            texto = texto_relatorio_docente(estudante, rel)
+                            st.text(texto)
+                            export_buttons(
+                                texto,
+                                f"Relatorio_Apoio_Docente_{estudante[1]}_{rel_id}",
+                                tipo_pdf="relatorio_docente_salvo",
+                            )
+
+                            if st.button("Excluir relatório salvo", key=f"excluir_relatorio_docente_{rel_id}"):
+                                excluir_relatorio_docente(rel_id)
+                                st.success("Relatório excluído.")
+                                st.rerun()
+                else:
+                    st.info("Nenhum relatório pedagógico de apoio ao docente salvo para este estudante.")
+
 
 elif menu == "Estudo de Caso":
     st.markdown('<div class="subtitulo">📚 Estudo de Caso / Documento GRE</div>', unsafe_allow_html=True)
