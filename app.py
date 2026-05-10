@@ -3742,7 +3742,7 @@ Registrar informações relevantes que não se encaixam nos campos anteriores.
         return "IA não configurada. Configure OPENAI_API_KEY para gerar automaticamente. O sistema preparou um modelo GRE para preenchimento manual.", sugestao_fallback
 
     texto_estudo_anterior = texto_estudo_caso(estudante, estudo_anterior) if estudo_anterior else "Nenhum estudo anterior selecionado."
-    texto_avaliacao = texto_avaliacao(estudante, avaliacao) if avaliacao else "Nenhuma avaliação pedagógica selecionada."
+    texto_avaliacao_ctx = texto_avaliacao(estudante, avaliacao) if avaliacao else "Nenhuma avaliação pedagógica selecionada."
     texto_entrevista = str(entrevista or "Nenhuma entrevista com família localizada.")
     texto_atendimentos = "\n".join([str(a) for a in (atendimentos or [])[:12]]) or "Nenhum atendimento registrado."
 
@@ -3773,7 +3773,7 @@ ESTUDO DE CASO ANTERIOR:
 {texto_estudo_anterior}
 
 AVALIAÇÃO PEDAGÓGICA / DOCUMENTO LIVRE:
-{texto_avaliacao}
+{texto_avaliacao_ctx}
 
 ENTREVISTA COM A FAMÍLIA:
 {texto_entrevista}
@@ -6587,9 +6587,45 @@ elif menu == "Estudo de Caso":
 
                     if st.session_state.get(f"sugestao_estudo_ia_{estudante_id}"):
                         st.markdown("#### Análise IA")
-                        st.text_area("Resultado da análise", value=st.session_state.get(f"analise_estudo_ia_{estudante_id}", ""), height=180, key=f"preview_analise_{estudante_id}")
+                        analise_preview = st.text_area(
+                            "Resultado da análise",
+                            value=st.session_state.get(f"analise_estudo_ia_{estudante_id}", ""),
+                            height=180,
+                            key=f"preview_analise_{estudante_id}",
+                        )
                         st.markdown("#### Sugestão GRE estruturada")
-                        st.text_area("Sugestão gerada", value=st.session_state.get(f"sugestao_estudo_ia_{estudante_id}", ""), height=260, key=f"preview_sugestao_{estudante_id}")
+                        sugestao_preview = st.text_area(
+                            "Sugestão gerada",
+                            value=st.session_state.get(f"sugestao_estudo_ia_{estudante_id}", ""),
+                            height=260,
+                            key=f"preview_sugestao_{estudante_id}",
+                        )
+
+                        texto_previa_estudo = f"""
+ESTUDO DE CASO GRE - SUGESTÃO GERADA POR IA
+
+Código interno do estudante: {estudante[1]}
+Ano/Série: {estudante[2] or 'Não informado.'}
+Turma: {estudante[3] or 'Não informado.'}
+Ano letivo: {st.session_state.get(f'ano_estudo_ia_{estudante_id}', str(datetime.now().year))}
+
+ANÁLISE PEDAGÓGICA DA IA:
+{analise_preview}
+
+SUGESTÃO ESTRUTURADA PADRÃO GRE:
+{sugestao_preview}
+
+Observação institucional:
+Documento preliminar para revisão do professor do AEE antes do salvamento definitivo e/ou envio à GRE.
+""".strip()
+
+                        st.markdown("#### Download da sugestão gerada")
+                        export_buttons(
+                            texto_previa_estudo,
+                            f"Estudo_Caso_GRE_IA_{estudante[1]}_{st.session_state.get(f'ano_estudo_ia_{estudante_id}', str(datetime.now().year))}",
+                            tipo_pdf="estudo_ia_previa",
+                        )
+                        st.info("Revise os campos nas abas abaixo e clique em **Salvar estudo de caso GRE** para gravar o documento no histórico do estudante.")
                 else:
                     st.info(
                         "Ainda não há estudo anterior ou avaliações pedagógicas registradas para este estudante. "
