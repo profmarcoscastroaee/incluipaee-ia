@@ -1,11 +1,13 @@
 
-# INCLUISRM V21 - Plano AEE IA estável
-# Atualização: módulo Plano AEE - IA, CID e síntese funcional do laudo.
+# INCLUISRM V25 - Plano AEE IA com histórico em horário local e relatórios visuais
+# Atualização: corrige fuso horário America/Recife e preserva layout visual dos relatórios.
 
 import os
 import re
 import sqlite3
+import calendar
 from datetime import datetime, date, time
+from zoneinfo import ZoneInfo
 from pathlib import Path
 from html import escape
 
@@ -62,6 +64,14 @@ DOCUMENTOS_AVALIACOES_DIR.mkdir(parents=True, exist_ok=True)
 
 APP_NAME = "INCLUISRM"
 APP_SUBTITLE = "Sistema Inteligente de Articulação Pedagógica Inclusiva"
+APP_VERSION = "V25"
+APP_VERSION_LABEL = "Plano Mensal IA • Histórico com Horário Local • Relatórios Visuais"
+FUSO_LOCAL = ZoneInfo("America/Recife")
+
+
+def agora_local():
+    """Retorna data/hora no fuso local usado pela escola/Render."""
+    return datetime.now(FUSO_LOCAL)
 
 
 # ======================================================
@@ -965,6 +975,64 @@ DIAS_SEMANA = [
     "Sexta-feira",
 ]
 
+MAPA_MESES = {
+    "Janeiro": 1,
+    "Fevereiro": 2,
+    "Março": 3,
+    "Abril": 4,
+    "Maio": 5,
+    "Junho": 6,
+    "Julho": 7,
+    "Agosto": 8,
+    "Setembro": 9,
+    "Outubro": 10,
+    "Novembro": 11,
+    "Dezembro": 12,
+}
+
+MAPA_DIAS_SEMANA = {
+    "Segunda-feira": 0,
+    "Terça-feira": 1,
+    "Quarta-feira": 2,
+    "Quinta-feira": 3,
+    "Sexta-feira": 4,
+}
+
+def gerar_datas_atendimentos_mes(ano, mes_nome, dias_atendimento):
+    """Calcula automaticamente as datas reais de atendimento do mês.
+
+    Usa o mês, ano e os dias de atendimento cadastrados/selecionados para gerar
+    a quantidade correta de encontros. Ex.: segunda e sexta em um mês podem gerar
+    8, 9 ou 10 atendimentos, conforme o calendário.
+    """
+    try:
+        ano_int = int(ano)
+    except Exception:
+        ano_int = agora_local().year
+
+    mes_num = MAPA_MESES.get(str(mes_nome), agora_local().month)
+    dias_codigo = [MAPA_DIAS_SEMANA[d] for d in dias_atendimento if d in MAPA_DIAS_SEMANA]
+
+    if not dias_codigo:
+        return []
+
+    total_dias = calendar.monthrange(ano_int, mes_num)[1]
+    datas = []
+    for dia in range(1, total_dias + 1):
+        data_atual = date(ano_int, mes_num, dia)
+        if data_atual.weekday() in dias_codigo:
+            datas.append(data_atual)
+    return datas
+
+def datas_atendimentos_para_texto(datas):
+    if not datas:
+        return "Nenhuma data calculada. Verifique mês, ano e dias de atendimento."
+    linhas = []
+    for idx, data_atual in enumerate(datas, start=1):
+        nome_dia = DIAS_SEMANA[data_atual.weekday()] if data_atual.weekday() < len(DIAS_SEMANA) else "Dia"
+        linhas.append(f"Atendimento {idx}: {data_atual.strftime('%d/%m/%Y')} ({nome_dia})")
+    return "\n".join(linhas)
+
 
 CAMPOS_ENTREVISTA_FAMILIA = [
     "data_registro",
@@ -1338,7 +1406,7 @@ OPCOES_BARREIRAS = [
 ]
 
 def hoje_str():
-    return datetime.now().strftime("%d/%m/%Y %H:%M")
+    return agora_local().strftime("%d/%m/%Y %H:%M")
 
 
 def formatar_data(data_obj):
@@ -1351,7 +1419,7 @@ def data_para_date(data_texto):
     try:
         return datetime.strptime(data_texto, "%d/%m/%Y").date()
     except Exception:
-        return datetime.now().date()
+        return agora_local().date()
 
 
 def hora_para_time(hora_texto, padrao="08:00"):
@@ -1397,9 +1465,9 @@ def opcoes_estudantes_por_id(estudantes):
 
 def render_app_header():
     st.markdown(
-        """
+        f"""
         <div class="app-hero">
-            <span class="app-badge">AEE • Memória Pedagógica • Articulação Docente • IA • V21 Relatórios Visuais</span>
+            <span class="app-badge">AEE • Memória Pedagógica • Articulação Docente • IA • {APP_VERSION} {APP_VERSION_LABEL}</span>
             <h1 class="app-title">INCLUISRM</h1>
             <p class="app-subtitle">Sistema Inteligente de Articulação Pedagógica Inclusiva</p>
         </div>
@@ -1442,7 +1510,7 @@ def gerar_docx_documento(conteudo, nome_base, tipo="documento"):
         run.font.size = Pt(11)
 
     doc.add_paragraph("")
-    rodape = doc.add_paragraph(f"Gerado em {datetime.now().strftime('%d/%m/%Y %H:%M')} pelo INCLUISRM.")
+    rodape = doc.add_paragraph(f"Gerado em {agora_local().strftime('%d/%m/%Y %H:%M')} pelo INCLUISRM.")
     rodape.alignment = WD_ALIGN_PARAGRAPH.CENTER
     for r in rodape.runs:
         r.font.size = Pt(9)
@@ -1474,7 +1542,7 @@ def eh_titulo_relatorio(linha):
         return True
     palavras_chave = [
         "Identificação", "Objetivo", "Habilidades", "Recursos", "Estratégias", "Avaliação",
-        "Indicadores", "Ajustes", "Registro", "Organização", "Perfil", "Sugestão"
+        "Indicadores", "Ajustes", "Registro", "Organização", "Diagnóstico", "Sugestão"
     ]
     return any(linha.lower().startswith(k.lower()) for k in palavras_chave)
 
@@ -1576,7 +1644,7 @@ def gerar_docx_plano_aee_ia_visual(conteudo, nome_base, titulo_doc="PLANO MENSAL
     set_cell_bg(foot.cell(0,0), "F1F5F9")
     set_cell_text(
         foot.cell(0,0),
-        f"Documento gerado em {datetime.now().strftime('%d/%m/%Y %H:%M')} pelo INCLUISRM • LabTec3DI/UFRPE • Uso pedagógico no AEE",
+        f"Documento gerado em {agora_local().strftime('%d/%m/%Y %H:%M')} pelo INCLUISRM • LabTec3DI/UFRPE • Uso pedagógico no AEE",
         False,
         "475569",
         8,
@@ -1608,7 +1676,7 @@ def gerar_pdf_plano_aee_ia_visual(conteudo, nome_base, titulo_doc="PLANO MENSAL 
     elementos = []
     capa = Table(
         [[Paragraph("<b>INCLUISRM</b><br/>Sistema Inteligente de Articulação Pedagógica Inclusiva", normal_style),
-          Paragraph(f"<b>🧠 {escape(titulo_doc)}</b><br/>Relatório visual de planejamento pedagógico", normal_style)]],
+          Paragraph(f"<b>{escape(titulo_doc)}</b><br/>Relatório visual de planejamento pedagógico", normal_style)]],
         colWidths=[7.3*cm, 10.2*cm],
     )
     capa.setStyle(TableStyle([
@@ -1662,7 +1730,7 @@ def gerar_pdf_plano_aee_ia_visual(conteudo, nome_base, titulo_doc="PLANO MENSAL 
             elementos.append(Paragraph(escape(linha), normal_style))
 
     elementos.append(Spacer(1, 14))
-    rodape = Table([[Paragraph(f"Gerado em {datetime.now().strftime('%d/%m/%Y %H:%M')} pelo INCLUISRM • LabTec3DI/UFRPE • Documento pedagógico de apoio ao AEE", small_style)]], colWidths=[17.5*cm])
+    rodape = Table([[Paragraph(f"Gerado em {agora_local().strftime('%d/%m/%Y %H:%M')} pelo INCLUISRM • LabTec3DI/UFRPE • Documento pedagógico de apoio ao AEE", small_style)]], colWidths=[17.5*cm])
     rodape.setStyle(TableStyle([("BACKGROUND", (0,0), (-1,-1), colors.HexColor("#f1f5f9")), ("BOX", (0,0), (-1,-1), 0.3, colors.HexColor("#cbd5e1")), ("TOPPADDING", (0,0), (-1,-1), 6), ("BOTTOMPADDING", (0,0), (-1,-1), 6)]))
     elementos.append(rodape)
     doc.build(elementos)
@@ -2154,7 +2222,7 @@ def salvar_documento_avaliacao(
     pasta_estudante = DOCUMENTOS_AVALIACOES_DIR / f"estudante_{estudante_id}"
     pasta_estudante.mkdir(parents=True, exist_ok=True)
 
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    timestamp = agora_local().strftime("%Y%m%d_%H%M%S")
     nome_seguro = arquivo.name.replace("/", "_").replace("\\", "_")
     nome_salvo = f"{timestamp}_{nome_seguro}"
     caminho = pasta_estudante / nome_salvo
@@ -2863,7 +2931,7 @@ def listar_agenda_detalhada(estudante_id=None, data_inicio=None, data_fim=None):
     for atendimento_id, est_id, data_at in atendimentos:
         atend_por_estudante_data[(est_id, data_at)] = atendimento_id
 
-    hoje = datetime.now().date()
+    hoje = agora_local().date()
     filtrados = []
     for row in dados:
         row = list(row)
@@ -4118,7 +4186,7 @@ def gerar_pdf_documento(conteudo, codigo, tipo="documento"):
             elementos.append(Paragraph(linha_html, normal_style))
 
     elementos.append(Spacer(1, 18))
-    elementos.append(Paragraph(f"Gerado em {datetime.now().strftime('%d/%m/%Y %H:%M')} pelo INCLUISRM.", rodape_style))
+    elementos.append(Paragraph(f"Gerado em {agora_local().strftime('%d/%m/%Y %H:%M')} pelo INCLUISRM.", rodape_style))
     doc.build(elementos)
     return nome_arquivo
 
@@ -4804,19 +4872,19 @@ comunicação funcional autonomia CAA tecnologia assistiva recursos visuais roti
 
 
 def gerar_diagnostico_aee_ia(estudante, avaliacao=None, entrevista=None, estudo=None, plano_manual=None):
-    """Gera Perfil Pedagógico Inteligente inicial/evolutivo para apoiar o professor do AEE, sem finalidade clínica."""
+    """Gera diagnóstico pedagógico inicial/evolutivo para apoiar o professor do AEE."""
     ctx = montar_contexto_plano_aee_ia(estudante, avaliacao, entrevista, estudo, plano_manual)
     client = obter_cliente_openai()
 
     fallback = f"""
-PERFIL PEDAGÓGICO INTELIGENTE - PLANO AEE IA
+DIAGNÓSTICO PEDAGÓGICO INICIAL - PLANO AEE IA
 
 Código interno: {estudante[1]}
 Perfil educacional informado: {estudante[4]}
 Ano/Série: {estudante[2]}
 
 Síntese inicial:
-O Perfil Pedagógico Inteligente deve considerar os registros já disponíveis no cadastro, entrevista familiar, avaliação pedagógica, estudo de caso, plano AEE e atendimentos. Caso ainda existam poucos registros, recomenda-se utilizar este documento como roteiro de observação inicial, sem conclusões definitivas sobre evolução.
+O diagnóstico pedagógico deve considerar os registros já disponíveis no cadastro, entrevista familiar, avaliação pedagógica, estudo de caso, plano AEE e atendimentos. Caso ainda existam poucos registros, recomenda-se utilizar este documento como roteiro de observação inicial, sem conclusões definitivas sobre evolução.
 
 Focos de observação prioritários:
 - Comunicação funcional e formas de expressão utilizadas pelo estudante.
@@ -4837,7 +4905,7 @@ Registrar os atendimentos semanalmente para que o sistema consiga gerar análise
 Você é especialista em Atendimento Educacional Especializado (AEE), educação inclusiva, tecnologia assistiva, CAA, cultura maker e avaliação pedagógica funcional.
 
 TAREFA:
-Gere um PERFIL PEDAGÓGICO INTELIGENTE para o AEE com base nos dados disponíveis. O texto deve apoiar o professor do AEE na organização dos atendimentos e NÃO deve criar diagnóstico clínico.
+Gere um DIAGNÓSTICO PEDAGÓGICO AEE com base nos dados disponíveis. O texto deve apoiar o professor do AEE na organização dos atendimentos e NÃO deve criar diagnóstico clínico.
 
 REGRAS:
 - Não usar nome real do estudante.
@@ -4980,33 +5048,46 @@ ESTRUTURE EM:
         return f"{fallback}\n\nObservação técnica: não foi possível gerar com IA agora. Erro: {e}"
 
 
-def gerar_plano_mensal_aee_ia(estudante, mes_referencia, ano_referencia, qtd_atendimentos_semana=1, avaliacao=None, entrevista=None, estudo=None, plano_manual=None):
-    """Gera plano mensal aplicável por semana, considerando 1 ou 2 atendimentos semanais."""
+def gerar_plano_mensal_aee_ia(estudante, mes_referencia, ano_referencia, qtd_atendimentos_semana=1, avaliacao=None, entrevista=None, estudo=None, plano_manual=None, datas_atendimentos=None):
+    """Gera plano mensal aplicável às datas reais de atendimento do mês."""
     ctx = montar_contexto_plano_aee_ia(estudante, avaliacao, entrevista, estudo, plano_manual)
     client = obter_cliente_openai()
     qtd = max(1, min(5, int(qtd_atendimentos_semana or 1)))
+    datas_atendimentos = datas_atendimentos or []
+    datas_txt = datas_atendimentos_para_texto(datas_atendimentos)
+    total_atendimentos = len(datas_atendimentos) if datas_atendimentos else qtd * 4
 
     fallback = f"""
 PLANO MENSAL DE ATENDIMENTO EDUCACIONAL ESPECIALIZADO (AEE)
 
 Código interno: {estudante[1]}
-Quantidade prevista: {qtd} atendimento(s) por semana.
+Mês de referência: {mes_referencia}/{ano_referencia}
+Dias/datas previstas de atendimento:
+{datas_txt}
+
+Total previsto de atendimentos no mês: {total_atendimentos}
 
 Objetivo do mês:
 Organizar uma rotina inicial/progressiva de atendimento voltada à comunicação funcional, autonomia, atenção compartilhada, interação e participação nas atividades da SRM.
-
-SEMANA 1
-Atendimento 1:
-- Objetivo: estabelecer vínculo, observar interesses e identificar formas de comunicação.
-- Atividade: exploração mediada de imagens, objetos, tablet/Chromebook ou material concreto.
-- Recursos: cartões visuais, objeto de interesse, atividade breve e previsível.
-- Registro no sistema: resposta do estudante, tempo de permanência, forma de comunicação e nível de engajamento.
 """.strip()
 
-    for semana in range(1, 5):
-        if semana == 1:
-            continue
-        fallback += f"""
+    if datas_atendimentos:
+        for idx, data_atual in enumerate(datas_atendimentos, start=1):
+            semana_mes = ((data_atual.day - 1) // 7) + 1
+            nome_dia = DIAS_SEMANA[data_atual.weekday()] if data_atual.weekday() < len(DIAS_SEMANA) else "Dia"
+            fallback += f"""
+
+SEMANA {semana_mes} - ATENDIMENTO {idx}
+Data prevista: {data_atual.strftime('%d/%m/%Y')} ({nome_dia})
+- Objetivo: desenvolver comunicação funcional, atenção, autonomia e participação de forma gradual.
+- Atividade: proposta mediada com apoio visual, escolha dirigida, recurso tecnológico, material manipulável ou atividade maker conforme resposta do estudante.
+- Recursos: prancha de CAA, rotina visual, tablet/Chromebook, material concreto, impressão 3D/robótica quando aplicável.
+- Mediação: comandos curtos, demonstração prática, reforço positivo e tempo ampliado para resposta.
+- Registro no sistema: resposta do estudante, engajamento, recurso utilizado, barreiras observadas, avanços e encaminhamentos.
+"""
+    else:
+        for semana in range(1, 5):
+            fallback += f"""
 
 SEMANA {semana}
 Atendimento 1:
@@ -5015,8 +5096,8 @@ Atendimento 1:
 - Recursos: prancha de CAA, rotina visual, material manipulável, tablet/Chromebook ou jogo pedagógico.
 - Registro no sistema: avanços, dificuldades, barreiras e encaminhamentos.
 """
-        if qtd >= 2:
-            fallback += f"""
+            if qtd >= 2:
+                fallback += f"""
 Atendimento 2:
 - Objetivo: generalizar a habilidade trabalhada em nova situação.
 - Atividade: proposta prática com tecnologia, recurso maker, impressão 3D, robótica ou atividade desplugada.
@@ -5037,7 +5118,12 @@ Ao final do mês, verificar evolução em comunicação funcional, autonomia, at
 Você é especialista em AEE e deve criar um PLANO MENSAL DE ATENDIMENTO aplicável na Sala de Recursos Multifuncionais.
 
 TAREFA:
-Crie um plano mensal dividido por semanas, considerando {qtd} atendimento(s) por semana, para o mês de {mes_referencia}/{ano_referencia}.
+Crie um plano mensal considerando as DATAS REAIS de atendimento abaixo, para o mês de {mes_referencia}/{ano_referencia}.
+
+DATAS REAIS DE ATENDIMENTO CALCULADAS PELO SISTEMA:
+{datas_txt}
+
+TOTAL REAL DE ATENDIMENTOS NO MÊS: {total_atendimentos}
 
 REGRAS:
 - Não usar nome real do estudante.
@@ -5076,15 +5162,16 @@ FORMATO DE SAÍDA:
 2. Objetivo do mês
 3. Habilidades prioritárias do mês
 4. Recursos necessários
-5. Semana 1
-   - Atendimento 1
-   - Atendimento 2, se houver
-6. Semana 2
-7. Semana 3
-8. Semana 4
-9. Como registrar cada atendimento no sistema
-10. Indicadores para avaliação mensal
-11. Ajustes possíveis para o mês seguinte
+5. Roteiro por data real de atendimento
+   - Data e dia da semana
+   - Objetivo do atendimento
+   - Atividade proposta
+   - Recursos
+   - Mediação
+   - Registro esperado no sistema
+6. Como registrar cada atendimento no sistema
+7. Indicadores para avaliação mensal
+8. Ajustes possíveis para o mês seguinte
 """
     try:
         resposta = client.responses.create(model="gpt-4.1-mini", input=prompt)
@@ -6441,8 +6528,8 @@ elif menu == "Entrevista com a Família":
             st.caption("Dados organizados conforme o roteiro de entrevista familiar do AEE. Campos sensíveis continuam para preenchimento manual nos documentos impressos.")
 
             with st.form("form_entrevista_completa"):
-                ano_padrao_entrevista = str(datetime.now().year)
-                anos_opcoes_entrevista = [str(a) for a in range(2020, datetime.now().year + 4)]
+                ano_padrao_entrevista = str(agora_local().year)
+                anos_opcoes_entrevista = [str(a) for a in range(2020, agora_local().year + 4)]
                 idx_ano_entrevista = anos_opcoes_entrevista.index(ano_padrao_entrevista) if ano_padrao_entrevista in anos_opcoes_entrevista else 0
 
                 st.markdown("### 📅 Identificação do registro")
@@ -6698,8 +6785,8 @@ elif menu == "Avaliação Pedagógica":
             "inserir dados pessoais sensíveis nos textos ou arquivos."
         )
 
-        anos_opcoes = [str(a) for a in range(2024, datetime.now().year + 4)]
-        ano_padrao = str(datetime.now().year)
+        anos_opcoes = [str(a) for a in range(2024, agora_local().year + 4)]
+        ano_padrao = str(agora_local().year)
         idx_ano = anos_opcoes.index(ano_padrao) if ano_padrao in anos_opcoes else 0
 
         with st.container(border=True):
@@ -6995,8 +7082,8 @@ elif menu == "Articulação Pedagógica Inclusiva":
             "estudo de caso, atendimentos, documentos históricos e escutas docentes."
         )
 
-        anos_opcoes = [str(a) for a in range(2024, datetime.now().year + 4)]
-        ano_padrao = str(datetime.now().year)
+        anos_opcoes = [str(a) for a in range(2024, agora_local().year + 4)]
+        ano_padrao = str(agora_local().year)
         idx_ano = anos_opcoes.index(ano_padrao) if ano_padrao in anos_opcoes else 0
 
         aba_escuta, aba_historico, aba_relatorio, aba_relatorios_salvos = st.tabs(
@@ -7373,7 +7460,7 @@ elif menu == "Estudo de Caso":
                         avaliacao_base_id_ia = 0
                         st.warning("Nenhuma avaliação pedagógica localizada. A IA usará apenas o estudo anterior e demais registros disponíveis.")
 
-                    ano_novo_ia = st.text_input("Ano letivo do novo estudo", value=str(datetime.now().year), key=f"ano_novo_ia_{estudante_id}")
+                    ano_novo_ia = st.text_input("Ano letivo do novo estudo", value=str(agora_local().year), key=f"ano_novo_ia_{estudante_id}")
 
                     fontes_ia = []
                     if estudos_anteriores and estudo_base_id_ia != 0:
@@ -7441,7 +7528,7 @@ ESTUDO DE CASO GRE - SUGESTÃO GERADA POR IA
 Código interno do estudante: {estudante[1]}
 Ano/Série: {estudante[2] or 'Não informado.'}
 Turma: {estudante[3] or 'Não informado.'}
-Ano letivo: {st.session_state.get(f'ano_estudo_ia_{estudante_id}', str(datetime.now().year))}
+Ano letivo: {st.session_state.get(f'ano_estudo_ia_{estudante_id}', str(agora_local().year))}
 
 ANÁLISE PEDAGÓGICA DA IA:
 {analise_preview}
@@ -7456,14 +7543,14 @@ Documento preliminar para revisão do professor do AEE antes do salvamento defin
                         st.markdown("#### Download da sugestão gerada")
                         export_buttons(
                             texto_previa_estudo,
-                            f"Estudo_Caso_GRE_IA_{estudante[1]}_{st.session_state.get(f'ano_estudo_ia_{estudante_id}', str(datetime.now().year))}",
+                            f"Estudo_Caso_GRE_IA_{estudante[1]}_{st.session_state.get(f'ano_estudo_ia_{estudante_id}', str(agora_local().year))}",
                             tipo_pdf="estudo_ia_previa",
                         )
 
                         st.markdown("#### Salvar no histórico")
                         st.caption("Esta opção salva imediatamente a sugestão gerada no histórico do estudante, mantendo a estrutura GRE. Depois você ainda pode abrir o registro salvo, baixar em Word/PDF e complementar manualmente.")
                         if st.button("💾 Salvar sugestão gerada no histórico", key=f"salvar_sugestao_estudo_ia_{estudante_id}"):
-                            ano_salvar = st.session_state.get(f"ano_estudo_ia_{estudante_id}", str(datetime.now().year))
+                            ano_salvar = st.session_state.get(f"ano_estudo_ia_{estudante_id}", str(agora_local().year))
                             estudo_ant_salvar = st.session_state.get(f"estudo_anterior_id_{estudante_id}")
                             analise_salvar = st.session_state.get(f"analise_estudo_ia_{estudante_id}", "")
                             sugestao_salvar = st.session_state.get(f"sugestao_estudo_ia_{estudante_id}", "")
@@ -7547,7 +7634,7 @@ Documento preliminar para revisão do professor do AEE antes do salvamento defin
                     st.markdown("#### Identificação educacional")
                     col_ano_hist, col_tipo_hist = st.columns(2)
                     with col_ano_hist:
-                        ano_letivo = st.text_input("Ano letivo do estudo de caso", value=st.session_state.get(f"ano_estudo_ia_{estudante_id}", str(datetime.now().year)))
+                        ano_letivo = st.text_input("Ano letivo do estudo de caso", value=st.session_state.get(f"ano_estudo_ia_{estudante_id}", str(agora_local().year)))
                     with col_tipo_hist:
                         tipo_registro = st.selectbox(
                             "Tipo de registro",
@@ -7769,7 +7856,7 @@ Documento preliminar para revisão do professor do AEE antes do salvamento defin
 elif menu == "Plano AEE - IA":
     st.markdown('<div class="subtitulo">🧠 Plano AEE - IA</div>', unsafe_allow_html=True)
     st.caption(
-        "Módulo de planejamento pedagógico inteligente para perfil pedagógico, sugestão geral, plano mensal, evolução e histórico do AEE."
+        "Módulo de planejamento pedagógico inteligente para diagnóstico, sugestão geral, plano mensal, evolução e histórico do AEE."
     )
 
     estudantes = listar_estudantes()
@@ -7825,7 +7912,7 @@ elif menu == "Plano AEE - IA":
                 "🗂️ Histórico IA",
             ],
             horizontal=True,
-            key=f"radio_plano_ia_{estudante_id}",
+            key=f"radio_plano_ia_v22_{estudante_id}",
         )
 
         st.divider()
@@ -7838,8 +7925,8 @@ elif menu == "Plano AEE - IA":
             st.caption(
                 "Este recurso possui finalidade exclusivamente pedagógica e educacional, não realizando diagnóstico clínico, médico ou terapêutico."
             )
-            if st.button("🧩 Gerar Perfil Pedagógico Inteligente", key=f"gerar_diag_ia_v19_{estudante_id}"):
-                with st.spinner("Gerando perfil pedagógico inteligente com IA..."):
+            if st.button("🧩 Gerar Perfil Pedagógico Inteligente", key=f"gerar_perfil_pedagogico_v22_{estudante_id}"):
+                with st.spinner("Gerando Perfil Pedagógico Inteligente com IA..."):
                     st.session_state[f"diagnostico_ia_v19_{estudante_id}"] = gerar_diagnostico_aee_ia(
                         estudante, avaliacao_ia, entrevista_ia, estudo_ia, plano_manual_ia
                     )
@@ -7855,11 +7942,11 @@ elif menu == "Plano AEE - IA":
                 with col_d1:
                     export_buttons(diagnostico_txt, f"Perfil_Pedagogico_Inteligente_{estudante[1]}", tipo_pdf="plano")
                 with col_d2:
-                    if st.button("💾 Salvar perfil pedagógico no histórico", key=f"salvar_diag_ia_v19_{estudante_id}"):
+                    if st.button("💾 Salvar perfil pedagógico no histórico", key=f"salvar_perfil_pedagogico_v22_{estudante_id}"):
                         salvar_historico_plano_aee_ia(
                             estudante_id=estudante_id,
                             mes_referencia="",
-                            ano_referencia=datetime.now().year,
+                            ano_referencia=agora_local().year,
                             qtd_atendimentos_semana=1,
                             tipo_geracao="Perfil Pedagógico Inteligente",
                             diagnostico_ia=diagnostico_txt,
@@ -7894,7 +7981,7 @@ elif menu == "Plano AEE - IA":
                         salvar_historico_plano_aee_ia(
                             estudante_id=estudante_id,
                             mes_referencia="",
-                            ano_referencia=datetime.now().year,
+                            ano_referencia=agora_local().year,
                             qtd_atendimentos_semana=1,
                             tipo_geracao="Sugestão Geral AEE",
                             sugestao_geral=sugestao_txt,
@@ -7912,33 +7999,44 @@ elif menu == "Plano AEE - IA":
                 "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
                 "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro",
             ]
-            col_m1, col_m2, col_m3, col_m4 = st.columns(4)
+            dias_cadastrados_txt = ""
+            try:
+                dias_cadastrados_txt = estudante[7] or ""
+            except Exception:
+                dias_cadastrados_txt = ""
+            dias_padrao = [d for d in DIAS_SEMANA if d in dias_cadastrados_txt]
+            if not dias_padrao:
+                dias_padrao = ["Segunda-feira", "Quarta-feira"]
+
+            col_m1, col_m2, col_m3 = st.columns([1, 1, 2])
             with col_m1:
-                mes_ref = st.selectbox("Mês de referência", meses, index=datetime.now().month - 1, key=f"mes_plano_ia_v19_{estudante_id}")
+                mes_ref = st.selectbox("Mês de referência", meses, index=agora_local().month - 1, key=f"mes_plano_ia_v19_{estudante_id}")
             with col_m2:
-                ano_ref = st.text_input("Ano de referência", value=str(datetime.now().year), key=f"ano_plano_ia_v19_{estudante_id}")
+                ano_ref = st.text_input("Ano de referência", value=str(agora_local().year), key=f"ano_plano_ia_v19_{estudante_id}")
             with col_m3:
-                qtd_semana = st.number_input(
-                    "Atendimentos por semana",
-                    min_value=1,
-                    max_value=5,
-                    value=2,
-                    step=1,
-                    key=f"qtd_atend_semana_v19_{estudante_id}",
-                )
-            with col_m4:
-                qtd_semanas = st.number_input(
-                    "Semanas no mês",
-                    min_value=1,
-                    max_value=5,
-                    value=4,
-                    step=1,
-                    key=f"qtd_semanas_plano_ia_v19_{estudante_id}",
-                    help="Use 4 como padrão. Use 5 quando o mês tiver uma quinta semana útil de atendimento.",
+                dias_atendimento_ref = st.multiselect(
+                    "Dias de atendimento na SRM",
+                    DIAS_SEMANA,
+                    default=dias_padrao,
+                    key=f"dias_atendimento_plano_ia_v23_{estudante_id}",
+                    help="O sistema calcula automaticamente quantos atendimentos existirão no mês com base nos dias selecionados.",
                 )
 
+            datas_calculadas = gerar_datas_atendimentos_mes(ano_ref, mes_ref, dias_atendimento_ref)
+            qtd_semana = max(1, len(dias_atendimento_ref))
+            total_atendimentos_calculado = len(datas_calculadas)
+
+            col_info1, col_info2 = st.columns(2)
+            with col_info1:
+                st.metric("Atendimentos calculados no mês", total_atendimentos_calculado)
+            with col_info2:
+                st.metric("Dias por semana", qtd_semana)
+
+            with st.expander("📆 Ver datas previstas de atendimento", expanded=True):
+                st.text(datas_atendimentos_para_texto(datas_calculadas))
+
             st.caption(
-                "O roteiro gerado deve ser usado como planejamento inicial. Após cada encontro, registre o atendimento no módulo Atendimentos para alimentar a evolução da IA."
+                "O roteiro gerado usa as datas reais do mês. Após cada encontro, registre o atendimento no módulo Atendimentos para alimentar a evolução da IA."
             )
 
             if st.button("📅 Gerar Plano Mensal AEE - IA", key=f"gerar_plano_mensal_v19_{estudante_id}"):
@@ -7952,14 +8050,17 @@ elif menu == "Plano AEE - IA":
                         entrevista_ia,
                         estudo_ia,
                         plano_manual_ia,
+                        datas_calculadas,
                     )
                     complemento = f"""
 
 ORGANIZAÇÃO OPERACIONAL PARA REGISTRO NO SISTEMA
 Mês de referência: {mes_ref}/{ano_ref}
-Quantidade de semanas planejadas: {int(qtd_semanas)}
-Atendimentos por semana: {int(qtd_semana)}
-Total previsto de atendimentos: {int(qtd_semanas) * int(qtd_semana)}
+Dias de atendimento selecionados: {", ".join(dias_atendimento_ref) if dias_atendimento_ref else "Não informado"}
+Total real de atendimentos no mês: {total_atendimentos_calculado}
+
+Datas previstas:
+{datas_atendimentos_para_texto(datas_calculadas)}
 
 Modelo obrigatório para cada atendimento:
 - Objetivo do atendimento:
@@ -7990,7 +8091,7 @@ Modelo obrigatório para cada atendimento:
                             qtd_atendimentos_semana=int(qtd_semana),
                             tipo_geracao="Plano Mensal IA",
                             plano_mensal=plano_mensal_txt,
-                            observacoes=f"Plano mensal com {int(qtd_semanas)} semanas e {int(qtd_semana)} atendimento(s) por semana.",
+                            observacoes=f"Plano mensal calculado automaticamente com {total_atendimentos_calculado} atendimento(s) no mês, considerando os dias: {', '.join(dias_atendimento_ref)}.",
                         )
                         st.success("Plano mensal salvo no histórico IA.")
                         st.rerun()
@@ -8029,7 +8130,7 @@ Modelo obrigatório para cada atendimento:
                         salvar_historico_plano_aee_ia(
                             estudante_id=estudante_id,
                             mes_referencia="",
-                            ano_referencia=datetime.now().year,
+                            ano_referencia=agora_local().year,
                             qtd_atendimentos_semana=1,
                             tipo_geracao="Evolução IA",
                             diagnostico_ia=evolucao_txt,
@@ -8170,7 +8271,7 @@ Modelo obrigatório para cada atendimento:
                         titulo_hist += f" - {mes_hist or ''}/{ano_hist or ''}"
                     with st.expander(titulo_hist):
                         st.text_area("Conteúdo", conteudo_hist, height=440, key=f"hist_plano_ia_v19_{item_id}")
-                        export_buttons(conteudo_hist, f"Plano_AEE_IA_{estudante[1]}_{item_id}", tipo_pdf="plano")
+                        export_buttons(conteudo_hist, f"Plano_AEE_IA_{estudante[1]}_{item_id}", tipo_pdf=("plano_ia_visual" if "Plano Mensal" in str(tipo_hist) else "plano"))
                         if st.button("Excluir registro IA", key=f"exc_plano_ia_v19_{item_id}"):
                             excluir_registro("plano_aee_ia", item_id)
                             st.success("Registro IA excluído.")
@@ -8376,8 +8477,8 @@ elif menu == "Relatórios GRE":
             data_fim_qs = None
             escola_qs = ""
             regional_qs = ""
-            mes_qs = datetime.now().strftime("%m")
-            ano_qs = datetime.now().strftime("%Y")
+            mes_qs = agora_local().strftime("%m")
+            ano_qs = agora_local().strftime("%Y")
             df_quadro_qs = pd.DataFrame()
 
             entrevista_comp_anterior_id = None
@@ -8445,13 +8546,13 @@ elif menu == "Relatórios GRE":
                 st.markdown("### 📋 Configuração do Quadro Semanal")
                 col_periodo1, col_periodo2, col_periodo3, col_periodo4 = st.columns(4)
                 with col_periodo1:
-                    data_inicio_qs = st.date_input("Data inicial", value=datetime.now().date().replace(day=1), key="qs_inicio")
+                    data_inicio_qs = st.date_input("Data inicial", value=agora_local().date().replace(day=1), key="qs_inicio")
                 with col_periodo2:
-                    data_fim_qs = st.date_input("Data final", value=datetime.now().date(), key="qs_fim")
+                    data_fim_qs = st.date_input("Data final", value=agora_local().date(), key="qs_fim")
                 with col_periodo3:
-                    mes_qs = st.text_input("Mês", value=datetime.now().strftime("%m"), key="qs_mes")
+                    mes_qs = st.text_input("Mês", value=agora_local().strftime("%m"), key="qs_mes")
                 with col_periodo4:
-                    ano_qs = st.text_input("Ano", value=datetime.now().strftime("%Y"), key="qs_ano")
+                    ano_qs = st.text_input("Ano", value=agora_local().strftime("%Y"), key="qs_ano")
 
                 col_escola, col_regional = st.columns(2)
                 with col_escola:
@@ -8701,6 +8802,6 @@ elif menu == "Administração":
         st.download_button(
             "Baixar backup completo em JSON",
             json_texto,
-            f"backup_completo_incluisrm_{datetime.now().strftime('%Y%m%d_%H%M')}.json",
+            f"backup_completo_incluisrm_{agora_local().strftime('%Y%m%d_%H%M')}.json",
             "application/json",
         )
