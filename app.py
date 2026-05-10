@@ -7545,7 +7545,7 @@ Documento preliminar para revisão do professor do AEE antes do salvamento defin
 elif menu == "Plano AEE - IA":
     st.markdown('<div class="subtitulo">🧠 Plano AEE - IA</div>', unsafe_allow_html=True)
     st.caption(
-        "Módulo de planejamento pedagógico inteligente: gera diagnóstico, sugestão geral, plano mensal e histórico evolutivo para apoiar os atendimentos do AEE."
+        "Módulo de planejamento pedagógico inteligente para diagnóstico, sugestão geral, plano mensal, evolução e histórico do AEE."
     )
 
     estudantes = listar_estudantes()
@@ -7553,10 +7553,14 @@ elif menu == "Plano AEE - IA":
         st.info("Cadastre um estudante primeiro.")
     else:
         ids, mapa = opcoes_estudantes_por_id(estudantes)
-        estudante_id = st.selectbox("Selecione o estudante", ids, format_func=lambda x: mapa[x], key="plano_ia_estudante")
+        estudante_id = st.selectbox(
+            "Selecione o estudante",
+            ids,
+            format_func=lambda x: mapa[x],
+            key="plano_ia_estudante_v19",
+        )
         estudante = buscar_estudante(estudante_id)
 
-        # Dados mínimos e contexto do estudante
         avaliacao_ia = ultima_avaliacao(estudante_id)
         entrevista_ia = ultima_linha("entrevistas_familia", CAMPOS_ENTREVISTA_FAMILIA, estudante_id)
         estudo_ia = ultima_linha("estudos_caso", CAMPOS_ESTUDO_CASO, estudante_id)
@@ -7571,113 +7575,121 @@ elif menu == "Plano AEE - IA":
             pendencias.append("Estudo de caso GRE")
 
         with st.container(border=True):
-            st.markdown("### Situação dos dados para geração pela IA")
+            st.markdown("### ✅ Dados usados pela IA")
             c1, c2, c3, c4 = st.columns(4)
             c1.metric("Entrevista familiar", "OK" if entrevista_ia else "Pendente")
             c2.metric("Avaliação pedagógica", "OK" if avaliacao_ia else "Pendente")
             c3.metric("Estudo de caso GRE", "OK" if estudo_ia else "Pendente")
             c4.metric("Plano AEE manual", "OK" if plano_manual_ia else "Opcional")
-
             if pendencias:
                 st.warning(
-                    "Ainda faltam dados mínimos para uma sugestão altamente personalizada: " + ", ".join(pendencias) + ". "
-                    "Mesmo assim, o sistema pode gerar um roteiro inicial de observação e planejamento, sem presumir informações não registradas."
+                    "Ainda faltam dados para uma sugestão mais personalizada: " + ", ".join(pendencias) + ". "
+                    "Mesmo assim, é possível gerar um roteiro inicial de observação e planejamento sem presumir informações não registradas."
                 )
             else:
-                st.success("Dados mínimos encontrados. A IA pode gerar sugestões personalizadas com base nos registros do estudante.")
+                st.success("Dados mínimos encontrados. A IA pode gerar sugestões mais personalizadas para o estudante.")
 
-        tab_diag, tab_geral, tab_mensal, tab_evolucao, tab_base, tab_manual, tab_hist = st.tabs(
+        escolha_plano_ia = st.radio(
+            "Escolha o que deseja fazer",
             [
                 "🔍 Diagnóstico IA",
-                "📘 Sugestão Geral",
-                "📅 Plano Mensal",
+                "📘 Sugestão Geral AEE",
+                "📅 Plano Mensal IA",
                 "📈 Evolução IA",
-                "📚 Bases",
-                "📝 Plano Manual",
-                "🗂️ Histórico",
-            ]
+                "📚 Bases de Conhecimento",
+                "📝 Plano AEE Manual",
+                "🗂️ Histórico IA",
+            ],
+            horizontal=True,
+            key=f"radio_plano_ia_{estudante_id}",
         )
 
-        with tab_diag:
+        st.divider()
+
+        if escolha_plano_ia == "🔍 Diagnóstico IA":
             st.markdown("### 🔍 Diagnóstico pedagógico inteligente")
-            st.write(
-                "Use este recurso para organizar uma síntese pedagógica inicial ou evolutiva, identificando potencialidades, barreiras, necessidades prioritárias e indicadores a observar."
+            st.info(
+                "Gera uma síntese pedagógica com potencialidades, barreiras, necessidades prioritárias, recursos com maior chance de resposta e indicadores para observar nos próximos atendimentos."
             )
-            if st.button("Gerar Diagnóstico IA", key=f"gerar_diag_ia_{estudante_id}"):
+            if st.button("🔍 Gerar Diagnóstico IA", key=f"gerar_diag_ia_v19_{estudante_id}"):
                 with st.spinner("Gerando diagnóstico pedagógico com IA..."):
-                    st.session_state[f"diagnostico_ia_{estudante_id}"] = gerar_diagnostico_aee_ia(
+                    st.session_state[f"diagnostico_ia_v19_{estudante_id}"] = gerar_diagnostico_aee_ia(
                         estudante, avaliacao_ia, entrevista_ia, estudo_ia, plano_manual_ia
                     )
 
-            if f"diagnostico_ia_{estudante_id}" in st.session_state:
+            if f"diagnostico_ia_v19_{estudante_id}" in st.session_state:
                 diagnostico_txt = st.text_area(
                     "Diagnóstico gerado",
-                    st.session_state[f"diagnostico_ia_{estudante_id}"],
+                    st.session_state[f"diagnostico_ia_v19_{estudante_id}"],
                     height=520,
-                    key=f"diagnostico_txt_{estudante_id}",
+                    key=f"diagnostico_txt_v19_{estudante_id}",
                 )
                 col_d1, col_d2 = st.columns([1, 1])
                 with col_d1:
                     export_buttons(diagnostico_txt, f"Diagnostico_AEE_IA_{estudante[1]}", tipo_pdf="plano")
                 with col_d2:
-                    if st.button("Salvar diagnóstico no histórico IA", key=f"salvar_diag_ia_{estudante_id}"):
-                        inserir_registro(
-                            "plano_aee_ia",
-                            [
-                                "estudante_id", "data_geracao", "tipo_geracao", "diagnostico_ia", "observacoes"
-                            ],
-                            [estudante_id, hoje_str(), "Diagnóstico IA", diagnostico_txt, "Diagnóstico pedagógico gerado pelo módulo Plano AEE - IA."],
+                    if st.button("💾 Salvar diagnóstico no histórico", key=f"salvar_diag_ia_v19_{estudante_id}"):
+                        salvar_historico_plano_aee_ia(
+                            estudante_id=estudante_id,
+                            mes_referencia="",
+                            ano_referencia=datetime.now().year,
+                            qtd_atendimentos_semana=1,
+                            tipo_geracao="Diagnóstico IA",
+                            diagnostico_ia=diagnostico_txt,
+                            observacoes="Diagnóstico pedagógico gerado no módulo Plano AEE - IA.",
                         )
                         st.success("Diagnóstico salvo no histórico IA.")
                         st.rerun()
 
-        with tab_geral:
+        elif escolha_plano_ia == "📘 Sugestão Geral AEE":
             st.markdown("### 📘 Sugestão geral de atendimento AEE")
-            st.write(
-                "A sugestão geral funciona como um norte pedagógico do período: eixos prioritários, recursos, estratégias e indicadores para alimentar os registros de atendimento."
+            st.info(
+                "Gera o norte pedagógico do período: objetivos prioritários, recursos sugeridos, estratégias, organização dos atendimentos e indicadores de acompanhamento."
             )
-            if st.button("Gerar Sugestão Geral AEE - IA", key=f"gerar_sug_geral_{estudante_id}"):
+            if st.button("📘 Gerar Sugestão Geral AEE - IA", key=f"gerar_sug_geral_v19_{estudante_id}"):
                 with st.spinner("Gerando sugestão geral de atendimento..."):
-                    st.session_state[f"sugestao_geral_ia_{estudante_id}"] = gerar_sugestao_geral_aee_ia(
+                    st.session_state[f"sugestao_geral_ia_v19_{estudante_id}"] = gerar_sugestao_geral_aee_ia(
                         estudante, avaliacao_ia, entrevista_ia, estudo_ia, plano_manual_ia
                     )
 
-            if f"sugestao_geral_ia_{estudante_id}" in st.session_state:
+            if f"sugestao_geral_ia_v19_{estudante_id}" in st.session_state:
                 sugestao_txt = st.text_area(
                     "Sugestão geral gerada",
-                    st.session_state[f"sugestao_geral_ia_{estudante_id}"],
+                    st.session_state[f"sugestao_geral_ia_v19_{estudante_id}"],
                     height=560,
-                    key=f"sugestao_geral_txt_{estudante_id}",
+                    key=f"sugestao_geral_txt_v19_{estudante_id}",
                 )
                 col_s1, col_s2 = st.columns([1, 1])
                 with col_s1:
                     export_buttons(sugestao_txt, f"Sugestao_Geral_AEE_IA_{estudante[1]}", tipo_pdf="plano")
                 with col_s2:
-                    if st.button("Salvar sugestão geral no histórico IA", key=f"salvar_sug_geral_{estudante_id}"):
-                        inserir_registro(
-                            "plano_aee_ia",
-                            [
-                                "estudante_id", "data_geracao", "tipo_geracao", "sugestao_geral", "observacoes"
-                            ],
-                            [estudante_id, hoje_str(), "Sugestão Geral", sugestao_txt, "Sugestão geral de atendimento gerada pelo módulo Plano AEE - IA."],
+                    if st.button("💾 Salvar sugestão geral no histórico", key=f"salvar_sug_geral_v19_{estudante_id}"):
+                        salvar_historico_plano_aee_ia(
+                            estudante_id=estudante_id,
+                            mes_referencia="",
+                            ano_referencia=datetime.now().year,
+                            qtd_atendimentos_semana=1,
+                            tipo_geracao="Sugestão Geral AEE",
+                            sugestao_geral=sugestao_txt,
+                            observacoes="Sugestão geral de atendimento gerada no módulo Plano AEE - IA.",
                         )
                         st.success("Sugestão geral salva no histórico IA.")
                         st.rerun()
 
-        with tab_mensal:
+        elif escolha_plano_ia == "📅 Plano Mensal IA":
             st.markdown("### 📅 Plano mensal inteligente")
-            st.write(
-                "Use para planejar os atendimentos do mês. O sistema organiza por semana e por quantidade de atendimentos semanais, facilitando a execução e o registro posterior em Atendimentos."
+            st.info(
+                "Organiza os atendimentos do mês por semana. Para cada atendimento, a IA sugere objetivo, atividade, recursos e registro esperado."
             )
             meses = [
                 "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
                 "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro",
             ]
-            col_m1, col_m2, col_m3 = st.columns(3)
+            col_m1, col_m2, col_m3, col_m4 = st.columns(4)
             with col_m1:
-                mes_ref = st.selectbox("Mês de referência", meses, index=datetime.now().month - 1, key=f"mes_plano_ia_{estudante_id}")
+                mes_ref = st.selectbox("Mês de referência", meses, index=datetime.now().month - 1, key=f"mes_plano_ia_v19_{estudante_id}")
             with col_m2:
-                ano_ref = st.text_input("Ano de referência", value=str(datetime.now().year), key=f"ano_plano_ia_{estudante_id}")
+                ano_ref = st.text_input("Ano de referência", value=str(datetime.now().year), key=f"ano_plano_ia_v19_{estudante_id}")
             with col_m3:
                 qtd_semana = st.number_input(
                     "Atendimentos por semana",
@@ -7685,13 +7697,26 @@ elif menu == "Plano AEE - IA":
                     max_value=5,
                     value=2,
                     step=1,
-                    key=f"qtd_atend_semana_{estudante_id}",
-                    help="Use 1 se quiser um roteiro mínimo. Use 2 quando houver dois atendimentos semanais com o estudante.",
+                    key=f"qtd_atend_semana_v19_{estudante_id}",
+                )
+            with col_m4:
+                qtd_semanas = st.number_input(
+                    "Semanas no mês",
+                    min_value=1,
+                    max_value=5,
+                    value=4,
+                    step=1,
+                    key=f"qtd_semanas_plano_ia_v19_{estudante_id}",
+                    help="Use 4 como padrão. Use 5 quando o mês tiver uma quinta semana útil de atendimento.",
                 )
 
-            if st.button("Gerar Plano Mensal AEE - IA", key=f"gerar_plano_mensal_{estudante_id}"):
-                with st.spinner("Gerando plano mensal por semanas..."):
-                    st.session_state[f"plano_mensal_ia_{estudante_id}"] = gerar_plano_mensal_aee_ia(
+            st.caption(
+                "O roteiro gerado deve ser usado como planejamento inicial. Após cada encontro, registre o atendimento no módulo Atendimentos para alimentar a evolução da IA."
+            )
+
+            if st.button("📅 Gerar Plano Mensal AEE - IA", key=f"gerar_plano_mensal_v19_{estudante_id}"):
+                with st.spinner("Gerando plano mensal por semanas e atendimentos..."):
+                    plano_base = gerar_plano_mensal_aee_ia(
                         estudante,
                         mes_ref,
                         ano_ref,
@@ -7701,76 +7726,94 @@ elif menu == "Plano AEE - IA":
                         estudo_ia,
                         plano_manual_ia,
                     )
+                    complemento = f"""
 
-            if f"plano_mensal_ia_{estudante_id}" in st.session_state:
+ORGANIZAÇÃO OPERACIONAL PARA REGISTRO NO SISTEMA
+Mês de referência: {mes_ref}/{ano_ref}
+Quantidade de semanas planejadas: {int(qtd_semanas)}
+Atendimentos por semana: {int(qtd_semana)}
+Total previsto de atendimentos: {int(qtd_semanas) * int(qtd_semana)}
+
+Modelo obrigatório para cada atendimento:
+- Objetivo do atendimento:
+- Atividade proposta:
+- Recursos utilizados:
+- Mediação necessária:
+- Resposta esperada do estudante:
+- Como registrar depois no módulo Atendimentos:
+""".strip()
+                    st.session_state[f"plano_mensal_ia_v19_{estudante_id}"] = plano_base + "\n\n" + complemento
+
+            if f"plano_mensal_ia_v19_{estudante_id}" in st.session_state:
                 plano_mensal_txt = st.text_area(
                     "Plano mensal gerado",
-                    st.session_state[f"plano_mensal_ia_{estudante_id}"],
-                    height=620,
-                    key=f"plano_mensal_txt_{estudante_id}",
+                    st.session_state[f"plano_mensal_ia_v19_{estudante_id}"],
+                    height=680,
+                    key=f"plano_mensal_txt_v19_{estudante_id}",
                 )
                 col_pm1, col_pm2 = st.columns([1, 1])
                 with col_pm1:
                     export_buttons(plano_mensal_txt, f"Plano_Mensal_AEE_IA_{estudante[1]}_{mes_ref}_{ano_ref}", tipo_pdf="plano")
                 with col_pm2:
-                    if st.button("Salvar plano mensal no histórico IA", key=f"salvar_plano_mensal_{estudante_id}"):
-                        inserir_registro(
-                            "plano_aee_ia",
-                            [
-                                "estudante_id", "data_geracao", "mes_referencia", "ano_referencia",
-                                "qtd_atendimentos_semana", "tipo_geracao", "plano_mensal", "sugestoes_semanais",
-                                "observacoes"
-                            ],
-                            [
-                                estudante_id, hoje_str(), mes_ref, ano_ref, int(qtd_semana), "Plano Mensal",
-                                plano_mensal_txt, plano_mensal_txt,
-                                "Plano mensal gerado para orientar os atendimentos semanais e alimentar o módulo Atendimentos.",
-                            ],
+                    if st.button("💾 Salvar plano mensal no histórico", key=f"salvar_plano_mensal_v19_{estudante_id}"):
+                        salvar_historico_plano_aee_ia(
+                            estudante_id=estudante_id,
+                            mes_referencia=mes_ref,
+                            ano_referencia=ano_ref,
+                            qtd_atendimentos_semana=int(qtd_semana),
+                            tipo_geracao="Plano Mensal IA",
+                            plano_mensal=plano_mensal_txt,
+                            observacoes=f"Plano mensal com {int(qtd_semanas)} semanas e {int(qtd_semana)} atendimento(s) por semana.",
                         )
                         st.success("Plano mensal salvo no histórico IA.")
                         st.rerun()
 
-        with tab_evolucao:
+        elif escolha_plano_ia == "📈 Evolução IA":
             st.markdown("### 📈 Evolução inteligente")
-            st.write(
-                "Esta seção usa os registros de atendimento para apoiar a análise de avanços, barreiras persistentes e ajustes para o próximo ciclo."
+            st.info(
+                "Usa os registros de atendimento para apoiar a análise de avanços, barreiras persistentes, recursos mais efetivos e ajustes para o próximo mês."
             )
-            if st.button("Gerar análise evolutiva IA", key=f"gerar_evolucao_ia_{estudante_id}"):
+            if st.button("📈 Gerar análise evolutiva IA", key=f"gerar_evolucao_ia_v19_{estudante_id}"):
                 historico_txt = listar_atendimentos_texto(estudante_id)
                 if "Nenhum atendimento registrado" in historico_txt:
                     st.warning("Ainda não há atendimentos registrados. Registre os atendimentos para gerar uma análise evolutiva consistente.")
-                    st.session_state[f"evolucao_ia_{estudante_id}"] = "Ainda não há atendimentos suficientes para análise evolutiva. Recomenda-se registrar objetivo, atividade, resposta, avanços, dificuldades e encaminhamentos após cada atendimento."
+                    st.session_state[f"evolucao_ia_v19_{estudante_id}"] = (
+                        "Ainda não há atendimentos suficientes para análise evolutiva. "
+                        "Registre objetivo, atividade, resposta do estudante, avanços, dificuldades, engajamento e encaminhamentos após cada atendimento."
+                    )
                 else:
                     with st.spinner("Gerando análise evolutiva com base nos atendimentos..."):
-                        # Reaproveita o diagnóstico, pois ele já considera histórico de atendimentos e bases.
-                        st.session_state[f"evolucao_ia_{estudante_id}"] = gerar_diagnostico_aee_ia(
+                        st.session_state[f"evolucao_ia_v19_{estudante_id}"] = gerar_diagnostico_aee_ia(
                             estudante, avaliacao_ia, entrevista_ia, estudo_ia, plano_manual_ia
                         )
 
-            if f"evolucao_ia_{estudante_id}" in st.session_state:
+            if f"evolucao_ia_v19_{estudante_id}" in st.session_state:
                 evolucao_txt = st.text_area(
                     "Análise evolutiva gerada",
-                    st.session_state[f"evolucao_ia_{estudante_id}"],
-                    height=520,
-                    key=f"evolucao_txt_{estudante_id}",
+                    st.session_state[f"evolucao_ia_v19_{estudante_id}"],
+                    height=540,
+                    key=f"evolucao_txt_v19_{estudante_id}",
                 )
                 col_e1, col_e2 = st.columns([1, 1])
                 with col_e1:
                     export_buttons(evolucao_txt, f"Evolucao_AEE_IA_{estudante[1]}", tipo_pdf="relatorio")
                 with col_e2:
-                    if st.button("Salvar evolução no histórico IA", key=f"salvar_evolucao_ia_{estudante_id}"):
-                        inserir_registro(
-                            "plano_aee_ia",
-                            ["estudante_id", "data_geracao", "tipo_geracao", "diagnostico_ia", "observacoes"],
-                            [estudante_id, hoje_str(), "Evolução IA", evolucao_txt, "Análise evolutiva com base nos registros de atendimento."],
+                    if st.button("💾 Salvar evolução no histórico", key=f"salvar_evolucao_ia_v19_{estudante_id}"):
+                        salvar_historico_plano_aee_ia(
+                            estudante_id=estudante_id,
+                            mes_referencia="",
+                            ano_referencia=datetime.now().year,
+                            qtd_atendimentos_semana=1,
+                            tipo_geracao="Evolução IA",
+                            diagnostico_ia=evolucao_txt,
+                            observacoes="Análise evolutiva com base nos registros de atendimento.",
                         )
                         st.success("Evolução salva no histórico IA.")
                         st.rerun()
 
-        with tab_base:
-            st.markdown("### 📚 Base de Conhecimento IA")
-            st.caption("Use esta seção para conferir e indexar os PDFs colocados nas pastas base_conhecimento/cientifica e base_conhecimento/pedagogica.")
-
+        elif escolha_plano_ia == "📚 Bases de Conhecimento":
+            st.markdown("### 📚 Bases de Conhecimento IA")
+            st.caption("Confira e indexe os PDFs colocados nas pastas base_conhecimento/cientifica e base_conhecimento/pedagogica.")
             col_base1, col_base2 = st.columns(2)
             with col_base1:
                 st.markdown("#### Base Científica Inclusiva")
@@ -7782,15 +7825,13 @@ elif menu == "Plano AEE - IA":
                             st.write(f"• {pdf.name}")
                 else:
                     st.info("Nenhum PDF encontrado em base_conhecimento/cientifica")
-
-                if st.button("Indexar Base Científica", key="indexar_base_cientifica_plano_ia"):
+                if st.button("Indexar Base Científica", key="indexar_base_cientifica_plano_ia_v19"):
                     try:
                         with st.spinner("Indexando base científica..."):
                             total, msg = indexar_base_conhecimento("cientifica")
                         st.success(f"{msg} Total de trechos indexados: {total}")
                     except Exception as e:
                         st.error(f"Erro ao indexar base científica: {e}")
-
             with col_base2:
                 st.markdown("#### Base Pedagógica AEE")
                 pdfs_pedagogicos = listar_pdfs_base(PASTA_PEDAGOGICA)
@@ -7801,8 +7842,7 @@ elif menu == "Plano AEE - IA":
                             st.write(f"• {pdf.name}")
                 else:
                     st.info("Nenhum PDF encontrado em base_conhecimento/pedagogica")
-
-                if st.button("Indexar Base Pedagógica", key="indexar_base_pedagogica_plano_ia"):
+                if st.button("Indexar Base Pedagógica", key="indexar_base_pedagogica_plano_ia_v19"):
                     try:
                         with st.spinner("Indexando base pedagógica..."):
                             total, msg = indexar_base_conhecimento("pedagogica")
@@ -7814,59 +7854,41 @@ elif menu == "Plano AEE - IA":
             pergunta_base = st.text_area(
                 "Digite uma pergunta para consultar os documentos",
                 placeholder="Ex: Que estratégias usar para estudante com TEA no AEE?",
-                key=f"pergunta_base_conhecimento_ia_{estudante_id}",
+                key=f"pergunta_base_conhecimento_ia_v19_{estudante_id}",
             )
             bases_escolhidas = st.multiselect(
                 "Bases para consulta",
                 ["cientifica", "pedagogica"],
                 default=["cientifica", "pedagogica"],
-                key=f"bases_consulta_manual_{estudante_id}",
+                key=f"bases_consulta_manual_v19_{estudante_id}",
             )
-            if st.button("Consultar bases", key=f"consultar_bases_ia_{estudante_id}"):
+            if st.button("Consultar bases", key=f"consultar_bases_ia_v19_{estudante_id}"):
                 if not pergunta_base.strip():
                     st.warning("Digite uma pergunta primeiro.")
                 else:
                     with st.spinner("Buscando trechos nas bases..."):
                         resultados = buscar_na_base_conhecimento(pergunta_base, bases=bases_escolhidas, limite=6)
                         contexto = montar_contexto_base(resultados)
-                        st.session_state[f"consulta_base_resultado_{estudante_id}"] = contexto
+                        st.session_state[f"consulta_base_resultado_v19_{estudante_id}"] = contexto
+            if f"consulta_base_resultado_v19_{estudante_id}" in st.session_state:
+                st.text_area("Trechos encontrados", st.session_state[f"consulta_base_resultado_v19_{estudante_id}"], height=320)
 
-            if f"consulta_base_resultado_{estudante_id}" in st.session_state:
-                st.text_area("Trechos encontrados", st.session_state[f"consulta_base_resultado_{estudante_id}"], height=320)
-
-        with tab_manual:
-            st.markdown("### 📝 Novo plano manual")
-            with st.form("form_plano_manual_ia"):
-                habilidades_lista = st.multiselect(
-                    "1.1 Habilidades prioritárias que serão trabalhadas na SRM",
-                    OPCOES_HABILIDADES_PRIORITARIAS_SRM,
-                )
+        elif escolha_plano_ia == "📝 Plano AEE Manual":
+            st.markdown("### 📝 Novo Plano AEE / PAEE manual")
+            with st.form("form_plano_manual_ia_v19"):
+                habilidades_lista = st.multiselect("1.1 Habilidades prioritárias que serão trabalhadas na SRM", OPCOES_HABILIDADES_PRIORITARIAS_SRM)
                 habilidades_outros = st.text_area("Complemento de habilidades prioritárias, se necessário")
-
-                recursos_lista = st.multiselect(
-                    "1.2 Recursos de acessibilidade que serão disponibilizados ao estudante",
-                    OPCOES_RECURSOS_ACESSIBILIDADE,
-                )
+                recursos_lista = st.multiselect("1.2 Recursos de acessibilidade que serão disponibilizados ao estudante", OPCOES_RECURSOS_ACESSIBILIDADE)
                 recursos_outros = st.text_area("Complemento de recursos de acessibilidade, se necessário")
-
                 objetivos_gerais = st.text_area("2.1 Objetivo geral")
                 objetivos_especificos = st.text_area("2.2 Objetivos específicos")
                 metodologia = st.text_area("3.1 Metodologia")
                 estrategias = st.text_area("3.2 Estratégia")
                 prazo = st.text_area("3.3 Prazo")
-
-                acoes_lista = st.multiselect(
-                    "4. Ações desenvolvidas no âmbito da escola",
-                    OPCOES_ACOES_ESCOLA,
-                )
+                acoes_lista = st.multiselect("4. Ações desenvolvidas no âmbito da escola", OPCOES_ACOES_ESCOLA)
                 acoes_outros = st.text_area("Descrição/complemento das ações desenvolvidas")
-
-                barreiras_lista = st.multiselect(
-                    "5. Barreiras identificadas na comunidade escolar",
-                    OPCOES_BARREIRAS,
-                )
+                barreiras_lista = st.multiselect("5. Barreiras identificadas na comunidade escolar", OPCOES_BARREIRAS)
                 barreiras_outros = st.text_area("Descrição/complemento das barreiras identificadas")
-
                 parcerias = st.text_area("6. Parcerias realizadas pelo AEE ao longo do período")
                 avaliacao = st.text_area("7. Avaliação")
                 observacoes = st.text_area("Observações complementares")
@@ -7886,38 +7908,24 @@ elif menu == "Plano AEE - IA":
                     st.success("Plano manual salvo.")
                     st.rerun()
 
-            planos = listar_por_estudante("planos_aee", CAMPOS_PLANO_AEE, estudante_id)
             st.markdown("### Histórico de planos manuais")
+            planos = listar_por_estudante("planos_aee", CAMPOS_PLANO_AEE, estudante_id)
             if planos:
                 for p in planos:
                     with st.expander(f"Plano em {p[1]}"):
                         texto = texto_plano_aee(estudante, p)
                         st.text(texto)
                         export_buttons(texto, f"Plano_AEE_PAEE_{estudante[1]}_{p[0]}", tipo_pdf="plano")
-                        if st.button("Excluir plano", key=f"exc_plano_{p[0]}"):
+                        if st.button("Excluir plano", key=f"exc_plano_v19_{p[0]}"):
                             excluir_registro("planos_aee", p[0])
                             st.success("Plano excluído.")
                             st.rerun()
             else:
                 st.info("Nenhum plano manual registrado.")
 
-        with tab_hist:
+        elif escolha_plano_ia == "🗂️ Histórico IA":
             st.markdown("### 🗂️ Histórico do Plano AEE - IA")
-            campos_hist_ia = [
-                "data_geracao",
-                "mes_referencia",
-                "ano_referencia",
-                "qtd_atendimentos_semana",
-                "tipo_geracao",
-                "diagnostico_ia",
-                "sugestao_geral",
-                "objetivos_prioritarios",
-                "recursos_sugeridos",
-                "estrategias_recomendadas",
-                "plano_mensal",
-                "sugestoes_semanais",
-                "observacoes",
-            ]
+            campos_hist_ia = CAMPOS_PLANO_AEE_IA
             historico_ia = listar_por_estudante("plano_aee_ia", campos_hist_ia, estudante_id)
             if historico_ia:
                 for item in historico_ia:
@@ -7934,33 +7942,15 @@ elif menu == "Plano AEE - IA":
                     if mes_hist or ano_hist:
                         titulo_hist += f" - {mes_hist or ''}/{ano_hist or ''}"
                     with st.expander(titulo_hist):
-                        st.text_area("Conteúdo", conteudo_hist, height=440, key=f"hist_plano_ia_{item_id}")
+                        st.text_area("Conteúdo", conteudo_hist, height=440, key=f"hist_plano_ia_v19_{item_id}")
                         export_buttons(conteudo_hist, f"Plano_AEE_IA_{estudante[1]}_{item_id}", tipo_pdf="plano")
-                        if st.button("Excluir registro IA", key=f"exc_plano_ia_{item_id}"):
+                        if st.button("Excluir registro IA", key=f"exc_plano_ia_v19_{item_id}"):
                             excluir_registro("plano_aee_ia", item_id)
                             st.success("Registro IA excluído.")
                             st.rerun()
             else:
                 st.info("Nenhum registro IA salvo ainda.")
 
-            st.markdown("### Histórico antigo de sugestões AEE IA")
-            paees_ia = listar_por_estudante("paees", ["data_geracao", "conteudo"], estudante_id)
-            if paees_ia:
-                for paee in paees_ia:
-                    with st.expander(f"Sugestão AEE IA em {paee[1]}"):
-                        texto_paee = paee[2] or ""
-                        st.text_area("Conteúdo salvo", texto_paee, height=420, key=f"paee_ia_hist_{paee[0]}")
-                        export_buttons(texto_paee, f"PAEE_AEE_IA_{estudante[1]}_{paee[0]}", tipo_pdf="plano")
-                        if st.button("Excluir sugestão AEE IA", key=f"exc_paee_ia_{paee[0]}"):
-                            excluir_registro("paees", paee[0])
-                            st.success("Sugestão AEE IA excluída.")
-                            st.rerun()
-            else:
-                st.info("Nenhuma sugestão antiga salva.")
-
-# ======================================================
-# ATENDIMENTOS
-# ======================================================
 elif menu == "Atendimentos":
     st.markdown('<div class="subtitulo">📌 Registro dos atendimentos</div>', unsafe_allow_html=True)
     estudantes = listar_estudantes()
