@@ -693,13 +693,15 @@ def criar_tabelas():
     )
 
     # Campos ampliados do Estudo de Caso / Plano AEE conforme modelo GRE.
-    # Não armazenamos CPF, RG, endereço ou dados sensíveis do estudante; esses campos ficam em branco nos documentos finais.
+    # Não armazenamos CPF, RG, endereço ou laudo médico completo; esses campos ficam em branco nos documentos finais.
+    # Armazenamos apenas CID e síntese pedagógica/funcional do laudo, quando pertinente ao AEE.
     for coluna, definicao in [
         ("etapa_modalidade", "TEXT"),
         ("ano_etapa", "TEXT"),
         ("laudo", "TEXT"),
         ("deficiencia", "TEXT"),
         ("cid", "TEXT"),
+        ("observacoes_laudo", "TEXT"),
         ("altas_habilidades", "TEXT"),
         ("bpc", "TEXT"),
         ("escola_nome", "TEXT"),
@@ -1056,7 +1058,7 @@ CAMPOS_ESTUDO_CASO = [
     "data_registro",
     "ano_letivo", "tipo_registro", "estudo_anterior_id", "analise_comparativa_ia", "sugestao_novo_estudo_ia",
     "contextualizacao", "queixa_principal", "potencialidades", "dificuldades", "estrategias", "intervencoes", "avaliacao", "consideracoes",
-    "etapa_modalidade", "ano_etapa", "laudo", "deficiencia", "cid", "altas_habilidades", "bpc",
+    "etapa_modalidade", "ano_etapa", "laudo", "deficiencia", "cid", "observacoes_laudo", "altas_habilidades", "bpc",
     "escola_nome", "unidade_aee", "gestor_nome", "gestor_contato",
     "professor_nome", "professor_contato", "matricula_professor", "especialidade_professor",
     "periodo_inicio", "periodo_fim", "frequencia_atendimento", "tempo_atendimento_semana", "formato_atendimento",
@@ -3520,6 +3522,7 @@ Ano/etapa: {v('ano_etapa')}
 1.6 Turma e turno: {estudante[3] or 'Não informado.'} / {estudante[6] or 'Não informado.'}
 1.7 O(a) estudante apresenta laudo? {v('laudo')}
 1.8 Apresenta deficiência? {v('deficiencia')} | CID: {v('cid')}
+Síntese pedagógica/funcional do laudo: {v('observacoes_laudo')}
 1.9 Altas habilidades/superdotação: {v('altas_habilidades')}
 1.10 Usuário de BPC: {v('bpc')}
 1.11 Escola do ensino comum: {v('escola_nome')}
@@ -6842,6 +6845,7 @@ Documento preliminar para revisão do professor do AEE antes do salvamento defin
                                 "laudo": "",
                                 "deficiencia": estudante[4] or "",
                                 "cid": "",
+                                "observacoes_laudo": "",
                                 "altas_habilidades": "",
                                 "bpc": "",
                                 "escola_nome": "",
@@ -6927,7 +6931,21 @@ Documento preliminar para revisão do professor do AEE antes do salvamento defin
                     with col_l3:
                         altas_habilidades = st.radio("Altas habilidades/superdotação?", ["Não", "Sim"], horizontal=True)
 
-                    cid = st.text_input("CID, se houver", placeholder="Ex.: F84.0. Não armazene laudos ou documentos sensíveis aqui.")
+                    cid = st.text_input(
+                        "CID, se houver",
+                        placeholder="Ex.: F84.0",
+                        help="Informe apenas o CID indicado no laudo, quando disponível. Não anexe laudos ou exames no sistema."
+                    )
+                    observacoes_laudo = st.text_area(
+                        "Síntese pedagógica/funcional do laudo",
+                        placeholder=(
+                            "Registre apenas informações relevantes para o contexto educacional, como comunicação, "
+                            "autonomia, interação social, atenção, comportamento, necessidades de apoio, "
+                            "organização pedagógica e acessibilidade. Não inserir laudo completo, exames ou dados clínicos excessivamente sensíveis."
+                        ),
+                        height=140,
+                        help="Este campo deve transformar a informação do laudo em orientação pedagógica/funcional para o AEE."
+                    )
                     bpc = st.radio("Usuário de BPC?", ["Não", "Sim", "Não informado"], horizontal=True)
 
                     st.markdown("#### Dados institucionais")
@@ -7045,6 +7063,7 @@ Documento preliminar para revisão do professor do AEE antes do salvamento defin
                         laudo,
                         deficiencia,
                         cid,
+                        observacoes_laudo,
                         altas_habilidades,
                         bpc,
                         escola_nome,
