@@ -1,10 +1,11 @@
 
-# INCLUISRM V22 - Plano AEE IA estável
+# INCLUISRM V18 - Plano AEE IA estável
 # Atualização: módulo Plano AEE - IA, CID e síntese funcional do laudo.
 
 import os
 import re
 import sqlite3
+import calendar
 from datetime import datetime, date, time
 from pathlib import Path
 from html import escape
@@ -964,6 +965,64 @@ DIAS_SEMANA = [
     "Quinta-feira",
     "Sexta-feira",
 ]
+
+MAPA_MESES = {
+    "Janeiro": 1,
+    "Fevereiro": 2,
+    "Março": 3,
+    "Abril": 4,
+    "Maio": 5,
+    "Junho": 6,
+    "Julho": 7,
+    "Agosto": 8,
+    "Setembro": 9,
+    "Outubro": 10,
+    "Novembro": 11,
+    "Dezembro": 12,
+}
+
+MAPA_DIAS_SEMANA = {
+    "Segunda-feira": 0,
+    "Terça-feira": 1,
+    "Quarta-feira": 2,
+    "Quinta-feira": 3,
+    "Sexta-feira": 4,
+}
+
+def gerar_datas_atendimentos_mes(ano, mes_nome, dias_atendimento):
+    """Calcula automaticamente as datas reais de atendimento do mês.
+
+    Usa o mês, ano e os dias de atendimento cadastrados/selecionados para gerar
+    a quantidade correta de encontros. Ex.: segunda e sexta em um mês podem gerar
+    8, 9 ou 10 atendimentos, conforme o calendário.
+    """
+    try:
+        ano_int = int(ano)
+    except Exception:
+        ano_int = datetime.now().year
+
+    mes_num = MAPA_MESES.get(str(mes_nome), datetime.now().month)
+    dias_codigo = [MAPA_DIAS_SEMANA[d] for d in dias_atendimento if d in MAPA_DIAS_SEMANA]
+
+    if not dias_codigo:
+        return []
+
+    total_dias = calendar.monthrange(ano_int, mes_num)[1]
+    datas = []
+    for dia in range(1, total_dias + 1):
+        data_atual = date(ano_int, mes_num, dia)
+        if data_atual.weekday() in dias_codigo:
+            datas.append(data_atual)
+    return datas
+
+def datas_atendimentos_para_texto(datas):
+    if not datas:
+        return "Nenhuma data calculada. Verifique mês, ano e dias de atendimento."
+    linhas = []
+    for idx, data_atual in enumerate(datas, start=1):
+        nome_dia = DIAS_SEMANA[data_atual.weekday()] if data_atual.weekday() < len(DIAS_SEMANA) else "Dia"
+        linhas.append(f"Atendimento {idx}: {data_atual.strftime('%d/%m/%Y')} ({nome_dia})")
+    return "\n".join(linhas)
 
 
 CAMPOS_ENTREVISTA_FAMILIA = [
@@ -4980,33 +5039,46 @@ ESTRUTURE EM:
         return f"{fallback}\n\nObservação técnica: não foi possível gerar com IA agora. Erro: {e}"
 
 
-def gerar_plano_mensal_aee_ia(estudante, mes_referencia, ano_referencia, qtd_atendimentos_semana=1, avaliacao=None, entrevista=None, estudo=None, plano_manual=None):
-    """Gera plano mensal aplicável por semana, considerando 1 ou 2 atendimentos semanais."""
+def gerar_plano_mensal_aee_ia(estudante, mes_referencia, ano_referencia, qtd_atendimentos_semana=1, avaliacao=None, entrevista=None, estudo=None, plano_manual=None, datas_atendimentos=None):
+    """Gera plano mensal aplicável às datas reais de atendimento do mês."""
     ctx = montar_contexto_plano_aee_ia(estudante, avaliacao, entrevista, estudo, plano_manual)
     client = obter_cliente_openai()
     qtd = max(1, min(5, int(qtd_atendimentos_semana or 1)))
+    datas_atendimentos = datas_atendimentos or []
+    datas_txt = datas_atendimentos_para_texto(datas_atendimentos)
+    total_atendimentos = len(datas_atendimentos) if datas_atendimentos else qtd * 4
 
     fallback = f"""
 PLANO MENSAL DE ATENDIMENTO EDUCACIONAL ESPECIALIZADO (AEE)
 
 Código interno: {estudante[1]}
-Quantidade prevista: {qtd} atendimento(s) por semana.
+Mês de referência: {mes_referencia}/{ano_referencia}
+Dias/datas previstas de atendimento:
+{datas_txt}
+
+Total previsto de atendimentos no mês: {total_atendimentos}
 
 Objetivo do mês:
 Organizar uma rotina inicial/progressiva de atendimento voltada à comunicação funcional, autonomia, atenção compartilhada, interação e participação nas atividades da SRM.
-
-SEMANA 1
-Atendimento 1:
-- Objetivo: estabelecer vínculo, observar interesses e identificar formas de comunicação.
-- Atividade: exploração mediada de imagens, objetos, tablet/Chromebook ou material concreto.
-- Recursos: cartões visuais, objeto de interesse, atividade breve e previsível.
-- Registro no sistema: resposta do estudante, tempo de permanência, forma de comunicação e nível de engajamento.
 """.strip()
 
-    for semana in range(1, 5):
-        if semana == 1:
-            continue
-        fallback += f"""
+    if datas_atendimentos:
+        for idx, data_atual in enumerate(datas_atendimentos, start=1):
+            semana_mes = ((data_atual.day - 1) // 7) + 1
+            nome_dia = DIAS_SEMANA[data_atual.weekday()] if data_atual.weekday() < len(DIAS_SEMANA) else "Dia"
+            fallback += f"""
+
+SEMANA {semana_mes} - ATENDIMENTO {idx}
+Data prevista: {data_atual.strftime('%d/%m/%Y')} ({nome_dia})
+- Objetivo: desenvolver comunicação funcional, atenção, autonomia e participação de forma gradual.
+- Atividade: proposta mediada com apoio visual, escolha dirigida, recurso tecnológico, material manipulável ou atividade maker conforme resposta do estudante.
+- Recursos: prancha de CAA, rotina visual, tablet/Chromebook, material concreto, impressão 3D/robótica quando aplicável.
+- Mediação: comandos curtos, demonstração prática, reforço positivo e tempo ampliado para resposta.
+- Registro no sistema: resposta do estudante, engajamento, recurso utilizado, barreiras observadas, avanços e encaminhamentos.
+"""
+    else:
+        for semana in range(1, 5):
+            fallback += f"""
 
 SEMANA {semana}
 Atendimento 1:
@@ -5015,8 +5087,8 @@ Atendimento 1:
 - Recursos: prancha de CAA, rotina visual, material manipulável, tablet/Chromebook ou jogo pedagógico.
 - Registro no sistema: avanços, dificuldades, barreiras e encaminhamentos.
 """
-        if qtd >= 2:
-            fallback += f"""
+            if qtd >= 2:
+                fallback += f"""
 Atendimento 2:
 - Objetivo: generalizar a habilidade trabalhada em nova situação.
 - Atividade: proposta prática com tecnologia, recurso maker, impressão 3D, robótica ou atividade desplugada.
@@ -5037,7 +5109,12 @@ Ao final do mês, verificar evolução em comunicação funcional, autonomia, at
 Você é especialista em AEE e deve criar um PLANO MENSAL DE ATENDIMENTO aplicável na Sala de Recursos Multifuncionais.
 
 TAREFA:
-Crie um plano mensal dividido por semanas, considerando {qtd} atendimento(s) por semana, para o mês de {mes_referencia}/{ano_referencia}.
+Crie um plano mensal considerando as DATAS REAIS de atendimento abaixo, para o mês de {mes_referencia}/{ano_referencia}.
+
+DATAS REAIS DE ATENDIMENTO CALCULADAS PELO SISTEMA:
+{datas_txt}
+
+TOTAL REAL DE ATENDIMENTOS NO MÊS: {total_atendimentos}
 
 REGRAS:
 - Não usar nome real do estudante.
@@ -5076,15 +5153,16 @@ FORMATO DE SAÍDA:
 2. Objetivo do mês
 3. Habilidades prioritárias do mês
 4. Recursos necessários
-5. Semana 1
-   - Atendimento 1
-   - Atendimento 2, se houver
-6. Semana 2
-7. Semana 3
-8. Semana 4
-9. Como registrar cada atendimento no sistema
-10. Indicadores para avaliação mensal
-11. Ajustes possíveis para o mês seguinte
+5. Roteiro por data real de atendimento
+   - Data e dia da semana
+   - Objetivo do atendimento
+   - Atividade proposta
+   - Recursos
+   - Mediação
+   - Registro esperado no sistema
+6. Como registrar cada atendimento no sistema
+7. Indicadores para avaliação mensal
+8. Ajustes possíveis para o mês seguinte
 """
     try:
         resposta = client.responses.create(model="gpt-4.1-mini", input=prompt)
@@ -7912,33 +7990,44 @@ elif menu == "Plano AEE - IA":
                 "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
                 "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro",
             ]
-            col_m1, col_m2, col_m3, col_m4 = st.columns(4)
+            dias_cadastrados_txt = ""
+            try:
+                dias_cadastrados_txt = estudante[7] or ""
+            except Exception:
+                dias_cadastrados_txt = ""
+            dias_padrao = [d for d in DIAS_SEMANA if d in dias_cadastrados_txt]
+            if not dias_padrao:
+                dias_padrao = ["Segunda-feira", "Quarta-feira"]
+
+            col_m1, col_m2, col_m3 = st.columns([1, 1, 2])
             with col_m1:
                 mes_ref = st.selectbox("Mês de referência", meses, index=datetime.now().month - 1, key=f"mes_plano_ia_v19_{estudante_id}")
             with col_m2:
                 ano_ref = st.text_input("Ano de referência", value=str(datetime.now().year), key=f"ano_plano_ia_v19_{estudante_id}")
             with col_m3:
-                qtd_semana = st.number_input(
-                    "Atendimentos por semana",
-                    min_value=1,
-                    max_value=5,
-                    value=2,
-                    step=1,
-                    key=f"qtd_atend_semana_v19_{estudante_id}",
-                )
-            with col_m4:
-                qtd_semanas = st.number_input(
-                    "Semanas no mês",
-                    min_value=1,
-                    max_value=5,
-                    value=4,
-                    step=1,
-                    key=f"qtd_semanas_plano_ia_v19_{estudante_id}",
-                    help="Use 4 como padrão. Use 5 quando o mês tiver uma quinta semana útil de atendimento.",
+                dias_atendimento_ref = st.multiselect(
+                    "Dias de atendimento na SRM",
+                    DIAS_SEMANA,
+                    default=dias_padrao,
+                    key=f"dias_atendimento_plano_ia_v23_{estudante_id}",
+                    help="O sistema calcula automaticamente quantos atendimentos existirão no mês com base nos dias selecionados.",
                 )
 
+            datas_calculadas = gerar_datas_atendimentos_mes(ano_ref, mes_ref, dias_atendimento_ref)
+            qtd_semana = max(1, len(dias_atendimento_ref))
+            total_atendimentos_calculado = len(datas_calculadas)
+
+            col_info1, col_info2 = st.columns(2)
+            with col_info1:
+                st.metric("Atendimentos calculados no mês", total_atendimentos_calculado)
+            with col_info2:
+                st.metric("Dias por semana", qtd_semana)
+
+            with st.expander("📆 Ver datas previstas de atendimento", expanded=True):
+                st.text(datas_atendimentos_para_texto(datas_calculadas))
+
             st.caption(
-                "O roteiro gerado deve ser usado como planejamento inicial. Após cada encontro, registre o atendimento no módulo Atendimentos para alimentar a evolução da IA."
+                "O roteiro gerado usa as datas reais do mês. Após cada encontro, registre o atendimento no módulo Atendimentos para alimentar a evolução da IA."
             )
 
             if st.button("📅 Gerar Plano Mensal AEE - IA", key=f"gerar_plano_mensal_v19_{estudante_id}"):
@@ -7952,14 +8041,17 @@ elif menu == "Plano AEE - IA":
                         entrevista_ia,
                         estudo_ia,
                         plano_manual_ia,
+                        datas_calculadas,
                     )
                     complemento = f"""
 
 ORGANIZAÇÃO OPERACIONAL PARA REGISTRO NO SISTEMA
 Mês de referência: {mes_ref}/{ano_ref}
-Quantidade de semanas planejadas: {int(qtd_semanas)}
-Atendimentos por semana: {int(qtd_semana)}
-Total previsto de atendimentos: {int(qtd_semanas) * int(qtd_semana)}
+Dias de atendimento selecionados: {", ".join(dias_atendimento_ref) if dias_atendimento_ref else "Não informado"}
+Total real de atendimentos no mês: {total_atendimentos_calculado}
+
+Datas previstas:
+{datas_atendimentos_para_texto(datas_calculadas)}
 
 Modelo obrigatório para cada atendimento:
 - Objetivo do atendimento:
@@ -7990,7 +8082,7 @@ Modelo obrigatório para cada atendimento:
                             qtd_atendimentos_semana=int(qtd_semana),
                             tipo_geracao="Plano Mensal IA",
                             plano_mensal=plano_mensal_txt,
-                            observacoes=f"Plano mensal com {int(qtd_semanas)} semanas e {int(qtd_semana)} atendimento(s) por semana.",
+                            observacoes=f"Plano mensal calculado automaticamente com {total_atendimentos_calculado} atendimento(s) no mês, considerando os dias: {', '.join(dias_atendimento_ref)}.",
                         )
                         st.success("Plano mensal salvo no histórico IA.")
                         st.rerun()
