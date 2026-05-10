@@ -1229,7 +1229,7 @@ def gerar_docx_documento(conteudo, nome_base, tipo="documento"):
 
     titulo = doc.add_paragraph()
     titulo.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    run = titulo.add_run("INCLUISRM\nSistema de Gestão do Atendimento Educacional Especializado")
+    run = titulo.add_run("INCLUISRM\nSistema Inteligente de Articulação Pedagógica Inclusiva")
     run.bold = True
     run.font.size = Pt(12)
 
