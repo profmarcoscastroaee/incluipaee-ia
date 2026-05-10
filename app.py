@@ -745,12 +745,15 @@ def criar_tabelas():
             id SERIAL PRIMARY KEY,
             estudante_id INTEGER NOT NULL,
             data_registro TEXT,
-            objetivos_gerais TEXT,
-            objetivos_especificos TEXT,
             habilidades_prioritarias TEXT,
             recursos_acessibilidade TEXT,
+            objetivos_gerais TEXT,
+            objetivos_especificos TEXT,
+            metodologia TEXT,
             estrategias TEXT,
-            organizacao_atendimento TEXT,
+            prazo TEXT,
+            acoes_escola TEXT,
+            barreiras_identificadas TEXT,
             parcerias TEXT,
             avaliacao_acompanhamento TEXT,
             observacoes TEXT,
@@ -758,6 +761,24 @@ def criar_tabelas():
         )
         """
     )
+
+    # Campos completos da Parte 2 - Plano de Atendimento Educacional Especializado (modelo GRE).
+    # Mantém compatibilidade com bancos antigos, incluindo instalações já publicadas no Render/PostgreSQL.
+    for coluna, definicao in [
+        ("habilidades_prioritarias", "TEXT"),
+        ("recursos_acessibilidade", "TEXT"),
+        ("objetivos_gerais", "TEXT"),
+        ("objetivos_especificos", "TEXT"),
+        ("metodologia", "TEXT"),
+        ("estrategias", "TEXT"),
+        ("prazo", "TEXT"),
+        ("acoes_escola", "TEXT"),
+        ("barreiras_identificadas", "TEXT"),
+        ("parcerias", "TEXT"),
+        ("avaliacao_acompanhamento", "TEXT"),
+        ("observacoes", "TEXT"),
+    ]:
+        adicionar_coluna_se_nao_existe(cursor, "planos_aee", coluna, definicao)
 
     cursor.execute(
         """
@@ -1045,6 +1066,23 @@ CAMPOS_ESTUDO_CASO = [
     "habilidades_observadas", "habilidades_a_desenvolver", "indicadores_altas_habilidades",
     "recursos_surdez", "observacoes_surdez",
 ]
+
+CAMPOS_PLANO_AEE = [
+    "data_registro",
+    "habilidades_prioritarias",
+    "recursos_acessibilidade",
+    "objetivos_gerais",
+    "objetivos_especificos",
+    "metodologia",
+    "estrategias",
+    "prazo",
+    "acoes_escola",
+    "barreiras_identificadas",
+    "parcerias",
+    "avaliacao_acompanhamento",
+    "observacoes",
+]
+
 
 OPCOES_ANO_ETAPA = [
     "1º ano do EF", "2º ano do EF", "3º ano do EF", "4º ano do EF", "5º ano do EF",
@@ -3482,6 +3520,32 @@ Responsável: ____________________________________________
 
 
 def texto_plano_aee(estudante, p):
+    """Gera o texto do Plano AEE/PAEE manual com todos os campos do modelo GRE.
+    Aceita registros antigos e novos para evitar erro em bancos já existentes.
+    """
+    campos_antigos = [
+        "data_registro", "objetivos_gerais", "objetivos_especificos", "habilidades_prioritarias",
+        "recursos_acessibilidade", "estrategias", "organizacao_atendimento", "parcerias",
+        "avaliacao_acompanhamento", "observacoes",
+    ]
+
+    valores = list(p[1:]) if p and len(p) > 1 else []
+    if len(valores) == len(CAMPOS_PLANO_AEE):
+        dados = dict(zip(CAMPOS_PLANO_AEE, valores))
+    else:
+        dados = dict(zip(campos_antigos, valores))
+
+    def v(campo):
+        valor = dados.get(campo)
+        return valor if valor not in (None, "") else "Não informado."
+
+    # Compatibilidade: se o banco antigo ainda tinha organização_atendimento,
+    # esse conteúdo aparece como observação complementar.
+    organizacao_antiga = dados.get("organizacao_atendimento")
+    observacoes_extra = v("observacoes")
+    if organizacao_antiga not in (None, ""):
+        observacoes_extra = f"{observacoes_extra}\n\nOrganização do atendimento:\n{organizacao_antiga}"
+
     return f"""
 PLANO AEE / PAEE - INCLUISRM
 
@@ -3489,34 +3553,46 @@ Código interno do estudante: {estudante[1]}
 Ano/Série: {estudante[2] or 'Não informado.'}
 Turma: {estudante[3] or 'Não informado.'}
 Perfil educacional: {estudante[4] or 'Não informado.'}
-Data do registro: {p[1]}
+Data do registro: {v('data_registro')}
 
-1. Objetivos gerais
-{p[2] or 'Não informado.'}
+1. Habilidades específicas
+1.1 Habilidades prioritárias que serão trabalhadas na SRM
+{v('habilidades_prioritarias')}
 
-2. Objetivos específicos
-{p[3] or 'Não informado.'}
+1.2 Recursos de acessibilidade que serão disponibilizados ao estudante
+{v('recursos_acessibilidade')}
 
-3. Habilidades prioritárias
-{p[4] or 'Não informado.'}
+2. Objetivos do Atendimento Educacional Especializado
+2.1 Geral
+{v('objetivos_gerais')}
 
-4. Recursos de acessibilidade
-{p[5] or 'Não informado.'}
+2.2 Específicos
+{v('objetivos_especificos')}
 
-5. Estratégias pedagógicas
-{p[6] or 'Não informado.'}
+3. Metodologias e estratégias
+3.1 Metodologia
+{v('metodologia')}
 
-6. Organização do atendimento
-{p[7] or 'Não informado.'}
+3.2 Estratégia
+{v('estrategias')}
 
-7. Parcerias
-{p[8] or 'Não informado.'}
+3.3 Prazo
+{v('prazo')}
 
-8. Avaliação e acompanhamento
-{p[9] or 'Não informado.'}
+4. Ações desenvolvidas no âmbito da escola
+{v('acoes_escola')}
 
-9. Observações
-{p[10] or 'Não informado.'}
+5. Barreiras identificadas na comunidade escolar
+{v('barreiras_identificadas')}
+
+6. Parcerias realizadas pelo AEE ao longo do período
+{v('parcerias')}
+
+7. Avaliação
+{v('avaliacao_acompanhamento')}
+
+8. Observações
+{observacoes_extra}
 
 Assinaturas:
 Professor(a) AEE: _______________________________________
@@ -4794,7 +4870,7 @@ def texto_estudo_plano_aee_gre(estudante, estudo=None, plano=None):
     if plano is None:
         plano = ultima_linha(
             "planos_aee",
-            ["data_registro", "objetivos_gerais", "objetivos_especificos", "habilidades_prioritarias", "recursos_acessibilidade", "estrategias", "organizacao_atendimento", "parcerias", "avaliacao_acompanhamento", "observacoes"],
+            CAMPOS_PLANO_AEE,
             estudante[0],
         )
 
@@ -4805,8 +4881,12 @@ def texto_estudo_plano_aee_gre(estudante, estudo=None, plano=None):
 
     dados_plano = {}
     if plano:
-        chaves = ["data_registro", "objetivos_gerais", "objetivos_especificos", "habilidades_prioritarias", "recursos_acessibilidade", "estrategias", "organizacao_atendimento", "parcerias", "avaliacao_acompanhamento", "observacoes"]
-        dados_plano = dict(zip(chaves, plano))
+        valores_plano = list(plano)
+        if len(valores_plano) == len(CAMPOS_PLANO_AEE):
+            dados_plano = dict(zip(CAMPOS_PLANO_AEE, valores_plano))
+        else:
+            chaves_antigas = ["data_registro", "objetivos_gerais", "objetivos_especificos", "habilidades_prioritarias", "recursos_acessibilidade", "estrategias", "organizacao_atendimento", "parcerias", "avaliacao_acompanhamento", "observacoes"]
+            dados_plano = dict(zip(chaves_antigas, valores_plano))
 
     def p(campo):
         valor = dados_plano.get(campo)
@@ -4909,29 +4989,20 @@ PARTE 3 - PLANO DE ATENDIMENTO EDUCACIONAL ESPECIALIZADO
 {p('objetivos_especificos')}
 
 4. Metodologias e estratégias
-Metodologia / estratégias:
+4.1 Metodologia:
+{p('metodologia')}
+
+4.2 Estratégia:
 {p('estrategias')}
 
-Organização do atendimento:
-{p('organizacao_atendimento')}
+4.3 Prazo:
+{p('prazo')}
 
-5. Ações no âmbito da escola / gestão / educador de apoio:
-( ) Implemento de tecnologia assistiva
-( ) Solicitação de Profissional de Apoio
-( ) Solicitação de Professor do AEE
-( ) Formação continuada com temática da educação inclusiva
-( ) Parcerias com saúde, UBS, USF, Conselho Tutelar, CREAS e CRAS
-( ) Articulação sobre PDDE equidade
-( ) Articulação de horários entre professor AEE, sala comum e apoio
-( ) Solicitação de transporte escolar inclusivo
-( ) Outros: ______________________________________________________________
+5. Ações desenvolvidas no âmbito da escola:
+{p('acoes_escola')}
 
 6. Barreiras identificadas na comunidade escolar:
-( ) Barreiras atitudinais
-( ) Barreiras arquitetônicas
-( ) Barreiras comunicacionais
-( ) Barreiras curriculares
-( ) Outros: ______________________________________________________________
+{p('barreiras_identificadas')}
 
 7. Parcerias realizadas pelo AEE:
 {p('parcerias')}
@@ -4978,7 +5049,7 @@ def gerar_relatorio_gre_texto(estudante):
     estudo = ultima_linha("estudos_caso", CAMPOS_ESTUDO_CASO, estudante[0])
     plano = ultima_linha(
         "planos_aee",
-        ["data_registro", "objetivos_gerais", "objetivos_especificos", "habilidades_prioritarias", "recursos_acessibilidade", "estrategias", "organizacao_atendimento", "parcerias", "avaliacao_acompanhamento", "observacoes"],
+        CAMPOS_PLANO_AEE,
         estudante[0],
     )
 
@@ -7191,27 +7262,30 @@ Preencher as informações pendentes no sistema e retornar ao módulo Plano AEE 
         with st.container(border=True):
             st.markdown("### Novo plano manual")
             with st.form("form_plano"):
-                objetivos_gerais = st.text_area("Objetivos gerais")
-                objetivos_especificos = st.text_area("Objetivos específicos")
-                habilidades = st.text_area("Habilidades prioritárias")
-                recursos = st.text_area("Recursos de acessibilidade")
-                estrategias = st.text_area("Estratégias pedagógicas")
-                organizacao = st.text_area("Organização do atendimento")
-                parcerias = st.text_area("Parcerias")
-                avaliacao = st.text_area("Avaliação e acompanhamento")
-                observacoes = st.text_area("Observações")
+                habilidades = st.text_area("1.1 Habilidades prioritárias que serão trabalhadas na SRM")
+                recursos = st.text_area("1.2 Recursos de acessibilidade que serão disponibilizados ao estudante")
+                objetivos_gerais = st.text_area("2.1 Objetivo geral")
+                objetivos_especificos = st.text_area("2.2 Objetivos específicos")
+                metodologia = st.text_area("3.1 Metodologia")
+                estrategias = st.text_area("3.2 Estratégia")
+                prazo = st.text_area("3.3 Prazo")
+                acoes_escola = st.text_area("4. Ações desenvolvidas no âmbito da escola")
+                barreiras = st.text_area("5. Barreiras identificadas na comunidade escolar")
+                parcerias = st.text_area("6. Parcerias realizadas pelo AEE ao longo do período")
+                avaliacao = st.text_area("7. Avaliação")
+                observacoes = st.text_area("Observações complementares")
                 if st.form_submit_button("Salvar Plano AEE / PAEE"):
                     inserir_registro(
                         "planos_aee",
-                        ["estudante_id", "data_registro", "objetivos_gerais", "objetivos_especificos", "habilidades_prioritarias", "recursos_acessibilidade", "estrategias", "organizacao_atendimento", "parcerias", "avaliacao_acompanhamento", "observacoes"],
-                        [estudante_id, hoje_str(), objetivos_gerais, objetivos_especificos, habilidades, recursos, estrategias, organizacao, parcerias, avaliacao, observacoes],
+                        ["estudante_id", *CAMPOS_PLANO_AEE],
+                        [estudante_id, hoje_str(), habilidades, recursos, objetivos_gerais, objetivos_especificos, metodologia, estrategias, prazo, acoes_escola, barreiras, parcerias, avaliacao, observacoes],
                     )
                     st.success("Plano salvo.")
                     st.rerun()
 
         planos = listar_por_estudante(
             "planos_aee",
-            ["data_registro", "objetivos_gerais", "objetivos_especificos", "habilidades_prioritarias", "recursos_acessibilidade", "estrategias", "organizacao_atendimento", "parcerias", "avaliacao_acompanhamento", "observacoes"],
+            CAMPOS_PLANO_AEE,
             estudante_id,
         )
         with st.container(border=True):
@@ -7620,7 +7694,7 @@ elif menu == "Relatórios GRE":
                     estudo = ultima_linha("estudos_caso", CAMPOS_ESTUDO_CASO, estudante_id)
                     plano = ultima_linha(
                         "planos_aee",
-                        ["data_registro", "objetivos_gerais", "objetivos_especificos", "habilidades_prioritarias", "recursos_acessibilidade", "estrategias", "organizacao_atendimento", "parcerias", "avaliacao_acompanhamento", "observacoes"],
+                        CAMPOS_PLANO_AEE,
                         estudante_id,
                     )
                     texto = texto_estudo_plano_aee_gre(estudante, estudo, plano)
