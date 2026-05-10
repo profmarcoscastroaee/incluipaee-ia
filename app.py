@@ -1085,10 +1085,16 @@ CAMPOS_PLANO_AEE = [
 
 
 OPCOES_ANO_ETAPA = [
+    # Ensino Fundamental
     "1º ano do EF", "2º ano do EF", "3º ano do EF", "4º ano do EF", "5º ano do EF",
     "6º ano do EF", "7º ano do EF", "8º ano do EF", "9º ano do EF",
+    # Ensino Médio
     "1º ano do EM", "2º ano do EM", "3º ano do EM",
-    "EJA - Módulo 1", "EJA - Módulo 2", "EJA - Módulo 3", "EJA - Módulo 5", "EJA - Módulo 6", "EJA - Módulo 7", "EJA - Módulo 8",
+    # EJA - Ensino Fundamental
+    "EJA Ensino Fundamental - Módulo 5", "EJA Ensino Fundamental - Módulo 6",
+    "EJA Ensino Fundamental - Módulo 7", "EJA Ensino Fundamental - Módulo 8",
+    # EJA - Ensino Médio
+    "EJA Ensino Médio - Módulo 1", "EJA Ensino Médio - Módulo 2", "EJA Ensino Médio - Módulo 3",
     "Outro / não informado",
 ]
 
@@ -1097,7 +1103,6 @@ OPCOES_ESPECIALIDADE_AEE = [
     "Professor(a) Brailista",
     "Professor(a) Instrutor(a) de LIBRAS",
     "Professor(a) Intérprete de LIBRAS",
-    "Outra",
 ]
 
 OPCOES_FORMATO_ATENDIMENTO = [
@@ -1110,21 +1115,21 @@ OPCOES_FORMATO_ATENDIMENTO = [
 ]
 
 OPCOES_HABILIDADES_PEDAGOGICAS = [
-    "Inteligência interpessoal",
-    "Interesse/habilidade em atividades sensoriais",
-    "Raciocínio lógico-matemático",
+    "Inteligência Interpessoal (interesse pelo sentimento do outro)",
+    "Interesse e habilidade em atividades sensoriais (tátil, auditivo ou outros sentidos)",
+    "Raciocínio lógico-matemático (interesse por cálculos e números)",
     "Realiza as quatro operações",
-    "Resolve situações-problema com autonomia",
+    "Resolve situações-problema com autonomia e de maneira diversificada",
     "Interesse em temas científicos",
     "Compreende explicações e cumpre comandos",
     "Demonstra criatividade",
     "Acompanha as atividades propostas do grupo/classe",
-    "Usa recursos tecnológicos com autonomia",
+    "Usa recursos tecnológicos com autonomia (tablet, celular, computador)",
     "Fluência na leitura",
     "Escreve textos com autonomia",
-    "Apropriação do sistema de escrita alfabética",
+    "Apropriação do sistema de escrita alfabética adequada à idade",
     "Habilidades artísticas",
-    "Comunica desejos e necessidades",
+    "Comunica seus desejos e necessidades",
     "Apresenta atenção compartilhada",
     "Interesse por leitura",
     "Domina Libras",
@@ -1134,54 +1139,136 @@ OPCOES_HABILIDADES_PEDAGOGICAS = [
     "Outro",
 ]
 
+OPCOES_HABILIDADES_A_DESENVOLVER = [
+    "Inteligência Interpessoal",
+    "Atividades sensoriais",
+    "Raciocínio lógico-matemático",
+    "Resolução de situações-problema com autonomia",
+    "Compreensão de explicações e comandos",
+    "Criatividade",
+    "Utilização de recursos tecnológicos com autonomia",
+    "Fluência na leitura",
+    "Escrita de textos com autonomia",
+    "Apropriação do sistema de escrita alfabética",
+    "Expressão de seus desejos e necessidades",
+    "Atenção compartilhada",
+    "Interesse por leitura",
+    "Domínio de Libras",
+    "Domínio de Braille",
+    "Utilização da comunicação aumentativa e alternativa com autonomia",
+    "Outro",
+]
+
 OPCOES_INDICADORES_AHSD = [
     "Aprende fácil e rapidamente",
-    "Original, imaginativo(a), criativo(a), não convencional",
+    "Original, imaginativa, criativa, não convencional",
     "Pensa de forma incomum para resolver problemas",
-    "Persistente, independente, autodirecionado(a)",
-    "Persuasivo(a), capaz de influenciar os outros",
-    "Inquisitivo(a), cético(a), curioso(a)",
-    "Adapta-se a diferentes situações e novos ambientes",
-    "Criativo(a) ao construir com materiais incomuns",
+    "Persistente, independente, autodirecionada",
+    "Persuasiva, capaz de influenciar os outros",
+    "Inquisitiva, cética, curiosa",
+    "Adapta-se a uma variedade de situações e novos ambientes",
+    "Criativa ao construir com materiais incomuns",
     "Habilidade nas artes (música, desenho, dança etc.)",
-    "Entende a importância da natureza",
+    "Entende a importância da natureza (tempo, lua, sol, estrelas, solo etc.)",
     "Vocabulário excepcional, verbalmente fluente",
     "Aprende facilmente novas línguas",
-    "Trabalha independente e mostra iniciativa",
-    "Bom julgamento e lógica",
+    "Trabalha independente, mostra iniciativa",
+    "Bom julgamento, lógica",
     "Usa recursos tecnológicos com autonomia",
-    "Versátil, muitos interesses e interesse além da idade cronológica",
+    "Versátil, muitos interesses, interesse além da idade cronológica",
     "Mostra insights e percepções incomuns",
-    "Demonstra sensibilidade e empatia",
+    "Demonstra alto nível de sensibilidade e empatia com relação aos outros",
     "Apresenta excelente senso de humor",
-    "Expressa ideias e reações de forma argumentativa",
+    "Expressa ideias e reações, frequentemente de forma argumentativa",
     "Outro",
 ]
 
 OPCOES_RECURSOS_TA = [
     "Recursos de comunicação alternativa/aumentativa",
-    "Pranchas de comunicação",
+    "Pranchas de CAA",
     "Tablet/celular/computador com recurso acessível",
+    "Chromebook",
     "Materiais concretos/manipuláveis",
     "Recursos táteis/sensoriais",
+    "Jogos pedagógicos acessíveis",
+    "Wordwall",
+    "Impressão 3D/recurso maker inclusivo",
+    "Robótica educacional",
     "Recursos em Libras",
     "Recursos em Braille",
     "Leitor de tela/ampliação",
     "Órteses/adaptações de acesso",
-    "Jogos pedagógicos acessíveis",
-    "Impressão 3D/recurso maker inclusivo",
     "Outro",
 ]
 
 OPCOES_RECURSOS_SURDEZ = [
-    "Implante coclear",
     "Aparelho auditivo",
+    "Implante coclear",
     "Libras",
     "Leitura labial",
     "Intérprete de Libras",
     "Não se aplica",
 ]
 
+OPCOES_HABILIDADES_PRIORITARIAS_SRM = [
+    "Desenvolvimento de vida autônoma",
+    "Enriquecimento curricular (para aluno com altas habilidades e superdotação)",
+    "Ensino da informática acessível",
+    "Ensino da Língua Brasileira de Sinais",
+    "Ensino da Língua Portuguesa como segunda língua",
+    "Ensino das técnicas de cálculo no soroban",
+    "Ensino do sistema Braille",
+    "Ensino de técnicas de orientação e mobilidade",
+    "Ensino do uso da comunicação aumentativa e alternativa",
+    "Ensino do uso de recursos ópticos e não ópticos",
+]
+
+OPCOES_RECURSOS_ACESSIBILIDADE = [
+    "Recurso de auxílio à escrita",
+    "Colmeia para teclado",
+    "Teclado expandido",
+    "Suporte de punho ajustável",
+    "Mouses especiais",
+    "Acionadores",
+    "Leitor automático",
+    "Ampliador de texto",
+    "Réguas braille",
+    "Multiplano",
+    "Reglete",
+    "Máquina braille",
+    "Pranchas de CAA",
+    "Texto apoiado",
+    "Textos e livros em Braille",
+    "Audiodescrição",
+    "Descrição de imagens",
+    "Hand Talk",
+    "Wordwall",
+    "Gemini",
+    "Copilot",
+    "Tablet",
+    "Chromebook",
+    "Impressão 3D",
+    "Robótica educacional",
+    "Outros",
+]
+
+OPCOES_ACOES_ESCOLA = [
+    "Implemento de tecnologia assistiva para uso do(a) estudante",
+    "Formação continuada de professores, profissionais de apoio, equipe gestora, demais funcionários da escola e famílias com a temática da educação inclusiva",
+    "Parcerias com profissionais de saúde, UBS, USF, Conselho Tutelar, CREAS e CRAS",
+    "Articulação sobre o PDDE Equidade",
+    "Articulação de horários para o diálogo entre professor do AEE, professor da sala comum e profissional de apoio",
+    "Solicitação de transporte escolar inclusivo",
+    "Outros",
+]
+
+OPCOES_BARREIRAS = [
+    "Barreiras atitudinais",
+    "Barreiras arquitetônicas",
+    "Barreiras comunicacionais",
+    "Barreiras curriculares",
+    "Outros",
+]
 
 def hoje_str():
     return datetime.now().strftime("%d/%m/%Y %H:%M")
@@ -1245,7 +1332,7 @@ def render_app_header():
     st.markdown(
         """
         <div class="app-hero">
-            <span class="app-badge">AEE • Memória Pedagógica • Articulação Docente • IA • V12 GRE</span>
+            <span class="app-badge">AEE • Memória Pedagógica • Articulação Docente • IA • V13 GRE</span>
             <h1 class="app-title">INCLUISRM</h1>
             <p class="app-subtitle">Sistema Inteligente de Articulação Pedagógica Inclusiva</p>
         </div>
@@ -6599,7 +6686,7 @@ elif menu == "Estudo de Caso":
         with st.container(border=True):
             st.markdown("### Novo Estudo de Caso - Campos obrigatórios GRE")
             st.info("Agora o Estudo de Caso pode ser registrado por ano letivo. Você pode lançar estudos anteriores como histórico e gerar um novo estudo com apoio da IA, comparando registros antigos com dados atuais.")
-            st.caption("✅ V12 GRE ativo: a IA gera o Estudo de Caso em estrutura padronizada GRE, usando estudo anterior e/ou todas as avaliações pedagógicas disponíveis como base.")
+            st.caption("✅ V13 GRE ativo: a IA gera o Estudo de Caso em estrutura padronizada GRE, usando estudo anterior e/ou todas as avaliações pedagógicas disponíveis como base.")
 
             with st.expander("🤖 Criar novo estudo de caso com apoio da IA", expanded=True):
                 if estudos_anteriores or avaliacoes_pedagogicas:
@@ -6906,7 +6993,7 @@ Documento preliminar para revisão do professor do AEE antes do salvamento defin
                         value=st.session_state.get(f"ia_hab_obs_{estudante_id}", ""),
                         height=90,
                     )
-                    habilidades_a_desenvolver = st.multiselect("Habilidades que precisam ser desenvolvidas", OPCOES_HABILIDADES_PEDAGOGICAS)
+                    habilidades_a_desenvolver = st.multiselect("Habilidades que precisam ser desenvolvidas", OPCOES_HABILIDADES_A_DESENVOLVER)
                     habilidades_a_desenvolver_ia = st.text_area(
                         "Habilidades a desenvolver sugeridas pela IA / complementação manual",
                         value=st.session_state.get(f"ia_hab_des_{estudante_id}", ""),
@@ -7262,19 +7349,44 @@ Preencher as informações pendentes no sistema e retornar ao módulo Plano AEE 
         with st.container(border=True):
             st.markdown("### Novo plano manual")
             with st.form("form_plano"):
-                habilidades = st.text_area("1.1 Habilidades prioritárias que serão trabalhadas na SRM")
-                recursos = st.text_area("1.2 Recursos de acessibilidade que serão disponibilizados ao estudante")
+                habilidades_lista = st.multiselect(
+                    "1.1 Habilidades prioritárias que serão trabalhadas na SRM",
+                    OPCOES_HABILIDADES_PRIORITARIAS_SRM,
+                )
+                habilidades_outros = st.text_area("Complemento de habilidades prioritárias, se necessário")
+
+                recursos_lista = st.multiselect(
+                    "1.2 Recursos de acessibilidade que serão disponibilizados ao estudante",
+                    OPCOES_RECURSOS_ACESSIBILIDADE,
+                )
+                recursos_outros = st.text_area("Complemento de recursos de acessibilidade, se necessário")
+
                 objetivos_gerais = st.text_area("2.1 Objetivo geral")
                 objetivos_especificos = st.text_area("2.2 Objetivos específicos")
                 metodologia = st.text_area("3.1 Metodologia")
                 estrategias = st.text_area("3.2 Estratégia")
                 prazo = st.text_area("3.3 Prazo")
-                acoes_escola = st.text_area("4. Ações desenvolvidas no âmbito da escola")
-                barreiras = st.text_area("5. Barreiras identificadas na comunidade escolar")
+
+                acoes_lista = st.multiselect(
+                    "4. Ações desenvolvidas no âmbito da escola",
+                    OPCOES_ACOES_ESCOLA,
+                )
+                acoes_outros = st.text_area("Descrição/complemento das ações desenvolvidas")
+
+                barreiras_lista = st.multiselect(
+                    "5. Barreiras identificadas na comunidade escolar",
+                    OPCOES_BARREIRAS,
+                )
+                barreiras_outros = st.text_area("Descrição/complemento das barreiras identificadas")
+
                 parcerias = st.text_area("6. Parcerias realizadas pelo AEE ao longo do período")
                 avaliacao = st.text_area("7. Avaliação")
                 observacoes = st.text_area("Observações complementares")
                 if st.form_submit_button("Salvar Plano AEE / PAEE"):
+                    habilidades = "; ".join([x for x in [", ".join(habilidades_lista), habilidades_outros] if x])
+                    recursos = "; ".join([x for x in [", ".join(recursos_lista), recursos_outros] if x])
+                    acoes_escola = "; ".join([x for x in [", ".join(acoes_lista), acoes_outros] if x])
+                    barreiras = "; ".join([x for x in [", ".join(barreiras_lista), barreiras_outros] if x])
                     inserir_registro(
                         "planos_aee",
                         ["estudante_id", *CAMPOS_PLANO_AEE],
