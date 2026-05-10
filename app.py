@@ -1207,7 +1207,7 @@ def render_app_header():
     st.markdown(
         """
         <div class="app-hero">
-            <span class="app-badge">AEE • Memória Pedagógica • Articulação Docente • IA • V9 GRE</span>
+            <span class="app-badge">AEE • Memória Pedagógica • Articulação Docente • IA • V12 GRE</span>
             <h1 class="app-title">INCLUISRM</h1>
             <p class="app-subtitle">Sistema Inteligente de Articulação Pedagógica Inclusiva</p>
         </div>
@@ -3699,7 +3699,7 @@ def extrair_secao_ia(texto, marcador, padrao=""):
         return padrao
 
 
-def gerar_novo_estudo_caso_com_ia(estudante, estudo_anterior=None, avaliacao=None, entrevista=None, atendimentos=None, ano_novo=""):
+def gerar_novo_estudo_caso_com_ia(estudante, estudo_anterior=None, avaliacao=None, entrevista=None, atendimentos=None, ano_novo="", avaliacoes_contexto=None):
     """Gera análise comparativa e proposta de Estudo de Caso no padrão GRE.
     A resposta é apoio pedagógico: não substitui a avaliação do professor do AEE.
     """
@@ -3742,7 +3742,28 @@ Registrar informações relevantes que não se encaixam nos campos anteriores.
         return "IA não configurada. Configure OPENAI_API_KEY para gerar automaticamente. O sistema preparou um modelo GRE para preenchimento manual.", sugestao_fallback
 
     texto_estudo_anterior = texto_estudo_caso(estudante, estudo_anterior) if estudo_anterior else "Nenhum estudo anterior selecionado."
-    texto_avaliacao_ctx = texto_avaliacao(estudante, avaliacao) if avaliacao else "Nenhuma avaliação pedagógica selecionada."
+
+    # Usa a avaliação selecionada como principal e também considera todas as demais avaliações
+    # pedagógicas/documentos livres existentes para construir uma memória pedagógica mais completa.
+    avaliacoes_contexto = avaliacoes_contexto or []
+    textos_avaliacoes = []
+    ids_avaliacoes_usadas = set()
+
+    if avaliacao:
+        try:
+            textos_avaliacoes.append("AVALIAÇÃO PRINCIPAL SELECIONADA:\n" + texto_avaliacao(estudante, avaliacao))
+            ids_avaliacoes_usadas.add(avaliacao[0])
+        except Exception:
+            textos_avaliacoes.append("AVALIAÇÃO PRINCIPAL SELECIONADA:\n" + str(avaliacao))
+
+    for av in avaliacoes_contexto[:8]:
+        if av and av[0] not in ids_avaliacoes_usadas:
+            try:
+                textos_avaliacoes.append("AVALIAÇÃO COMPLEMENTAR / DOCUMENTO LIVRE:\n" + texto_avaliacao(estudante, av))
+            except Exception:
+                textos_avaliacoes.append("AVALIAÇÃO COMPLEMENTAR / DOCUMENTO LIVRE:\n" + str(av))
+
+    texto_avaliacao_ctx = "\n\n---\n\n".join(textos_avaliacoes) if textos_avaliacoes else "Nenhuma avaliação pedagógica selecionada ou registrada."
     texto_entrevista = str(entrevista or "Nenhuma entrevista com família localizada.")
     texto_atendimentos = "\n".join([str(a) for a in (atendimentos or [])[:12]]) or "Nenhum atendimento registrado."
 
@@ -3772,7 +3793,7 @@ Ano letivo do novo estudo: {ano_novo}
 ESTUDO DE CASO ANTERIOR:
 {texto_estudo_anterior}
 
-AVALIAÇÃO PEDAGÓGICA / DOCUMENTO LIVRE:
+AVALIAÇÕES PEDAGÓGICAS / DOCUMENTOS LIVRES:
 {texto_avaliacao_ctx}
 
 ENTREVISTA COM A FAMÍLIA:
@@ -6507,7 +6528,7 @@ elif menu == "Estudo de Caso":
         with st.container(border=True):
             st.markdown("### Novo Estudo de Caso - Campos obrigatórios GRE")
             st.info("Agora o Estudo de Caso pode ser registrado por ano letivo. Você pode lançar estudos anteriores como histórico e gerar um novo estudo com apoio da IA, comparando registros antigos com dados atuais.")
-            st.caption("✅ V9 GRE ativo: a IA gera o Estudo de Caso em estrutura padronizada GRE, usando estudo anterior e/ou avaliações pedagógicas como base.")
+            st.caption("✅ V12 GRE ativo: a IA gera o Estudo de Caso em estrutura padronizada GRE, usando estudo anterior e/ou todas as avaliações pedagógicas disponíveis como base.")
 
             with st.expander("🤖 Criar novo estudo de caso com apoio da IA", expanded=True):
                 if estudos_anteriores or avaliacoes_pedagogicas:
@@ -6543,6 +6564,7 @@ elif menu == "Estudo de Caso":
                             format_func=lambda x: opcoes_avaliacoes_ia[x],
                             key=f"avaliacao_base_estudo_ia_{estudante_id}",
                         )
+                        st.caption("A avaliação escolhida será a principal, mas a IA também considerará as demais avaliações pedagógicas/documentos livres registrados para este estudante.")
                     else:
                         avaliacao_base_id_ia = 0
                         st.warning("Nenhuma avaliação pedagógica localizada. A IA usará apenas o estudo anterior e demais registros disponíveis.")
@@ -6563,12 +6585,20 @@ elif menu == "Estudo de Caso":
                         entrevista_atual = ultima_linha("entrevistas_familia", CAMPOS_ENTREVISTA_FAMILIA, estudante_id)
                         atendimentos_atuais = listar_atendimentos(estudante_id)
                         analise_ia, sugestao_ia = gerar_novo_estudo_caso_com_ia(
-                            estudante, estudo_base, avaliacao_atual, entrevista_atual, atendimentos_atuais, ano_novo_ia
+                            estudante,
+                            estudo_base,
+                            avaliacao_atual,
+                            entrevista_atual,
+                            atendimentos_atuais,
+                            ano_novo_ia,
+                            avaliacoes_contexto=avaliacoes_pedagogicas,
                         )
                         st.session_state[f"analise_estudo_ia_{estudante_id}"] = analise_ia
                         st.session_state[f"sugestao_estudo_ia_{estudante_id}"] = sugestao_ia
                         st.session_state[f"ano_estudo_ia_{estudante_id}"] = ano_novo_ia
                         st.session_state[f"estudo_anterior_id_{estudante_id}"] = None if estudo_base_id_ia == 0 else estudo_base_id_ia
+                        st.session_state[f"avaliacao_base_id_estudo_ia_{estudante_id}"] = avaliacao_base_id_ia
+                        st.session_state[f"fontes_estudo_ia_{estudante_id}"] = ", ".join(fontes_ia)
 
                         # Campos estruturados do Estudo de Caso GRE gerados pela IA.
                         st.session_state[f"ia_percurso_{estudante_id}"] = extrair_secao_ia(sugestao_ia, "PERCURSO_EDUCACIONAL")
@@ -6625,7 +6655,75 @@ Documento preliminar para revisão do professor do AEE antes do salvamento defin
                             f"Estudo_Caso_GRE_IA_{estudante[1]}_{st.session_state.get(f'ano_estudo_ia_{estudante_id}', str(datetime.now().year))}",
                             tipo_pdf="estudo_ia_previa",
                         )
-                        st.info("Revise os campos nas abas abaixo e clique em **Salvar estudo de caso GRE** para gravar o documento no histórico do estudante.")
+
+                        st.markdown("#### Salvar no histórico")
+                        st.caption("Esta opção salva imediatamente a sugestão gerada no histórico do estudante, mantendo a estrutura GRE. Depois você ainda pode abrir o registro salvo, baixar em Word/PDF e complementar manualmente.")
+                        if st.button("💾 Salvar sugestão gerada no histórico", key=f"salvar_sugestao_estudo_ia_{estudante_id}"):
+                            ano_salvar = st.session_state.get(f"ano_estudo_ia_{estudante_id}", str(datetime.now().year))
+                            estudo_ant_salvar = st.session_state.get(f"estudo_anterior_id_{estudante_id}")
+                            analise_salvar = st.session_state.get(f"analise_estudo_ia_{estudante_id}", "")
+                            sugestao_salvar = st.session_state.get(f"sugestao_estudo_ia_{estudante_id}", "")
+
+                            dados_estudo_ia = {
+                                "data_registro": hoje_str(),
+                                "ano_letivo": ano_salvar,
+                                "tipo_registro": "Novo estudo com base em estudo anterior ou avaliação pedagógica",
+                                "estudo_anterior_id": estudo_ant_salvar,
+                                "analise_comparativa_ia": analise_salvar,
+                                "sugestao_novo_estudo_ia": sugestao_salvar,
+                                "contextualizacao": extrair_secao_ia(sugestao_salvar, "PERCURSO_EDUCACIONAL"),
+                                "queixa_principal": extrair_secao_ia(sugestao_salvar, "MOTIVO_ENCAMINHAMENTO"),
+                                "potencialidades": extrair_secao_ia(sugestao_salvar, "POTENCIALIDADES") or extrair_secao_ia(sugestao_salvar, "HABILIDADES_OBSERVADAS"),
+                                "dificuldades": extrair_secao_ia(sugestao_salvar, "DIFICULDADES") or extrair_secao_ia(sugestao_salvar, "HABILIDADES_A_DESENVOLVER"),
+                                "estrategias": extrair_secao_ia(sugestao_salvar, "ESTRATEGIAS"),
+                                "intervencoes": extrair_secao_ia(sugestao_salvar, "INTERVENCOES"),
+                                "avaliacao": extrair_secao_ia(sugestao_salvar, "AVALIACAO"),
+                                "consideracoes": extrair_secao_ia(sugestao_salvar, "CONSIDERACOES"),
+                                "etapa_modalidade": "",
+                                "ano_etapa": estudante[2] or "",
+                                "laudo": "",
+                                "deficiencia": estudante[4] or "",
+                                "cid": "",
+                                "altas_habilidades": "",
+                                "bpc": "",
+                                "escola_nome": "",
+                                "unidade_aee": "",
+                                "gestor_nome": "",
+                                "gestor_contato": "",
+                                "professor_nome": "",
+                                "professor_contato": "",
+                                "matricula_professor": "",
+                                "especialidade_professor": "",
+                                "periodo_inicio": "",
+                                "periodo_fim": "",
+                                "frequencia_atendimento": "",
+                                "tempo_atendimento_semana": "",
+                                "formato_atendimento": "",
+                                "percurso_educacional": extrair_secao_ia(sugestao_salvar, "PERCURSO_EDUCACIONAL"),
+                                "motivo_encaminhamento_aee": extrair_secao_ia(sugestao_salvar, "MOTIVO_ENCAMINHAMENTO"),
+                                "precisa_transporte_inclusivo": "",
+                                "recebe_transporte_inclusivo": "",
+                                "precisa_profissional_apoio": "",
+                                "justificativa_apoio": "",
+                                "acompanhado_profissional_apoio": "",
+                                "nome_profissional_apoio": "",
+                                "recursos_tecnologia_assistiva": extrair_secao_ia(sugestao_salvar, "INTERVENCOES"),
+                                "observacoes_ambiente_educacional": extrair_secao_ia(sugestao_salvar, "OBSERVACOES_COMPLEMENTARES"),
+                                "habilidades_observadas": extrair_secao_ia(sugestao_salvar, "HABILIDADES_OBSERVADAS"),
+                                "habilidades_a_desenvolver": extrair_secao_ia(sugestao_salvar, "HABILIDADES_A_DESENVOLVER"),
+                                "indicadores_altas_habilidades": "",
+                                "recursos_surdez": "",
+                                "observacoes_surdez": "",
+                            }
+                            inserir_registro(
+                                "estudos_caso",
+                                ["estudante_id"] + CAMPOS_ESTUDO_CASO,
+                                [estudante_id] + [dados_estudo_ia.get(campo, "") for campo in CAMPOS_ESTUDO_CASO],
+                            )
+                            st.success("Estudo de caso GRE salvo no histórico do estudante.")
+                            st.rerun()
+
+                        st.info("Você também pode revisar os campos nas abas abaixo e clicar em **Salvar estudo de caso GRE** para gravar uma versão editada manualmente.")
                 else:
                     st.info(
                         "Ainda não há estudo anterior ou avaliações pedagógicas registradas para este estudante. "
