@@ -1206,7 +1206,7 @@ def render_app_header():
     st.markdown(
         """
         <div class="app-hero">
-            <span class="app-badge">AEE • Memória Pedagógica • Articulação Docente • IA</span>
+            <span class="app-badge">AEE • Memória Pedagógica • Articulação Docente • IA • V8</span>
             <h1 class="app-title">INCLUISRM</h1>
             <p class="app-subtitle">Sistema Inteligente de Articulação Pedagógica Inclusiva</p>
         </div>
@@ -6432,8 +6432,9 @@ elif menu == "Estudo de Caso":
         with st.container(border=True):
             st.markdown("### Novo Estudo de Caso - Campos obrigatórios GRE")
             st.info("Agora o Estudo de Caso pode ser registrado por ano letivo. Você pode lançar estudos anteriores como histórico e gerar um novo estudo com apoio da IA, comparando registros antigos com dados atuais.")
+            st.caption("✅ V8 ativo: se não houver estudo de caso anterior, a IA poderá usar avaliações pedagógicas cadastradas como base para gerar o primeiro Estudo de Caso.")
 
-            with st.expander("🤖 Criar novo estudo de caso com apoio da IA", expanded=False):
+            with st.expander("🤖 Criar novo estudo de caso com apoio da IA", expanded=True):
                 if estudos_anteriores or avaliacoes_pedagogicas:
                     st.caption(
                         "A IA pode gerar um novo Estudo de Caso a partir de estudo anterior e/ou avaliações pedagógicas. "
