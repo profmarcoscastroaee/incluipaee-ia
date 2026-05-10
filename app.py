@@ -1,5 +1,6 @@
 
 import os
+import re
 import sqlite3
 from datetime import datetime, date, time
 from pathlib import Path
@@ -1206,7 +1207,7 @@ def render_app_header():
     st.markdown(
         """
         <div class="app-hero">
-            <span class="app-badge">AEE • Memória Pedagógica • Articulação Docente • IA • V8</span>
+            <span class="app-badge">AEE • Memória Pedagógica • Articulação Docente • IA • V9 GRE</span>
             <h1 class="app-title">INCLUISRM</h1>
             <p class="app-subtitle">Sistema Inteligente de Articulação Pedagógica Inclusiva</p>
         </div>
@@ -3684,43 +3685,94 @@ def obter_cliente_openai():
     return OpenAI(api_key=api_key)
 
 
+def extrair_secao_ia(texto, marcador, padrao=""):
+    """Extrai uma seção marcada no texto da IA.
+    Ex.: [PERCURSO_EDUCACIONAL] ... [PROXIMA_SECAO]
+    """
+    try:
+        padrao_regex = rf"\[{re.escape(marcador)}\](.*?)(?=\n\[[A-Z0-9_]+\]|\Z)"
+        m = re.search(padrao_regex, texto or "", flags=re.DOTALL)
+        if not m:
+            return padrao
+        return m.group(1).strip()
+    except Exception:
+        return padrao
+
+
 def gerar_novo_estudo_caso_com_ia(estudante, estudo_anterior=None, avaliacao=None, entrevista=None, atendimentos=None, ano_novo=""):
-    """Gera análise comparativa e proposta de novo Estudo de Caso com IA.
+    """Gera análise comparativa e proposta de Estudo de Caso no padrão GRE.
     A resposta é apoio pedagógico: não substitui a avaliação do professor do AEE.
     """
     client = obter_cliente_openai()
     if client is None:
-        return "", "IA não configurada. Configure OPENAI_API_KEY para usar esta função."
+        sugestao_fallback = """
+[PERCURSO_EDUCACIONAL]
+Preencher com relato sobre o trajeto educacional do(a) estudante, situação inicial, estratégias utilizadas e progressos alcançados em turmas comuns e no AEE, quando houver.
+
+[MOTIVO_ENCAMINHAMENTO]
+Preencher com o motivo pedagógico do encaminhamento ao Atendimento Educacional Especializado.
+
+[HABILIDADES_OBSERVADAS]
+Preencher com habilidades observadas e desenvolvidas pelo(a) estudante.
+
+[HABILIDADES_A_DESENVOLVER]
+Preencher com habilidades que precisam ser desenvolvidas ou reforçadas.
+
+[POTENCIALIDADES]
+Preencher com potencialidades observadas nas avaliações pedagógicas, atendimentos e escutas docentes.
+
+[DIFICULDADES]
+Preencher com barreiras pedagógicas, comunicacionais, curriculares, atitudinais ou de participação observadas.
+
+[ESTRATEGIAS]
+Preencher com estratégias pedagógicas recomendadas para favorecer participação, autonomia e aprendizagem.
+
+[INTERVENCOES]
+Preencher com intervenções, recursos e encaminhamentos pedagógicos sugeridos.
+
+[AVALIACAO]
+Preencher com avanços, habilidades a reforçar e efetividade das ações realizadas.
+
+[CONSIDERACOES]
+Preencher com síntese final do estudo de caso, mantendo linguagem pedagógica e institucional.
+
+[OBSERVACOES_COMPLEMENTARES]
+Registrar informações relevantes que não se encaixam nos campos anteriores.
+""".strip()
+        return "IA não configurada. Configure OPENAI_API_KEY para gerar automaticamente. O sistema preparou um modelo GRE para preenchimento manual.", sugestao_fallback
 
     texto_estudo_anterior = texto_estudo_caso(estudante, estudo_anterior) if estudo_anterior else "Nenhum estudo anterior selecionado."
-    texto_avaliacao = str(avaliacao or "Nenhuma avaliação pedagógica atual localizada.")
+    texto_avaliacao = texto_avaliacao(estudante, avaliacao) if avaliacao else "Nenhuma avaliação pedagógica selecionada."
     texto_entrevista = str(entrevista or "Nenhuma entrevista com família localizada.")
     texto_atendimentos = "\n".join([str(a) for a in (atendimentos or [])[:12]]) or "Nenhum atendimento registrado."
 
     prompt = f"""
-Você é um especialista em Atendimento Educacional Especializado (AEE) e em elaboração de Estudo de Caso.
-Analise os registros abaixo e produza uma resposta institucional, pedagógica e objetiva para apoiar o professor do AEE.
+Você é um especialista em Atendimento Educacional Especializado (AEE), educação inclusiva e elaboração de Estudo de Caso no padrão usado por GRE/Secretarias de Educação.
 
-REGRAS IMPORTANTES:
-- Não invente dados pessoais nem diagnósticos.
-- Não substitua a decisão pedagógica do professor.
-- Trabalhe apenas com os dados fornecidos.
-- Use linguagem adequada para documento escolar.
-- Aponte avanços, permanências, novas barreiras, potencialidades e sugestões pedagógicas.
-- Sugira atividades pedagógicas, recursos acessíveis, recursos maker/3D quando coerente, atividades plugadas e desplugadas.
-- Evite termos clínicos conclusivos; mantenha foco educacional.
+TAREFA:
+Gerar uma proposta de ESTUDO DE CASO padronizado, com base nos registros disponíveis do sistema.
+
+REGRAS OBRIGATÓRIAS:
+- Não inventar dados pessoais, nomes, diagnósticos, laudos, CPF, RG, endereço ou telefone.
+- Não usar linguagem médica como conclusão diagnóstica.
+- Usar linguagem pedagógica, institucional, objetiva e acolhedora.
+- Se alguma informação não estiver disponível, deixar o campo com orientação de preenchimento posterior.
+- Usar estudo de caso anterior, se houver.
+- Se não houver estudo anterior, usar avaliações pedagógicas e demais registros como base.
+- Se algo não couber nos campos padronizados, colocar em OBSERVAÇÕES_COMPLEMENTARES.
+- Gerar texto para revisão do professor do AEE antes de salvar.
 
 ESTUDANTE:
 Código interno: {estudante[1]}
 Ano/Série atual: {estudante[2]}
 Turma: {estudante[3]}
-Perfil educacional: {estudante[4]}
+Perfil educacional cadastrado: {estudante[4]}
 Ano letivo do novo estudo: {ano_novo}
 
 ESTUDO DE CASO ANTERIOR:
 {texto_estudo_anterior}
 
-AVALIAÇÃO PEDAGÓGICA ATUAL:
+AVALIAÇÃO PEDAGÓGICA / DOCUMENTO LIVRE:
 {texto_avaliacao}
 
 ENTREVISTA COM A FAMÍLIA:
@@ -3729,28 +3781,51 @@ ENTREVISTA COM A FAMÍLIA:
 ATENDIMENTOS REGISTRADOS:
 {texto_atendimentos}
 
-Responda exatamente com duas seções:
+Responda exatamente com as seções abaixo, mantendo os marcadores:
 
 [ANALISE_COMPARATIVA]
-Texto comparando o estudo anterior com os registros atuais, destacando evolução, permanências, barreiras e pontos de atenção.
+Comparar registros anteriores e atuais, destacando evolução, permanências, barreiras, avanços e pontos de atenção. Se não houver estudo anterior, explicar que a proposta foi criada a partir de avaliações pedagógicas e demais registros.
 
-[SUGESTAO_NOVO_ESTUDO]
-Proposta inicial de novo Estudo de Caso, com contextualização, potencialidades, dificuldades/barreiras, estratégias pedagógicas, intervenções/encaminhamentos, avaliação e considerações finais.
+[PERCURSO_EDUCACIONAL]
+Texto para o campo “Estudo de caso / percurso educacional”, relatando trajetória escolar, situação inicial, estratégias utilizadas e progressos alcançados.
+
+[MOTIVO_ENCAMINHAMENTO]
+Motivo pedagógico do encaminhamento ao AEE, sem diagnóstico clínico conclusivo.
+
+[HABILIDADES_OBSERVADAS]
+Lista ou parágrafo com habilidades observadas e desenvolvidas.
+
+[HABILIDADES_A_DESENVOLVER]
+Lista ou parágrafo com habilidades que precisam ser desenvolvidas.
+
+[POTENCIALIDADES]
+Potencialidades pedagógicas, interesses, formas de participação e respostas positivas observadas.
+
+[DIFICULDADES]
+Dificuldades e barreiras pedagógicas observadas.
+
+[ESTRATEGIAS]
+Estratégias pedagógicas recomendadas.
+
+[INTERVENCOES]
+Intervenções, recursos de acessibilidade, recursos pedagógicos e encaminhamentos sugeridos.
+
+[AVALIACAO]
+Texto avaliativo sobre avanços, habilidades a reforçar e ações para eliminação de barreiras.
+
+[CONSIDERACOES]
+Síntese pedagógica final para compor o estudo de caso.
+
+[OBSERVACOES_COMPLEMENTARES]
+Informações relevantes que não se encaixaram nos campos anteriores.
 """
     try:
         resposta = client.responses.create(model="gpt-4.1-mini", input=prompt)
         texto = resposta.output_text or ""
-        analise = texto
-        sugestao = texto
-        if "[SUGESTAO_NOVO_ESTUDO]" in texto:
-            partes = texto.split("[SUGESTAO_NOVO_ESTUDO]", 1)
-            analise = partes[0].replace("[ANALISE_COMPARATIVA]", "").strip()
-            sugestao = partes[1].strip()
-        return analise.strip(), sugestao.strip()
+        analise = extrair_secao_ia(texto, "ANALISE_COMPARATIVA", texto)
+        return analise.strip(), texto.strip()
     except Exception as e:
         return "", f"Não foi possível gerar o novo estudo de caso com IA agora. Erro: {e}"
-
-
 
 def gerar_nova_avaliacao_pedagogica_com_ia(estudante, avaliacao_anterior=None, estudo_caso=None, entrevista=None, atendimentos=None, ano_novo=""):
     """Gera análise comparativa e sugestão de nova Avaliação Pedagógica com IA.
@@ -6432,7 +6507,7 @@ elif menu == "Estudo de Caso":
         with st.container(border=True):
             st.markdown("### Novo Estudo de Caso - Campos obrigatórios GRE")
             st.info("Agora o Estudo de Caso pode ser registrado por ano letivo. Você pode lançar estudos anteriores como histórico e gerar um novo estudo com apoio da IA, comparando registros antigos com dados atuais.")
-            st.caption("✅ V8 ativo: se não houver estudo de caso anterior, a IA poderá usar avaliações pedagógicas cadastradas como base para gerar o primeiro Estudo de Caso.")
+            st.caption("✅ V9 GRE ativo: a IA gera o Estudo de Caso em estrutura padronizada GRE, usando estudo anterior e/ou avaliações pedagógicas como base.")
 
             with st.expander("🤖 Criar novo estudo de caso com apoio da IA", expanded=True):
                 if estudos_anteriores or avaliacoes_pedagogicas:
@@ -6494,12 +6569,26 @@ elif menu == "Estudo de Caso":
                         st.session_state[f"sugestao_estudo_ia_{estudante_id}"] = sugestao_ia
                         st.session_state[f"ano_estudo_ia_{estudante_id}"] = ano_novo_ia
                         st.session_state[f"estudo_anterior_id_{estudante_id}"] = None if estudo_base_id_ia == 0 else estudo_base_id_ia
-                        st.success("Sugestão gerada. Revise e ajuste os campos antes de salvar.")
+
+                        # Campos estruturados do Estudo de Caso GRE gerados pela IA.
+                        st.session_state[f"ia_percurso_{estudante_id}"] = extrair_secao_ia(sugestao_ia, "PERCURSO_EDUCACIONAL")
+                        st.session_state[f"ia_motivo_{estudante_id}"] = extrair_secao_ia(sugestao_ia, "MOTIVO_ENCAMINHAMENTO")
+                        st.session_state[f"ia_hab_obs_{estudante_id}"] = extrair_secao_ia(sugestao_ia, "HABILIDADES_OBSERVADAS")
+                        st.session_state[f"ia_hab_des_{estudante_id}"] = extrair_secao_ia(sugestao_ia, "HABILIDADES_A_DESENVOLVER")
+                        st.session_state[f"ia_potencialidades_{estudante_id}"] = extrair_secao_ia(sugestao_ia, "POTENCIALIDADES")
+                        st.session_state[f"ia_dificuldades_{estudante_id}"] = extrair_secao_ia(sugestao_ia, "DIFICULDADES")
+                        st.session_state[f"ia_estrategias_{estudante_id}"] = extrair_secao_ia(sugestao_ia, "ESTRATEGIAS")
+                        st.session_state[f"ia_intervencoes_{estudante_id}"] = extrair_secao_ia(sugestao_ia, "INTERVENCOES")
+                        st.session_state[f"ia_avaliacao_{estudante_id}"] = extrair_secao_ia(sugestao_ia, "AVALIACAO")
+                        st.session_state[f"ia_consideracoes_{estudante_id}"] = extrair_secao_ia(sugestao_ia, "CONSIDERACOES")
+                        st.session_state[f"ia_observacoes_complementares_{estudante_id}"] = extrair_secao_ia(sugestao_ia, "OBSERVACOES_COMPLEMENTARES")
+
+                        st.success("Sugestão GRE gerada. Os campos do formulário foram preparados para revisão e edição antes de salvar.")
 
                     if st.session_state.get(f"sugestao_estudo_ia_{estudante_id}"):
                         st.markdown("#### Análise IA")
                         st.text_area("Resultado da análise", value=st.session_state.get(f"analise_estudo_ia_{estudante_id}", ""), height=180, key=f"preview_analise_{estudante_id}")
-                        st.markdown("#### Sugestão de novo estudo")
+                        st.markdown("#### Sugestão GRE estruturada")
                         st.text_area("Sugestão gerada", value=st.session_state.get(f"sugestao_estudo_ia_{estudante_id}", ""), height=260, key=f"preview_sugestao_{estudante_id}")
                 else:
                     st.info(
@@ -6523,7 +6612,7 @@ elif menu == "Estudo de Caso":
                     with col_tipo_hist:
                         tipo_registro = st.selectbox(
                             "Tipo de registro",
-                            ["Estudo de caso atual", "Registro histórico", "Novo estudo com base em estudo anterior"],
+                            ["Estudo de caso atual", "Registro histórico", "Novo estudo com base em estudo anterior ou avaliação pedagógica"],
                             index=2 if st.session_state.get(f"sugestao_estudo_ia_{estudante_id}") else 0,
                         )
                     estudo_anterior_id = st.session_state.get(f"estudo_anterior_id_{estudante_id}")
@@ -6575,10 +6664,15 @@ elif menu == "Estudo de Caso":
                     st.markdown("#### Estudo de caso / percurso educacional")
                     percurso_educacional = st.text_area(
                         "Relato sobre o trajeto educacional do(a) estudante",
+                        value=st.session_state.get(f"ia_percurso_{estudante_id}", ""),
                         placeholder="Descreva situação inicial, estratégias já utilizadas e progressos alcançados em turmas comuns e/ou AEE anterior.",
                         height=180,
                     )
-                    motivo_encaminhamento_aee = st.text_area("Motivo pelo qual foi encaminhado ao AEE", height=120)
+                    motivo_encaminhamento_aee = st.text_area(
+                        "Motivo pelo qual foi encaminhado ao AEE",
+                        value=st.session_state.get(f"ia_motivo_{estudante_id}", ""),
+                        height=120,
+                    )
 
                     col_t1, col_t2 = st.columns(2)
                     with col_t1:
@@ -6594,6 +6688,7 @@ elif menu == "Estudo de Caso":
                     recursos_tecnologia_assistiva = st.multiselect("Recursos de tecnologia educacional e/ou assistiva utilizados", OPCOES_RECURSOS_TA)
                     observacoes_ambiente_educacional = st.text_area(
                         "Observações relevantes para o ambiente educacional / acompanhamento médico ou terapêutico",
+                        value=st.session_state.get(f"ia_observacoes_complementares_{estudante_id}", ""),
                         placeholder="Ex.: acompanhamento terapêutico, recomendações pedagógicas, cuidados no ambiente escolar.",
                         height=140,
                     )
@@ -6601,7 +6696,17 @@ elif menu == "Estudo de Caso":
                 with aba3:
                     st.markdown("#### Habilidades e indicadores")
                     habilidades_observadas = st.multiselect("Habilidades observadas e desenvolvidas", OPCOES_HABILIDADES_PEDAGOGICAS)
+                    habilidades_observadas_ia = st.text_area(
+                        "Habilidades observadas sugeridas pela IA / complementação manual",
+                        value=st.session_state.get(f"ia_hab_obs_{estudante_id}", ""),
+                        height=90,
+                    )
                     habilidades_a_desenvolver = st.multiselect("Habilidades que precisam ser desenvolvidas", OPCOES_HABILIDADES_PEDAGOGICAS)
+                    habilidades_a_desenvolver_ia = st.text_area(
+                        "Habilidades a desenvolver sugeridas pela IA / complementação manual",
+                        value=st.session_state.get(f"ia_hab_des_{estudante_id}", ""),
+                        height=90,
+                    )
                     indicadores_altas_habilidades = st.multiselect("Indicadores de altas habilidades/superdotação", OPCOES_INDICADORES_AHSD)
                     recursos_surdez = st.multiselect("Caso seja pessoa surda, marque recursos utilizados", OPCOES_RECURSOS_SURDEZ, default=["Não se aplica"])
                     observacoes_surdez = st.text_area(
@@ -6611,13 +6716,17 @@ elif menu == "Estudo de Caso":
 
                 with aba4:
                     st.markdown("#### Síntese pedagógica")
-                    contextualizacao = st.text_area("Contextualização", value=sugestao_novo_estudo_ia if tipo_registro == "Novo estudo com base em estudo anterior" else "", height=130)
-                    potencialidades = st.text_area("Potencialidades", height=100)
-                    dificuldades = st.text_area("Dificuldades/barreiras observadas", height=100)
-                    estrategias = st.text_area("Estratégias pedagógicas", height=120)
-                    intervencoes = st.text_area("Intervenções / encaminhamentos sugeridos", height=120)
-                    avaliacao_estudo = st.text_area("Avaliação", height=100)
-                    consideracoes = st.text_area("Considerações finais", height=100)
+                    contextualizacao = st.text_area(
+                        "Contextualização",
+                        value=st.session_state.get(f"ia_percurso_{estudante_id}", ""),
+                        height=130,
+                    )
+                    potencialidades = st.text_area("Potencialidades", value=st.session_state.get(f"ia_potencialidades_{estudante_id}", ""), height=100)
+                    dificuldades = st.text_area("Dificuldades/barreiras observadas", value=st.session_state.get(f"ia_dificuldades_{estudante_id}", ""), height=100)
+                    estrategias = st.text_area("Estratégias pedagógicas", value=st.session_state.get(f"ia_estrategias_{estudante_id}", ""), height=120)
+                    intervencoes = st.text_area("Intervenções / encaminhamentos sugeridos", value=st.session_state.get(f"ia_intervencoes_{estudante_id}", ""), height=120)
+                    avaliacao_estudo = st.text_area("Avaliação", value=st.session_state.get(f"ia_avaliacao_{estudante_id}", ""), height=100)
+                    consideracoes = st.text_area("Considerações finais", value=st.session_state.get(f"ia_consideracoes_{estudante_id}", ""), height=100)
 
                 salvar_estudo = st.form_submit_button("Salvar estudo de caso GRE")
 
@@ -6633,8 +6742,8 @@ elif menu == "Estudo de Caso":
                         sugestao_novo_estudo_ia,
                         contextualizacao,
                         motivo_encaminhamento_aee,
-                        ", ".join(habilidades_observadas),
-                        ", ".join(habilidades_a_desenvolver),
+                        "; ".join([x for x in [", ".join(habilidades_observadas), habilidades_observadas_ia] if x]),
+                        "; ".join([x for x in [", ".join(habilidades_a_desenvolver), habilidades_a_desenvolver_ia] if x]),
                         estrategias,
                         intervencoes,
                         avaliacao_estudo,
@@ -6669,8 +6778,8 @@ elif menu == "Estudo de Caso":
                         nome_profissional_apoio,
                         ", ".join(recursos_tecnologia_assistiva),
                         observacoes_ambiente_educacional,
-                        ", ".join(habilidades_observadas),
-                        ", ".join(habilidades_a_desenvolver),
+                        "; ".join([x for x in [", ".join(habilidades_observadas), habilidades_observadas_ia] if x]),
+                        "; ".join([x for x in [", ".join(habilidades_a_desenvolver), habilidades_a_desenvolver_ia] if x]),
                         ", ".join(indicadores_altas_habilidades),
                         ", ".join(recursos_surdez),
                         observacoes_surdez,
