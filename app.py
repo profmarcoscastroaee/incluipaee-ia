@@ -1474,7 +1474,7 @@ def eh_titulo_relatorio(linha):
         return True
     palavras_chave = [
         "Identificação", "Objetivo", "Habilidades", "Recursos", "Estratégias", "Avaliação",
-        "Indicadores", "Ajustes", "Registro", "Organização", "Diagnóstico", "Sugestão"
+        "Indicadores", "Ajustes", "Registro", "Organização", "Perfil", "Sugestão"
     ]
     return any(linha.lower().startswith(k.lower()) for k in palavras_chave)
 
@@ -4804,19 +4804,19 @@ comunicação funcional autonomia CAA tecnologia assistiva recursos visuais roti
 
 
 def gerar_diagnostico_aee_ia(estudante, avaliacao=None, entrevista=None, estudo=None, plano_manual=None):
-    """Gera diagnóstico pedagógico inicial/evolutivo para apoiar o professor do AEE."""
+    """Gera Perfil Pedagógico Inteligente inicial/evolutivo para apoiar o professor do AEE, sem finalidade clínica."""
     ctx = montar_contexto_plano_aee_ia(estudante, avaliacao, entrevista, estudo, plano_manual)
     client = obter_cliente_openai()
 
     fallback = f"""
-DIAGNÓSTICO PEDAGÓGICO INICIAL - PLANO AEE IA
+PERFIL PEDAGÓGICO INTELIGENTE - PLANO AEE IA
 
 Código interno: {estudante[1]}
 Perfil educacional informado: {estudante[4]}
 Ano/Série: {estudante[2]}
 
 Síntese inicial:
-O diagnóstico pedagógico deve considerar os registros já disponíveis no cadastro, entrevista familiar, avaliação pedagógica, estudo de caso, plano AEE e atendimentos. Caso ainda existam poucos registros, recomenda-se utilizar este documento como roteiro de observação inicial, sem conclusões definitivas sobre evolução.
+O Perfil Pedagógico Inteligente deve considerar os registros já disponíveis no cadastro, entrevista familiar, avaliação pedagógica, estudo de caso, plano AEE e atendimentos. Caso ainda existam poucos registros, recomenda-se utilizar este documento como roteiro de observação inicial, sem conclusões definitivas sobre evolução.
 
 Focos de observação prioritários:
 - Comunicação funcional e formas de expressão utilizadas pelo estudante.
@@ -4837,7 +4837,7 @@ Registrar os atendimentos semanalmente para que o sistema consiga gerar análise
 Você é especialista em Atendimento Educacional Especializado (AEE), educação inclusiva, tecnologia assistiva, CAA, cultura maker e avaliação pedagógica funcional.
 
 TAREFA:
-Gere um DIAGNÓSTICO PEDAGÓGICO AEE com base nos dados disponíveis. O texto deve apoiar o professor do AEE na organização dos atendimentos e NÃO deve criar diagnóstico clínico.
+Gere um PERFIL PEDAGÓGICO INTELIGENTE para o AEE com base nos dados disponíveis. O texto deve apoiar o professor do AEE na organização dos atendimentos e NÃO deve criar diagnóstico clínico.
 
 REGRAS:
 - Não usar nome real do estudante.
@@ -7769,7 +7769,7 @@ Documento preliminar para revisão do professor do AEE antes do salvamento defin
 elif menu == "Plano AEE - IA":
     st.markdown('<div class="subtitulo">🧠 Plano AEE - IA</div>', unsafe_allow_html=True)
     st.caption(
-        "Módulo de planejamento pedagógico inteligente para diagnóstico, sugestão geral, plano mensal, evolução e histórico do AEE."
+        "Módulo de planejamento pedagógico inteligente para perfil pedagógico, sugestão geral, plano mensal, evolução e histórico do AEE."
     )
 
     estudantes = listar_estudantes()
@@ -7816,7 +7816,7 @@ elif menu == "Plano AEE - IA":
         escolha_plano_ia = st.radio(
             "Escolha o que deseja fazer",
             [
-                "🔍 Diagnóstico IA",
+                "🧩 Perfil Pedagógico Inteligente",
                 "📘 Sugestão Geral AEE",
                 "📅 Plano Mensal IA",
                 "📈 Evolução IA",
@@ -7830,39 +7830,42 @@ elif menu == "Plano AEE - IA":
 
         st.divider()
 
-        if escolha_plano_ia == "🔍 Diagnóstico IA":
-            st.markdown("### 🔍 Diagnóstico pedagógico inteligente")
+        if escolha_plano_ia == "🧩 Perfil Pedagógico Inteligente":
+            st.markdown("### 🧩 Perfil Pedagógico Inteligente")
             st.info(
-                "Gera uma síntese pedagógica com potencialidades, barreiras, necessidades prioritárias, recursos com maior chance de resposta e indicadores para observar nos próximos atendimentos."
+                "Organiza informações pedagógicas, funcionais e educacionais registradas no sistema para apoiar o planejamento do AEE, considerando comunicação, autonomia, participação escolar, acessibilidade, interação social e estratégias pedagógicas."
             )
-            if st.button("🔍 Gerar Diagnóstico IA", key=f"gerar_diag_ia_v19_{estudante_id}"):
-                with st.spinner("Gerando diagnóstico pedagógico com IA..."):
+            st.caption(
+                "Este recurso possui finalidade exclusivamente pedagógica e educacional, não realizando diagnóstico clínico, médico ou terapêutico."
+            )
+            if st.button("🧩 Gerar Perfil Pedagógico Inteligente", key=f"gerar_diag_ia_v19_{estudante_id}"):
+                with st.spinner("Gerando perfil pedagógico inteligente com IA..."):
                     st.session_state[f"diagnostico_ia_v19_{estudante_id}"] = gerar_diagnostico_aee_ia(
                         estudante, avaliacao_ia, entrevista_ia, estudo_ia, plano_manual_ia
                     )
 
             if f"diagnostico_ia_v19_{estudante_id}" in st.session_state:
                 diagnostico_txt = st.text_area(
-                    "Diagnóstico gerado",
+                    "Perfil pedagógico gerado",
                     st.session_state[f"diagnostico_ia_v19_{estudante_id}"],
                     height=520,
                     key=f"diagnostico_txt_v19_{estudante_id}",
                 )
                 col_d1, col_d2 = st.columns([1, 1])
                 with col_d1:
-                    export_buttons(diagnostico_txt, f"Diagnostico_AEE_IA_{estudante[1]}", tipo_pdf="plano")
+                    export_buttons(diagnostico_txt, f"Perfil_Pedagogico_Inteligente_{estudante[1]}", tipo_pdf="plano")
                 with col_d2:
-                    if st.button("💾 Salvar diagnóstico no histórico", key=f"salvar_diag_ia_v19_{estudante_id}"):
+                    if st.button("💾 Salvar perfil pedagógico no histórico", key=f"salvar_diag_ia_v19_{estudante_id}"):
                         salvar_historico_plano_aee_ia(
                             estudante_id=estudante_id,
                             mes_referencia="",
                             ano_referencia=datetime.now().year,
                             qtd_atendimentos_semana=1,
-                            tipo_geracao="Diagnóstico IA",
+                            tipo_geracao="Perfil Pedagógico Inteligente",
                             diagnostico_ia=diagnostico_txt,
-                            observacoes="Diagnóstico pedagógico gerado no módulo Plano AEE - IA.",
+                            observacoes="Perfil Pedagógico Inteligente gerado no módulo Plano AEE - IA.",
                         )
-                        st.success("Diagnóstico salvo no histórico IA.")
+                        st.success("Perfil pedagógico salvo no histórico IA.")
                         st.rerun()
 
         elif escolha_plano_ia == "📘 Sugestão Geral AEE":
