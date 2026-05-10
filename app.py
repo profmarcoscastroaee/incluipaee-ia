@@ -629,6 +629,7 @@ def criar_tabelas():
             data_registro TEXT,
             ano_letivo TEXT,
             professor_nome TEXT,
+            codigo_docente TEXT,
             componente_curricular TEXT,
             outro_componente TEXT,
             turma TEXT,
@@ -650,6 +651,8 @@ def criar_tabelas():
         )
         """
     )
+
+    adicionar_coluna_se_nao_existe(cursor, "escutas_docentes", "codigo_docente", "TEXT")
 
     cursor.execute(
         """
@@ -996,7 +999,7 @@ OPCOES_ESTRATEGIAS_INCLUSIVAS = [
 CAMPOS_ESCUTA_DOCENTE = [
     "data_registro",
     "ano_letivo",
-    "professor_nome",
+    "codigo_docente",
     "componente_curricular",
     "outro_componente",
     "turma",
@@ -1810,7 +1813,7 @@ def excluir_documento_avaliacao(documento_id, caminho_arquivo):
 def salvar_escuta_docente(
     estudante_id,
     ano_letivo,
-    professor_nome,
+    codigo_docente,
     componente_curricular,
     outro_componente,
     turma,
@@ -1835,7 +1838,7 @@ def salvar_escuta_docente(
             "estudante_id",
             "data_registro",
             "ano_letivo",
-            "professor_nome",
+            "codigo_docente",
             "componente_curricular",
             "outro_componente",
             "turma",
@@ -1858,7 +1861,7 @@ def salvar_escuta_docente(
             estudante_id,
             hoje_str(),
             ano_letivo,
-            professor_nome,
+            codigo_docente,
             componente_curricular,
             outro_componente,
             turma,
@@ -1882,7 +1885,43 @@ def salvar_escuta_docente(
 
 @st.cache_data(ttl=30, show_spinner=False)
 def listar_escutas_docentes(estudante_id):
-    return listar_por_estudante("escutas_docentes", CAMPOS_ESCUTA_DOCENTE, estudante_id)
+    """Lista escutas docentes sem expor nome pessoal.
+    Usa codigo_docente como campo principal e mantém fallback técnico para registros antigos.
+    """
+    conn = conectar()
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        SELECT id,
+               data_registro,
+               ano_letivo,
+               COALESCE(NULLIF(codigo_docente, ''), NULLIF(professor_nome, ''), 'Não informado') AS codigo_docente,
+               componente_curricular,
+               outro_componente,
+               turma,
+               tempo_acompanhamento,
+               participacao_sala,
+               comunicacao,
+               interacao_social,
+               aprendizagem,
+               barreiras_percebidas,
+               potencialidades_observadas,
+               estrategias_funcionam,
+               adaptacoes_utilizadas,
+               recomendacoes_docente,
+               nivel_participacao,
+               nivel_autonomia,
+               nivel_engajamento,
+               observacoes
+        FROM escutas_docentes
+        WHERE estudante_id=?
+        ORDER BY id DESC
+        """,
+        (estudante_id,),
+    )
+    dados = cursor.fetchall()
+    conn.close()
+    return dados
 
 
 def excluir_escuta_docente(escuta_id):
@@ -1909,7 +1948,7 @@ Turma: {estudante[3] or 'Não informado.'}
 Data do registro: {v('data_registro')}
 Ano letivo: {v('ano_letivo')}
 
-Professor(a): {v('professor_nome')}
+Código interno do docente / referência pedagógica: {v('codigo_docente')}
 Componente curricular / área: {componente}
 Turma observada: {v('turma')}
 Tempo de acompanhamento: {v('tempo_acompanhamento')}
@@ -2012,7 +2051,7 @@ Ano/Série: {estudante[2] or 'Não informado.'}
 Turma: {estudante[3] or 'Não informado.'}
 Ano letivo: {v('ano_letivo')}
 Componente/área de destino: {v('componente_destino')}
-Professor(a) de destino: {v('professor_destino')}
+Destinatário: ________________________________________
 Data de geração: {v('data_geracao')}
 
 {v('conteudo')}
@@ -2156,7 +2195,7 @@ Relatório Pedagógico de Apoio ao Docente
 
 DESTINATÁRIO:
 Componente/área: {componente_destino}
-Professor(a): {professor_destino or 'Não informado'}
+Destinatário: campo em branco para preenchimento manual no documento final
 Ano letivo: {ano_letivo}
 Foco solicitado pelo AEE: {foco_docente or 'Não informado'}
 
@@ -5974,9 +6013,10 @@ elif menu == "Articulação Pedagógica Inclusiva":
                             index=idx_ano,
                             key="escuta_ano_letivo",
                         )
-                        professor_nome = st.text_input(
-                            "Nome do professor(a) da área",
-                            placeholder="Ex.: Professor(a) de Matemática",
+                        codigo_docente = st.text_input(
+                            "Código interno do docente / referência pedagógica",
+                            placeholder="Ex.: DOC-MAT-001",
+                            help="Use um código interno ou referência pedagógica. Evite registrar nomes pessoais de docentes neste campo.",
                         )
                         componente_curricular = st.selectbox(
                             "Componente curricular / área",
@@ -6056,13 +6096,13 @@ elif menu == "Articulação Pedagógica Inclusiva":
                     salvar_escuta = st.form_submit_button("Salvar Escuta Docente")
 
                 if salvar_escuta:
-                    if not professor_nome.strip():
-                        st.warning("Informe o nome do professor(a) da área antes de salvar.")
+                    if not codigo_docente.strip():
+                        st.warning("Informe o código interno do docente / referência pedagógica antes de salvar. Ex.: DOC-MAT-001.")
                     else:
                         salvar_escuta_docente(
                             estudante_id=estudante_id,
                             ano_letivo=ano_letivo,
-                            professor_nome=professor_nome,
+                            codigo_docente=codigo_docente,
                             componente_curricular=componente_curricular,
                             outro_componente=outro_componente,
                             turma=turma,
@@ -6096,9 +6136,9 @@ elif menu == "Articulação Pedagógica Inclusiva":
                         esc_id = dados_esc.get("id")
                         data_reg = dados_esc.get("data_registro") or "Data não informada"
                         area = dados_esc.get("componente_curricular") or "Área não informada"
-                        prof = dados_esc.get("professor_nome") or "Professor não informado"
+                        codigo_doc = dados_esc.get("codigo_docente") or "Código docente não informado"
 
-                        with st.expander(f"{data_reg} | {area} | {prof}"):
+                        with st.expander(f"{data_reg} | {area} | {codigo_doc}"):
                             texto = texto_escuta_docente(estudante, esc)
                             st.text(texto)
                             export_buttons(texto, f"Escuta_Docente_{estudante[1]}_{esc_id}", tipo_pdf="escuta_docente")
@@ -6138,11 +6178,8 @@ elif menu == "Articulação Pedagógica Inclusiva":
                         )
 
                 with colr2:
-                    professor_destino = st.text_input(
-                        "Professor(a) que receberá o relatório",
-                        placeholder="Opcional",
-                        key="relatorio_docente_professor_destino",
-                    )
+                    professor_destino = ""
+                    st.info("O destinatário ficará em branco no relatório para preenchimento manual após impressão ou edição do Word.")
                     observacoes_relatorio = st.text_area(
                         "Observações internas do AEE",
                         height=90,
@@ -6200,7 +6237,7 @@ Ano/Série: {estudante[2] or 'Não informado.'}
 Turma: {estudante[3] or 'Não informado.'}
 Ano letivo: {ano_relatorio}
 Componente/área de destino: {componente_destino}
-Professor(a) de destino: {professor_destino or 'Não informado.'}
+Destinatário: ________________________________________
 Data de geração: {hoje_str()}
 
 {conteudo_editado}
