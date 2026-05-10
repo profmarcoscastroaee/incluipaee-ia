@@ -57,7 +57,7 @@ CHROMA_DIR.mkdir(parents=True, exist_ok=True)
 DOCUMENTOS_AVALIACOES_DIR.mkdir(parents=True, exist_ok=True)
 
 APP_NAME = "INCLUISRM"
-APP_SUBTITLE = "Sistema de Gestão do Atendimento Educacional Especializado"
+APP_SUBTITLE = "Sistema Inteligente de Articulação Pedagógica Inclusiva"
 
 
 # ======================================================
@@ -1206,9 +1206,9 @@ def render_app_header():
     st.markdown(
         """
         <div class="app-hero">
-            <span class="app-badge">Gestão do AEE • SRM • Relatórios • Agenda</span>
+            <span class="app-badge">AEE • Memória Pedagógica • Articulação Docente • IA</span>
             <h1 class="app-title">INCLUISRM</h1>
-            <p class="app-subtitle">Sistema de Gestão do Atendimento Educacional Especializado</p>
+            <p class="app-subtitle">Sistema Inteligente de Articulação Pedagógica Inclusiva</p>
         </div>
         """,
         unsafe_allow_html=True,
@@ -5127,12 +5127,39 @@ if menu == "Dashboard":
         total_avaliacoes = contar_registros_tabela("avaliacoes")
         total_atendimentos = contar_registros_tabela("atendimentos")
         total_agenda = contar_registros_tabela("agenda")
+        total_escutas_docentes = contar_registros_tabela("escutas_docentes")
+        total_relatorios_docente = contar_registros_tabela("relatorios_docente")
 
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3 = st.columns(3)
     col1.metric("Estudantes", total_estudantes)
-    col2.metric("Avaliações", total_avaliacoes)
-    col3.metric("Atendimentos", total_atendimentos)
+    col2.metric("Avaliações Pedagógicas", total_avaliacoes)
+    col3.metric("Atendimentos AEE", total_atendimentos)
+
+    col4, col5, col6 = st.columns(3)
     col4.metric("Agendamentos", total_agenda)
+    col5.metric("Escutas Docentes", total_escutas_docentes)
+    col6.metric("Relatórios de Apoio", total_relatorios_docente)
+
+    st.markdown("---")
+
+    col_status1, col_status2, col_status3 = st.columns(3)
+    with col_status1:
+        with st.container(border=True):
+            st.markdown("### 🧠 IA Pedagógica")
+            if OpenAI is not None and os.getenv("OPENAI_API_KEY"):
+                st.success("IA configurada para gerar sínteses pedagógicas e relatórios de apoio ao docente.")
+            else:
+                st.warning("IA ainda não configurada. Configure OPENAI_API_KEY para ativar a geração automática.")
+    with col_status2:
+        with st.container(border=True):
+            st.markdown("### 🔗 Articulação Inclusiva")
+            st.write(f"Escutas docentes registradas: **{total_escutas_docentes}**")
+            st.write(f"Relatórios pedagógicos gerados: **{total_relatorios_docente}**")
+    with col_status3:
+        with st.container(border=True):
+            st.markdown("### 📚 Memória Pedagógica")
+            st.write(f"Avaliações registradas: **{total_avaliacoes}**")
+            st.write(f"Atendimentos registrados: **{total_atendimentos}**")
 
     st.markdown("---")
 
@@ -5161,17 +5188,44 @@ if menu == "Dashboard":
 
     with col_dir:
         with st.container(border=True):
-            st.markdown("### 🧭 Fluxo sugerido")
+            st.markdown("### 🧭 Fluxo pedagógico sugerido")
             st.markdown(
                 """
                 1. Cadastre o estudante com código interno.
-                2. Registre entrevista, avaliação e estudo de caso.
-                3. Crie o Plano AEE - IA.
-                4. Organize a agenda semanal.
-                5. Lance os atendimentos e acompanhe os gráficos.
-                6. Gere os relatórios GRE para impressão e pasta física.
+                2. Registre a entrevista familiar e a avaliação pedagógica inicial.
+                3. Organize documentos históricos e avaliações extras.
+                4. Elabore ou atualize o estudo de caso e o Plano AEE - IA.
+                5. Registre a Escuta Docente da sala regular por área/componente.
+                6. Lance atendimentos e acompanhe a evolução pedagógica.
+                7. Gere o Relatório Pedagógico de Apoio ao Docente com IA.
+                8. Use os relatórios GRE para impressão e pasta física quando necessário.
                 """
             )
+
+        with st.container(border=True):
+            st.markdown("### 🧩 Últimos registros do ecossistema")
+            try:
+                ult_avaliacoes = carregar_tabela_dataframe("avaliacoes").sort_values("id", ascending=False).head(1)
+                ult_escutas = carregar_tabela_dataframe("escutas_docentes").sort_values("id", ascending=False).head(1)
+                ult_relatorios = carregar_tabela_dataframe("relatorios_docente").sort_values("id", ascending=False).head(1)
+
+                if not ult_avaliacoes.empty:
+                    st.write(f"**Última avaliação:** {ult_avaliacoes.iloc[0].get('data_registro', 'Data não informada')}")
+                else:
+                    st.write("**Última avaliação:** nenhuma registrada")
+
+                if not ult_escutas.empty:
+                    componente = ult_escutas.iloc[0].get('componente_curricular', 'Área não informada')
+                    st.write(f"**Última escuta docente:** {componente}")
+                else:
+                    st.write("**Última escuta docente:** nenhuma registrada")
+
+                if not ult_relatorios.empty:
+                    st.write(f"**Último relatório de apoio:** {ult_relatorios.iloc[0].get('data_geracao', 'Data não informada')}")
+                else:
+                    st.write("**Último relatório de apoio:** nenhum gerado")
+            except Exception:
+                st.info("Os últimos registros aparecerão aqui após os primeiros lançamentos do ecossistema.")
 # ======================================================
 # CADASTRO DO ESTUDANTE
 # ======================================================
