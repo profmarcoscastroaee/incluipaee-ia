@@ -5114,68 +5114,12 @@ render_app_header()
 # DASHBOARD
 # ======================================================
 if menu == "Dashboard":
-    # Dashboard compacto para visualizar o ecossistema em uma única tela.
-    st.markdown(
-        """
-        <style>
-        .block-container {
-            padding-top: 0.8rem !important;
-            padding-bottom: 1.2rem !important;
-            max-width: 1550px !important;
-        }
-        .app-hero {
-            padding: 18px 24px !important;
-            margin-bottom: 14px !important;
-            border-radius: 18px !important;
-        }
-        .app-title {
-            font-size: 30px !important;
-        }
-        .app-subtitle {
-            font-size: 14px !important;
-            margin-top: 4px !important;
-        }
-        .app-badge {
-            font-size: 12px !important;
-            padding: 4px 10px !important;
-            margin-bottom: 6px !important;
-        }
-        .subtitulo {
-            font-size: 21px !important;
-            margin-bottom: 8px !important;
-        }
-        [data-testid="stMetric"] {
-            padding: 12px 14px !important;
-            min-height: 82px !important;
-        }
-        [data-testid="stMetricValue"] {
-            font-size: 27px !important;
-        }
-        [data-testid="stMetricLabel"] {
-            font-size: 13px !important;
-        }
-        div[data-testid="stVerticalBlock"] div[data-testid="stVerticalBlockBorderWrapper"] {
-            padding-top: 8px !important;
-            padding-bottom: 8px !important;
-        }
-        h3 {
-            font-size: 21px !important;
-            margin-top: 0.15rem !important;
-            margin-bottom: 0.35rem !important;
-        }
-        hr {
-            margin-top: 0.7rem !important;
-            margin-bottom: 0.7rem !important;
-        }
-        .stDataFrame {
-            margin-top: 0.2rem !important;
-        }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
-
     st.markdown('<div class="subtitulo">📊 Painel inicial</div>', unsafe_allow_html=True)
+
+# if USAR_POSTGRES:
+#     st.success("🟢 Banco conectado: PostgreSQL (Render)")
+# else:
+#     st.warning("🟡 Banco conectado: SQLite local")
 
     with st.spinner("Carregando painel..."):
         estudantes = listar_estudantes()
@@ -5186,32 +5130,40 @@ if menu == "Dashboard":
         total_escutas_docentes = contar_registros_tabela("escutas_docentes")
         total_relatorios_docente = contar_registros_tabela("relatorios_docente")
 
-        try:
-            ult_avaliacoes = carregar_tabela_dataframe("avaliacoes").sort_values("id", ascending=False).head(1)
-        except Exception:
-            ult_avaliacoes = pd.DataFrame()
-        try:
-            ult_escutas = carregar_tabela_dataframe("escutas_docentes").sort_values("id", ascending=False).head(1)
-        except Exception:
-            ult_escutas = pd.DataFrame()
-        try:
-            ult_relatorios = carregar_tabela_dataframe("relatorios_docente").sort_values("id", ascending=False).head(1)
-        except Exception:
-            ult_relatorios = pd.DataFrame()
-
-    # Métricas principais em uma única linha para reduzir rolagem.
-    col1, col2, col3, col4, col5, col6 = st.columns(6)
+    col1, col2, col3 = st.columns(3)
     col1.metric("Estudantes", total_estudantes)
-    col2.metric("Avaliações", total_avaliacoes)
-    col3.metric("Atendimentos", total_atendimentos)
-    col4.metric("Agenda", total_agenda)
-    col5.metric("Escutas", total_escutas_docentes)
-    col6.metric("Relatórios", total_relatorios_docente)
+    col2.metric("Avaliações Pedagógicas", total_avaliacoes)
+    col3.metric("Atendimentos AEE", total_atendimentos)
+
+    col4, col5, col6 = st.columns(3)
+    col4.metric("Agendamentos", total_agenda)
+    col5.metric("Escutas Docentes", total_escutas_docentes)
+    col6.metric("Relatórios de Apoio", total_relatorios_docente)
 
     st.markdown("---")
 
-    # Visão única do ecossistema: memória, articulação, IA e fluxo na mesma tela.
-    col_esq, col_centro, col_dir = st.columns([1.15, 1.05, 1.05])
+    col_status1, col_status2, col_status3 = st.columns(3)
+    with col_status1:
+        with st.container(border=True):
+            st.markdown("### 🧠 IA Pedagógica")
+            if OpenAI is not None and os.getenv("OPENAI_API_KEY"):
+                st.success("IA configurada para gerar sínteses pedagógicas e relatórios de apoio ao docente.")
+            else:
+                st.warning("IA ainda não configurada. Configure OPENAI_API_KEY para ativar a geração automática.")
+    with col_status2:
+        with st.container(border=True):
+            st.markdown("### 🔗 Articulação Inclusiva")
+            st.write(f"Escutas docentes registradas: **{total_escutas_docentes}**")
+            st.write(f"Relatórios pedagógicos gerados: **{total_relatorios_docente}**")
+    with col_status3:
+        with st.container(border=True):
+            st.markdown("### 📚 Memória Pedagógica")
+            st.write(f"Avaliações registradas: **{total_avaliacoes}**")
+            st.write(f"Atendimentos registrados: **{total_atendimentos}**")
+
+    st.markdown("---")
+
+    col_esq, col_dir = st.columns([1.25, 1])
 
     with col_esq:
         with st.container(border=True):
@@ -5226,65 +5178,54 @@ if menu == "Dashboard":
                             "Perfil": e[4],
                             "Dias": e[7],
                         }
-                        for e in estudantes[:6]
+                        for e in estudantes
                     ],
                     use_container_width=True,
                     hide_index=True,
-                    height=185,
                 )
             else:
                 st.info("Nenhum estudante cadastrado ainda.")
 
-        with st.container(border=True):
-            st.markdown("### 🧠 IA Pedagógica")
-            if OpenAI is not None and os.getenv("OPENAI_API_KEY"):
-                st.success("IA configurada para gerar sínteses pedagógicas e relatórios de apoio ao docente.")
-            else:
-                st.warning("IA ainda não configurada. Configure OPENAI_API_KEY para ativar a geração automática.")
-
-    with col_centro:
+    with col_dir:
         with st.container(border=True):
             st.markdown("### 🧭 Fluxo pedagógico sugerido")
             st.markdown(
                 """
-                1. Cadastro do estudante com código interno.  
-                2. Entrevista familiar e avaliação pedagógica inicial.  
-                3. Documentos históricos e avaliações extras.  
-                4. Estudo de caso e Plano AEE - IA.  
-                5. Escuta Docente da sala regular.  
-                6. Atendimentos e evolução pedagógica.  
-                7. Relatório Pedagógico de Apoio ao Docente.  
-                8. Relatórios GRE quando necessário.
+                1. Cadastre o estudante com código interno.
+                2. Registre a entrevista familiar e a avaliação pedagógica inicial.
+                3. Organize documentos históricos e avaliações extras.
+                4. Elabore ou atualize o estudo de caso e o Plano AEE - IA.
+                5. Registre a Escuta Docente da sala regular por área/componente.
+                6. Lance atendimentos e acompanhe a evolução pedagógica.
+                7. Gere o Relatório Pedagógico de Apoio ao Docente com IA.
+                8. Use os relatórios GRE para impressão e pasta física quando necessário.
                 """
             )
 
-    with col_dir:
         with st.container(border=True):
-            st.markdown("### 🔗 Articulação Inclusiva")
-            st.write(f"Escutas docentes registradas: **{total_escutas_docentes}**")
-            st.write(f"Relatórios de apoio gerados: **{total_relatorios_docente}**")
-            st.write(f"Avaliações pedagógicas: **{total_avaliacoes}**")
-            st.write(f"Atendimentos AEE: **{total_atendimentos}**")
+            st.markdown("### 🧩 Últimos registros do ecossistema")
+            try:
+                ult_avaliacoes = carregar_tabela_dataframe("avaliacoes").sort_values("id", ascending=False).head(1)
+                ult_escutas = carregar_tabela_dataframe("escutas_docentes").sort_values("id", ascending=False).head(1)
+                ult_relatorios = carregar_tabela_dataframe("relatorios_docente").sort_values("id", ascending=False).head(1)
 
-        with st.container(border=True):
-            st.markdown("### 🧩 Últimos registros")
-            if not ult_avaliacoes.empty:
-                st.write(f"**Avaliação:** {ult_avaliacoes.iloc[0].get('data_registro', 'Data não informada')}")
-            else:
-                st.write("**Avaliação:** nenhuma")
+                if not ult_avaliacoes.empty:
+                    st.write(f"**Última avaliação:** {ult_avaliacoes.iloc[0].get('data_registro', 'Data não informada')}")
+                else:
+                    st.write("**Última avaliação:** nenhuma registrada")
 
-            if not ult_escutas.empty:
-                componente = ult_escutas.iloc[0].get('componente_curricular', 'Área não informada')
-                codigo_docente = ult_escutas.iloc[0].get('codigo_docente', 'Docente não informado')
-                st.write(f"**Escuta:** {componente} • {codigo_docente}")
-            else:
-                st.write("**Escuta:** nenhuma")
+                if not ult_escutas.empty:
+                    componente = ult_escutas.iloc[0].get('componente_curricular', 'Área não informada')
+                    st.write(f"**Última escuta docente:** {componente}")
+                else:
+                    st.write("**Última escuta docente:** nenhuma registrada")
 
-            if not ult_relatorios.empty:
-                st.write(f"**Relatório:** {ult_relatorios.iloc[0].get('data_geracao', 'Data não informada')}")
-            else:
-                st.write("**Relatório:** nenhum")
-
+                if not ult_relatorios.empty:
+                    st.write(f"**Último relatório de apoio:** {ult_relatorios.iloc[0].get('data_geracao', 'Data não informada')}")
+                else:
+                    st.write("**Último relatório de apoio:** nenhum gerado")
+            except Exception:
+                st.info("Os últimos registros aparecerão aqui após os primeiros lançamentos do ecossistema.")
 # ======================================================
 # CADASTRO DO ESTUDANTE
 # ======================================================
