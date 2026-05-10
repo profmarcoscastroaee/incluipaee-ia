@@ -48,11 +48,13 @@ BASE_CONHECIMENTO_DIR = Path("base_conhecimento")
 PASTA_CIENTIFICA = BASE_CONHECIMENTO_DIR / "cientifica"
 PASTA_PEDAGOGICA = BASE_CONHECIMENTO_DIR / "pedagogica"
 CHROMA_DIR = Path("chroma_db_incluisrm")
+DOCUMENTOS_AVALIACOES_DIR = Path("documentos_avaliacoes")
 
 BASE_CONHECIMENTO_DIR.mkdir(parents=True, exist_ok=True)
 PASTA_CIENTIFICA.mkdir(parents=True, exist_ok=True)
 PASTA_PEDAGOGICA.mkdir(parents=True, exist_ok=True)
 CHROMA_DIR.mkdir(parents=True, exist_ok=True)
+DOCUMENTOS_AVALIACOES_DIR.mkdir(parents=True, exist_ok=True)
 
 APP_NAME = "INCLUISRM"
 APP_SUBTITLE = "Sistema de Gestão do Atendimento Educacional Especializado"
@@ -566,8 +568,29 @@ def criar_tabelas():
         ("avaliacao_anterior_id", "INTEGER"),
         ("analise_comparativa_ia", "TEXT"),
         ("sugestao_nova_avaliacao_ia", "TEXT"),
+        ("origem_documento", "TEXT"),
+        ("texto_documento_extra", "TEXT"),
     ]:
         adicionar_coluna_se_nao_existe(cursor, "avaliacoes", coluna, definicao)
+
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS avaliacoes_documentos (
+            id SERIAL PRIMARY KEY,
+            avaliacao_id INTEGER,
+            estudante_id INTEGER NOT NULL,
+            ano_letivo TEXT,
+            tipo_documento TEXT,
+            nome_original TEXT,
+            nome_arquivo_salvo TEXT,
+            caminho_arquivo TEXT,
+            observacao TEXT,
+            data_upload TEXT,
+            FOREIGN KEY(estudante_id) REFERENCES estudantes(id),
+            FOREIGN KEY(avaliacao_id) REFERENCES avaliacoes(id)
+        )
+        """
+    )
 
     cursor.execute(
         """
@@ -829,14 +852,27 @@ OPCOES_TIPO_ENTREVISTA_FAMILIA = [
 
 CAMPOS_AVALIACAO = [
     "data_registro",
-    "ano_letivo", "tipo_registro", "avaliacao_anterior_id", "analise_comparativa_ia", "sugestao_nova_avaliacao_ia",
-    "barreiras", "potencialidades", "comunicacao", "interacao", "autonomia", "aprendizagem", "resumo_laudo",
+    "ano_letivo",
+    "tipo_registro",
+    "avaliacao_anterior_id",
+    "analise_comparativa_ia",
+    "sugestao_nova_avaliacao_ia",
+    "origem_documento",
+    "texto_documento_extra",
+    "barreiras",
+    "potencialidades",
+    "comunicacao",
+    "interacao",
+    "autonomia",
+    "aprendizagem",
+    "resumo_laudo",
 ]
 
 OPCOES_TIPO_AVALIACAO = [
     "Registro histórico",
     "Avaliação pedagógica atual",
     "Nova avaliação com base em avaliação anterior",
+    "Avaliação Pedagógica - Extra / Documento Livre",
 ]
 
 CAMPOS_ESTUDO_CASO = [
@@ -1463,29 +1499,33 @@ def ultima_linha(tabela, campos, estudante_id):
 # ======================================================
 def salvar_avaliacao(
     estudante_id,
-    barreiras,
-    potencialidades,
-    comunicacao,
-    interacao,
-    autonomia,
-    aprendizagem,
-    resumo_laudo,
+    barreiras="",
+    potencialidades="",
+    comunicacao="",
+    interacao="",
+    autonomia="",
+    aprendizagem="",
+    resumo_laudo="",
     ano_letivo="",
     tipo_registro="Avaliação pedagógica atual",
     avaliacao_anterior_id=None,
     analise_comparativa_ia="",
     sugestao_nova_avaliacao_ia="",
+    origem_documento="",
+    texto_documento_extra="",
 ):
     inserir_registro(
         "avaliacoes",
         [
             "estudante_id", "data_registro",
             "ano_letivo", "tipo_registro", "avaliacao_anterior_id", "analise_comparativa_ia", "sugestao_nova_avaliacao_ia",
+            "origem_documento", "texto_documento_extra",
             "barreiras", "potencialidades", "comunicacao", "interacao", "autonomia", "aprendizagem", "resumo_laudo",
         ],
         [
             estudante_id, hoje_str(),
             ano_letivo, tipo_registro, avaliacao_anterior_id, analise_comparativa_ia, sugestao_nova_avaliacao_ia,
+            origem_documento, texto_documento_extra,
             barreiras, potencialidades, comunicacao, interacao, autonomia, aprendizagem, resumo_laudo,
         ],
     )
@@ -1520,6 +1560,96 @@ def buscar_avaliacao_por_id(avaliacao_id):
     dado = cursor.fetchone()
     conn.close()
     return dado
+
+
+def salvar_documento_avaliacao(
+    estudante_id,
+    avaliacao_id,
+    ano_letivo,
+    tipo_documento,
+    arquivo,
+    observacao="",
+):
+    """Salva documento anexado à avaliação pedagógica.
+
+    Observação importante:
+    - No Render, arquivos salvos em pasta local podem ser perdidos em novo deploy.
+    - Para produção, o ideal é usar armazenamento persistente/externo.
+    """
+    if arquivo is None:
+        return None
+
+    pasta_estudante = DOCUMENTOS_AVALIACOES_DIR / f"estudante_{estudante_id}"
+    pasta_estudante.mkdir(parents=True, exist_ok=True)
+
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    nome_seguro = arquivo.name.replace("/", "_").replace("\\", "_")
+    nome_salvo = f"{timestamp}_{nome_seguro}"
+    caminho = pasta_estudante / nome_salvo
+
+    with open(caminho, "wb") as f:
+        f.write(arquivo.getbuffer())
+
+    conn = conectar()
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        INSERT INTO avaliacoes_documentos (
+            avaliacao_id, estudante_id, ano_letivo, tipo_documento,
+            nome_original, nome_arquivo_salvo, caminho_arquivo,
+            observacao, data_upload
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            avaliacao_id,
+            estudante_id,
+            ano_letivo,
+            tipo_documento,
+            arquivo.name,
+            nome_salvo,
+            str(caminho),
+            observacao,
+            hoje_str(),
+        ),
+    )
+    conn.commit()
+    conn.close()
+    limpar_cache_dados()
+    return str(caminho)
+
+
+@st.cache_data(ttl=30, show_spinner=False)
+def listar_documentos_avaliacao(estudante_id):
+    conn = conectar()
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        SELECT id, avaliacao_id, ano_letivo, tipo_documento,
+               nome_original, caminho_arquivo, observacao, data_upload
+        FROM avaliacoes_documentos
+        WHERE estudante_id=?
+        ORDER BY id DESC
+        """,
+        (estudante_id,),
+    )
+    dados = cursor.fetchall()
+    conn.close()
+    return dados
+
+
+def excluir_documento_avaliacao(documento_id, caminho_arquivo):
+    try:
+        if caminho_arquivo and Path(caminho_arquivo).exists():
+            Path(caminho_arquivo).unlink()
+    except Exception:
+        pass
+
+    conn = conectar()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM avaliacoes_documentos WHERE id=?", (documento_id,))
+    conn.commit()
+    conn.close()
+    limpar_cache_dados()
 
 
 # ======================================================
@@ -2134,14 +2264,32 @@ ________________________________________________________
 
 
 def texto_avaliacao(estudante, a):
-    # Formato esperado: a = (id, data_registro, ano_letivo, tipo_registro,
-    # avaliacao_anterior_id, analise_comparativa_ia, sugestao_nova_avaliacao_ia,
-    # barreiras, potencialidades, comunicacao, interacao, autonomia, aprendizagem, resumo_laudo)
     dados = dict(zip(["id"] + CAMPOS_AVALIACAO, a))
 
     def v(campo):
         valor = dados.get(campo)
         return valor if valor not in (None, "") else "Não informado."
+
+    tipo = dados.get("tipo_registro") or ""
+
+    if tipo == "Avaliação Pedagógica - Extra / Documento Livre":
+        return f"""
+AVALIAÇÃO PEDAGÓGICA EXTRA - DOCUMENTO LIVRE - INCLUISRM
+
+Código interno do estudante: {estudante[1]}
+Data do registro: {v('data_registro')}
+Ano letivo: {v('ano_letivo')}
+Tipo de registro: {v('tipo_registro')}
+Avaliação anterior vinculada: {v('avaliacao_anterior_id')}
+Origem do documento: {v('origem_documento')}
+
+CONTEÚDO DO DOCUMENTO / RELATÓRIO ANTERIOR:
+
+{v('texto_documento_extra')}
+
+Observação:
+Este registro foi lançado em formato livre para preservar documentos pedagógicos anteriores, pareceres, relatórios ou registros que não se enquadram no modelo estruturado da avaliação pedagógica.
+""".strip()
 
     return f"""
 AVALIAÇÃO PEDAGÓGICA - INCLUISRM
@@ -4918,17 +5066,24 @@ elif menu == "Entrevista com a Família":
 elif menu == "Avaliação Pedagógica":
     st.markdown('<div class="subtitulo">📝 Avaliação Pedagógica / Histórico por Ano Letivo</div>', unsafe_allow_html=True)
     estudantes = listar_estudantes()
+
     if not estudantes:
         st.info("Cadastre um estudante primeiro.")
     else:
         ids, mapa = opcoes_estudantes_por_id(estudantes)
-        estudante_id = st.selectbox("Selecione o estudante", ids, format_func=lambda x: mapa[x], key="avaliacao_estudante")
+        estudante_id = st.selectbox(
+            "Selecione o estudante",
+            ids,
+            format_func=lambda x: mapa[x],
+            key="avaliacao_estudante",
+        )
         estudante = buscar_estudante(estudante_id)
         avaliacoes = listar_avaliacoes(estudante_id)
 
         st.info(
-            "Este módulo permite registrar avaliações pedagógicas anteriores e criar novas avaliações com apoio da IA. "
-            "A sugestão gerada serve como apoio à análise do professor do AEE e não substitui sua decisão pedagógica."
+            "Este módulo permite registrar avaliações pedagógicas estruturadas, avaliações anteriores, "
+            "documentos livres e anexos digitalizados. Use sempre o código interno do estudante e evite "
+            "inserir dados pessoais sensíveis nos textos ou arquivos."
         )
 
         anos_opcoes = [str(a) for a in range(2024, datetime.now().year + 4)]
@@ -4938,10 +5093,23 @@ elif menu == "Avaliação Pedagógica":
         with st.container(border=True):
             st.markdown("### Configuração do registro")
             col_ano, col_tipo = st.columns(2)
+
             with col_ano:
-                ano_letivo = st.selectbox("Ano letivo da avaliação pedagógica", anos_opcoes, index=idx_ano, key="avaliacao_ano_letivo")
+                ano_letivo = st.selectbox(
+                    "Ano letivo da avaliação pedagógica",
+                    anos_opcoes,
+                    index=idx_ano,
+                    key="avaliacao_ano_letivo",
+                )
+
             with col_tipo:
-                tipo_registro = st.selectbox("Tipo de registro", OPCOES_TIPO_AVALIACAO, key="avaliacao_tipo_registro")
+                tipo_registro = st.selectbox(
+                    "Tipo de registro",
+                    OPCOES_TIPO_AVALIACAO,
+                    key="avaliacao_tipo_registro",
+                )
+
+            modo_extra = tipo_registro == "Avaliação Pedagógica - Extra / Documento Livre"
 
             opcoes_avaliacoes = {0: "Nenhuma avaliação anterior"}
             for av in avaliacoes:
@@ -4950,127 +5118,245 @@ elif menu == "Avaliação Pedagógica":
                 opcoes_avaliacoes[av[0]] = f"ID {av[0]} • {ano_av} • {tipo_av} • {av[1]}"
 
             avaliacao_anterior_id = st.selectbox(
-                "Avaliação anterior para comparação",
+                "Avaliação anterior para comparação ou vínculo",
                 list(opcoes_avaliacoes.keys()),
                 format_func=lambda x: opcoes_avaliacoes[x],
                 key="avaliacao_anterior_id_select",
             )
 
-            foco_ia = st.text_area(
-                "Orientação para a IA (opcional)",
-                placeholder="Ex.: observar avanços em autonomia, comunicação, participação nas atividades e barreiras de aprendizagem.",
-                height=80,
-                key="avaliacao_foco_ia",
-            )
-
-            if st.button("🤖 Gerar sugestão de nova Avaliação Pedagógica com IA", key="btn_ia_avaliacao"):
-                av_base = buscar_avaliacao_por_id(avaliacao_anterior_id) if avaliacao_anterior_id else None
-                estudo_atual = ultima_linha("estudos_caso", CAMPOS_ESTUDO_CASO, estudante_id)
-                estudo_atual = ("", *estudo_atual) if estudo_atual else None
-                entrevista_atual = ultima_linha("entrevistas_familia", CAMPOS_ENTREVISTA_FAMILIA, estudante_id)
-                atendimentos_atuais = listar_atendimentos(estudante_id)
-                analise_ia, sugestao_ia = gerar_nova_avaliacao_pedagogica_com_ia(
-                    estudante,
-                    av_base,
-                    estudo_atual,
-                    entrevista_atual,
-                    atendimentos_atuais,
-                    ano_letivo,
+            if not modo_extra:
+                foco_ia = st.text_area(
+                    "Orientação para a IA (opcional)",
+                    placeholder="Ex.: observar avanços em autonomia, comunicação, participação nas atividades e barreiras de aprendizagem.",
+                    height=80,
+                    key="avaliacao_foco_ia",
                 )
-                if foco_ia.strip():
-                    analise_ia = f"Orientação do professor: {foco_ia.strip()}\n\n{analise_ia}".strip()
-                st.session_state["avaliacao_analise_ia"] = analise_ia
-                st.session_state["avaliacao_sugestao_ia"] = sugestao_ia
-                st.success("Sugestão gerada. Revise e ajuste manualmente antes de salvar.")
 
-            analise_previa = st.session_state.get("avaliacao_analise_ia", "")
-            sugestao_previa = st.session_state.get("avaliacao_sugestao_ia", "")
-            if analise_previa or sugestao_previa:
-                with st.expander("Prévia da análise e sugestão geradas com IA", expanded=True):
-                    st.markdown("**Análise comparativa:**")
-                    st.text_area("Análise comparativa IA", value=analise_previa, height=180, key="preview_analise_avaliacao_ia")
-                    st.markdown("**Sugestão de nova avaliação:**")
-                    st.text_area("Sugestão IA", value=sugestao_previa, height=260, key="preview_sugestao_avaliacao_ia")
+                if st.button("🤖 Gerar sugestão de nova Avaliação Pedagógica com IA", key="btn_ia_avaliacao"):
+                    av_base = buscar_avaliacao_por_id(avaliacao_anterior_id) if avaliacao_anterior_id else None
+                    estudo_atual = ultima_linha("estudos_caso", CAMPOS_ESTUDO_CASO, estudante_id)
+                    estudo_atual = ("", *estudo_atual) if estudo_atual else None
+                    entrevista_atual = ultima_linha("entrevistas_familia", CAMPOS_ENTREVISTA_FAMILIA, estudante_id)
+                    atendimentos_atuais = listar_atendimentos(estudante_id)
+                    analise_ia, sugestao_ia = gerar_nova_avaliacao_pedagogica_com_ia(
+                        estudante,
+                        av_base,
+                        estudo_atual,
+                        entrevista_atual,
+                        atendimentos_atuais,
+                        ano_letivo,
+                    )
+                    if foco_ia.strip():
+                        analise_ia = f"Orientação do professor: {foco_ia.strip()}\n\n{analise_ia}".strip()
+                    st.session_state["avaliacao_analise_ia"] = analise_ia
+                    st.session_state["avaliacao_sugestao_ia"] = sugestao_ia
+                    st.success("Sugestão gerada. Revise e ajuste manualmente antes de salvar.")
+
+                analise_previa = st.session_state.get("avaliacao_analise_ia", "")
+                sugestao_previa = st.session_state.get("avaliacao_sugestao_ia", "")
+                if analise_previa or sugestao_previa:
+                    with st.expander("Prévia da análise e sugestão geradas com IA", expanded=True):
+                        st.markdown("**Análise comparativa:**")
+                        st.text_area("Análise comparativa IA", value=analise_previa, height=180, key="preview_analise_avaliacao_ia")
+                        st.markdown("**Sugestão de nova avaliação:**")
+                        st.text_area("Sugestão IA", value=sugestao_previa, height=260, key="preview_sugestao_avaliacao_ia")
 
         with st.container(border=True):
-            st.markdown("### Registro manual / revisão da avaliação")
-            with st.form("form_avaliacao"):
-                sugestao_base = st.session_state.get("avaliacao_sugestao_ia", "")
-                barreiras = st.text_area("Barreiras enfrentadas pelo estudante", value=sugestao_base if tipo_registro == "Nova avaliação com base em avaliação anterior" else "", height=120)
-                potencialidades = st.text_area("Potencialidades e habilidades já desenvolvidas", height=100)
-                comunicacao = st.text_area("Comunicação", height=90)
-                interacao = st.text_area("Interação social", height=90)
-                autonomia = st.text_area("Autonomia", height=90)
-                aprendizagem = st.text_area("Aprendizagem", height=100)
-                resumo_laudo = st.text_area("Resumo pedagógico do laudo, sem identificação", height=90)
-                analise_comparativa_ia = st.text_area(
-                    "Análise comparativa IA/manual",
-                    value=st.session_state.get("avaliacao_analise_ia", ""),
-                    height=150,
-                )
-                sugestao_nova_avaliacao_ia = st.text_area(
-                    "Sugestão IA/manual para nova avaliação",
-                    value=st.session_state.get("avaliacao_sugestao_ia", ""),
-                    height=180,
+            if modo_extra:
+                st.markdown("### Avaliação Pedagógica Extra / Documento Livre")
+                st.caption(
+                    "Use este espaço para registrar documentos antigos, pareceres, relatórios anteriores "
+                    "ou informações pedagógicas que não cabem no formulário estruturado."
                 )
 
-                if st.form_submit_button("Salvar avaliação pedagógica"):
-                    salvar_avaliacao(
-                        estudante_id,
-                        barreiras,
-                        potencialidades,
-                        comunicacao,
-                        interacao,
-                        autonomia,
-                        aprendizagem,
-                        resumo_laudo,
-                        ano_letivo,
-                        tipo_registro,
-                        avaliacao_anterior_id if avaliacao_anterior_id else None,
-                        analise_comparativa_ia,
-                        sugestao_nova_avaliacao_ia,
+                with st.form("form_avaliacao_extra"):
+                    origem_documento = st.text_input(
+                        "Origem do documento",
+                        placeholder="Ex.: relatório antigo da escola, parecer pedagógico anterior, registro do AEE anterior...",
                     )
+
+                    texto_documento_extra = st.text_area(
+                        "Conteúdo completo do documento ou relatório",
+                        height=420,
+                        placeholder="Cole aqui o conteúdo do documento antigo, relatório, parecer ou histórico pedagógico anterior.",
+                    )
+
+                    arquivo_upload = st.file_uploader(
+                        "Anexar documento digitalizado ou arquivo relacionado",
+                        type=["pdf", "docx", "txt", "png", "jpg", "jpeg"],
+                        accept_multiple_files=False,
+                    )
+
+                    observacao_upload = st.text_area(
+                        "Observação sobre o arquivo anexado",
+                        height=90,
+                        placeholder="Ex.: documento físico arquivado em pasta protegida; arquivo sem dados sensíveis; digitalização parcial...",
+                    )
+
+                    salvar_extra = st.form_submit_button("Salvar Avaliação Pedagógica Extra")
+
+                if salvar_extra:
+                    if not texto_documento_extra.strip() and arquivo_upload is None:
+                        st.warning("Digite o conteúdo do documento ou anexe um arquivo antes de salvar.")
+                    else:
+                        salvar_avaliacao(
+                            estudante_id=estudante_id,
+                            ano_letivo=ano_letivo,
+                            tipo_registro=tipo_registro,
+                            avaliacao_anterior_id=None if avaliacao_anterior_id == 0 else avaliacao_anterior_id,
+                            origem_documento=origem_documento,
+                            texto_documento_extra=texto_documento_extra,
+                        )
+
+                        avaliacoes_atualizadas = listar_avaliacoes(estudante_id)
+                        avaliacao_id = avaliacoes_atualizadas[0][0] if avaliacoes_atualizadas else None
+
+                        if arquivo_upload is not None:
+                            salvar_documento_avaliacao(
+                                estudante_id=estudante_id,
+                                avaliacao_id=avaliacao_id,
+                                ano_letivo=ano_letivo,
+                                tipo_documento=tipo_registro,
+                                arquivo=arquivo_upload,
+                                observacao=observacao_upload,
+                            )
+
+                        st.success("Avaliação Pedagógica Extra salva com sucesso.")
+                        st.rerun()
+
+            else:
+                st.markdown("### Registro manual / revisão da avaliação")
+
+                with st.form("form_avaliacao"):
+                    sugestao_base = st.session_state.get("avaliacao_sugestao_ia", "")
+                    barreiras = st.text_area(
+                        "Barreiras enfrentadas pelo estudante",
+                        value=sugestao_base if tipo_registro == "Nova avaliação com base em avaliação anterior" else "",
+                        height=120,
+                    )
+                    potencialidades = st.text_area("Potencialidades e habilidades já desenvolvidas", height=100)
+                    comunicacao = st.text_area("Comunicação", height=90)
+                    interacao = st.text_area("Interação social", height=90)
+                    autonomia = st.text_area("Autonomia", height=90)
+                    aprendizagem = st.text_area("Aprendizagem", height=100)
+                    resumo_laudo = st.text_area("Resumo pedagógico do laudo, sem identificação", height=90)
+
+                    analise_comparativa_ia = st.text_area(
+                        "Análise comparativa IA/manual",
+                        value=st.session_state.get("avaliacao_analise_ia", ""),
+                        height=150,
+                    )
+                    sugestao_nova_avaliacao_ia = st.text_area(
+                        "Sugestão IA/manual para nova avaliação",
+                        value=st.session_state.get("avaliacao_sugestao_ia", ""),
+                        height=180,
+                    )
+
+                    arquivo_upload = st.file_uploader(
+                        "Anexar documento complementar da avaliação",
+                        type=["pdf", "docx", "txt", "png", "jpg", "jpeg"],
+                        accept_multiple_files=False,
+                    )
+
+                    observacao_upload = st.text_area(
+                        "Observação sobre o arquivo anexado",
+                        height=80,
+                        placeholder="Ex.: documento complementar, imagem digitalizada ou parecer usado como apoio.",
+                    )
+
+                    salvar_estruturada = st.form_submit_button("Salvar avaliação pedagógica")
+
+                if salvar_estruturada:
+                    salvar_avaliacao(
+                        estudante_id=estudante_id,
+                        barreiras=barreiras,
+                        potencialidades=potencialidades,
+                        comunicacao=comunicacao,
+                        interacao=interacao,
+                        autonomia=autonomia,
+                        aprendizagem=aprendizagem,
+                        resumo_laudo=resumo_laudo,
+                        ano_letivo=ano_letivo,
+                        tipo_registro=tipo_registro,
+                        avaliacao_anterior_id=None if avaliacao_anterior_id == 0 else avaliacao_anterior_id,
+                        analise_comparativa_ia=analise_comparativa_ia,
+                        sugestao_nova_avaliacao_ia=sugestao_nova_avaliacao_ia,
+                    )
+
+                    avaliacoes_atualizadas = listar_avaliacoes(estudante_id)
+                    avaliacao_id = avaliacoes_atualizadas[0][0] if avaliacoes_atualizadas else None
+
+                    if arquivo_upload is not None:
+                        salvar_documento_avaliacao(
+                            estudante_id=estudante_id,
+                            avaliacao_id=avaliacao_id,
+                            ano_letivo=ano_letivo,
+                            tipo_documento=tipo_registro,
+                            arquivo=arquivo_upload,
+                            observacao=observacao_upload,
+                        )
+
                     st.session_state.pop("avaliacao_analise_ia", None)
                     st.session_state.pop("avaliacao_sugestao_ia", None)
-                    st.success("Avaliação pedagógica salva.")
+
+                    st.success("Avaliação pedagógica salva com sucesso.")
                     st.rerun()
 
-        avaliacoes = listar_avaliacoes(estudante_id)
         with st.container(border=True):
             st.markdown("### Histórico de avaliações pedagógicas")
-            if avaliacoes:
-                df_av = pd.DataFrame(
-                    [
-                        {
-                            "ID": a[0],
-                            "Data": a[1],
-                            "Ano letivo": a[2] or "Não informado",
-                            "Tipo": a[3] or "Não informado",
-                            "Avaliação anterior": a[4] or "",
-                        }
-                        for a in avaliacoes
-                    ]
-                )
-                st.dataframe(df_av, use_container_width=True, hide_index=True)
+            avaliacoes = listar_avaliacoes(estudante_id)
 
-                for a in avaliacoes:
-                    ano_av = a[2] or "Ano não informado"
-                    tipo_av = a[3] or "Tipo não informado"
-                    with st.expander(f"Avaliação {ano_av} • {tipo_av} • {a[1]}"):
-                        texto = texto_avaliacao(estudante, a)
+            if avaliacoes:
+                for av in avaliacoes:
+                    dados_av = dict(zip(["id"] + CAMPOS_AVALIACAO, av))
+                    av_id = dados_av.get("id")
+                    data_reg = dados_av.get("data_registro") or "Data não informada"
+                    ano_reg = dados_av.get("ano_letivo") or "Ano não informado"
+                    tipo_reg = dados_av.get("tipo_registro") or "Registro"
+
+                    with st.expander(f"Avaliação em {data_reg} | {ano_reg} | {tipo_reg}"):
+                        texto = texto_avaliacao(estudante, av)
                         st.text(texto)
-                        export_buttons(texto, f"Avaliacao_Pedagogica_{estudante[1]}_{ano_av}_{a[0]}", tipo_pdf="avaliacao")
-                        if st.button("Excluir avaliação", key=f"exc_av_{a[0]}"):
-                            excluir_registro("avaliacoes", a[0])
+                        export_buttons(texto, f"Avaliacao_Pedagogica_{estudante[1]}_{av_id}", tipo_pdf="avaliacao")
+
+                        if st.button("Excluir avaliação", key=f"exc_avaliacao_{av_id}"):
+                            excluir_registro("avaliacoes", av_id)
                             st.success("Avaliação excluída.")
                             st.rerun()
             else:
-                st.info("Nenhuma avaliação registrada.")
+                st.info("Nenhuma avaliação pedagógica registrada.")
 
+        with st.container(border=True):
+            st.markdown("### Documentos anexados à Avaliação Pedagógica")
+            documentos = listar_documentos_avaliacao(estudante_id)
 
-# ======================================================
-# ESTUDO DE CASO
-# ======================================================
+            if documentos:
+                for doc in documentos:
+                    doc_id, avaliacao_id, ano_doc, tipo_doc, nome_original, caminho_arquivo, observacao, data_upload = doc
+
+                    with st.expander(f"{nome_original} | {ano_doc or 'Ano não informado'} | {data_upload}"):
+                        st.write(f"**Tipo:** {tipo_doc or 'Não informado'}")
+                        st.write(f"**Avaliação vinculada:** {avaliacao_id or 'Não vinculada'}")
+                        st.write(f"**Observação:** {observacao or 'Sem observação.'}")
+
+                        if caminho_arquivo and Path(caminho_arquivo).exists():
+                            with open(caminho_arquivo, "rb") as f:
+                                st.download_button(
+                                    "Baixar documento",
+                                    data=f,
+                                    file_name=nome_original,
+                                    key=f"baixar_doc_avaliacao_{doc_id}",
+                                )
+                        else:
+                            st.warning("Arquivo não encontrado na pasta de documentos do sistema.")
+
+                        if st.button("Excluir documento anexado", key=f"excluir_doc_avaliacao_{doc_id}"):
+                            excluir_documento_avaliacao(doc_id, caminho_arquivo)
+                            st.success("Documento excluído.")
+                            st.rerun()
+            else:
+                st.info("Nenhum documento anexado para este estudante.")
+
 elif menu == "Estudo de Caso":
     st.markdown('<div class="subtitulo">📚 Estudo de Caso / Documento GRE</div>', unsafe_allow_html=True)
     st.caption("Os campos sensíveis como CPF, RG, endereço e nome completo ficam fora do banco. Eles aparecem em branco no Word/PDF para preenchimento manual antes da entrega à GRE.")
