@@ -6427,25 +6427,63 @@ elif menu == "Estudo de Caso":
         estudante = buscar_estudante(estudante_id)
         professor_resp = buscar_professor_responsavel()
         estudos_anteriores = listar_por_estudante("estudos_caso", CAMPOS_ESTUDO_CASO, estudante_id)
+        avaliacoes_pedagogicas = listar_avaliacoes(estudante_id)
 
         with st.container(border=True):
             st.markdown("### Novo Estudo de Caso - Campos obrigatórios GRE")
             st.info("Agora o Estudo de Caso pode ser registrado por ano letivo. Você pode lançar estudos anteriores como histórico e gerar um novo estudo com apoio da IA, comparando registros antigos com dados atuais.")
 
             with st.expander("🤖 Criar novo estudo de caso com apoio da IA", expanded=False):
-                if estudos_anteriores:
-                    opcoes_estudos = {e[0]: f"ID {e[0]} | Ano: {e[2] or 'não informado'} | Tipo: {e[3] or 'não informado'} | Registro: {e[1]}" for e in estudos_anteriores}
-                    estudo_base_id_ia = st.selectbox(
-                        "Selecione o estudo anterior para comparação",
-                        list(opcoes_estudos.keys()),
-                        format_func=lambda x: opcoes_estudos[x],
-                        key=f"estudo_base_ia_{estudante_id}",
+                if estudos_anteriores or avaliacoes_pedagogicas:
+                    st.caption(
+                        "A IA pode gerar um novo Estudo de Caso a partir de estudo anterior e/ou avaliações pedagógicas. "
+                        "Quando não houver estudo anterior, o sistema usa as avaliações pedagógicas e demais registros como base."
                     )
+
+                    if estudos_anteriores:
+                        opcoes_estudos = {0: "Nenhum estudo anterior - gerar com base nas avaliações pedagógicas e demais registros"}
+                        opcoes_estudos.update({
+                            e[0]: f"ID {e[0]} | Ano: {e[2] or 'não informado'} | Tipo: {e[3] or 'não informado'} | Registro: {e[1]}"
+                            for e in estudos_anteriores
+                        })
+                        estudo_base_id_ia = st.selectbox(
+                            "Estudo anterior para comparação (opcional)",
+                            list(opcoes_estudos.keys()),
+                            format_func=lambda x: opcoes_estudos[x],
+                            key=f"estudo_base_ia_{estudante_id}",
+                        )
+                    else:
+                        estudo_base_id_ia = 0
+                        st.info("Não há estudo de caso anterior. A IA criará uma primeira versão com base nas avaliações pedagógicas e demais registros disponíveis.")
+
+                    if avaliacoes_pedagogicas:
+                        opcoes_avaliacoes_ia = {
+                            a[0]: f"ID {a[0]} | Ano: {a[2] or 'não informado'} | Tipo: {a[3] or 'não informado'} | Registro: {a[1]}"
+                            for a in avaliacoes_pedagogicas
+                        }
+                        avaliacao_base_id_ia = st.selectbox(
+                            "Avaliação pedagógica principal para compor o Estudo de Caso",
+                            list(opcoes_avaliacoes_ia.keys()),
+                            format_func=lambda x: opcoes_avaliacoes_ia[x],
+                            key=f"avaliacao_base_estudo_ia_{estudante_id}",
+                        )
+                    else:
+                        avaliacao_base_id_ia = 0
+                        st.warning("Nenhuma avaliação pedagógica localizada. A IA usará apenas o estudo anterior e demais registros disponíveis.")
+
                     ano_novo_ia = st.text_input("Ano letivo do novo estudo", value=str(datetime.now().year), key=f"ano_novo_ia_{estudante_id}")
-                    st.caption("A IA cruzará o estudo anterior com avaliação pedagógica, entrevista familiar e atendimentos registrados.")
-                    if st.button("Gerar análise comparativa e sugestão de novo estudo", key=f"gerar_estudo_ia_{estudante_id}"):
+
+                    fontes_ia = []
+                    if estudos_anteriores and estudo_base_id_ia != 0:
+                        fontes_ia.append("estudo de caso anterior")
+                    if avaliacoes_pedagogicas:
+                        fontes_ia.append("avaliação pedagógica")
+                    fontes_ia.extend(["entrevista familiar", "atendimentos AEE", "registros disponíveis"])
+                    st.caption("Fontes previstas para a IA: " + ", ".join(fontes_ia) + ".")
+
+                    if st.button("Gerar análise e sugestão de novo estudo", key=f"gerar_estudo_ia_{estudante_id}"):
                         estudo_base = next((e for e in estudos_anteriores if e[0] == estudo_base_id_ia), None)
-                        avaliacao_atual = ultima_avaliacao(estudante_id)
+                        avaliacao_atual = next((a for a in avaliacoes_pedagogicas if a[0] == avaliacao_base_id_ia), None) if avaliacao_base_id_ia else None
                         entrevista_atual = ultima_linha("entrevistas_familia", CAMPOS_ENTREVISTA_FAMILIA, estudante_id)
                         atendimentos_atuais = listar_atendimentos(estudante_id)
                         analise_ia, sugestao_ia = gerar_novo_estudo_caso_com_ia(
@@ -6454,15 +6492,19 @@ elif menu == "Estudo de Caso":
                         st.session_state[f"analise_estudo_ia_{estudante_id}"] = analise_ia
                         st.session_state[f"sugestao_estudo_ia_{estudante_id}"] = sugestao_ia
                         st.session_state[f"ano_estudo_ia_{estudante_id}"] = ano_novo_ia
-                        st.session_state[f"estudo_anterior_id_{estudante_id}"] = estudo_base_id_ia
+                        st.session_state[f"estudo_anterior_id_{estudante_id}"] = None if estudo_base_id_ia == 0 else estudo_base_id_ia
                         st.success("Sugestão gerada. Revise e ajuste os campos antes de salvar.")
+
                     if st.session_state.get(f"sugestao_estudo_ia_{estudante_id}"):
-                        st.markdown("#### Análise comparativa IA")
-                        st.text_area("Resultado da análise comparativa", value=st.session_state.get(f"analise_estudo_ia_{estudante_id}", ""), height=180, key=f"preview_analise_{estudante_id}")
+                        st.markdown("#### Análise IA")
+                        st.text_area("Resultado da análise", value=st.session_state.get(f"analise_estudo_ia_{estudante_id}", ""), height=180, key=f"preview_analise_{estudante_id}")
                         st.markdown("#### Sugestão de novo estudo")
                         st.text_area("Sugestão gerada", value=st.session_state.get(f"sugestao_estudo_ia_{estudante_id}", ""), height=260, key=f"preview_sugestao_{estudante_id}")
                 else:
-                    st.info("Ainda não há estudo anterior registrado para este estudante. Primeiro cadastre o estudo histórico ou atual.")
+                    st.info(
+                        "Ainda não há estudo anterior ou avaliações pedagógicas registradas para este estudante. "
+                        "Primeiro cadastre avaliação pedagógica e/ou o estudo histórico ou atual."
+                    )
 
             with st.form("form_estudo_gre"):
                 aba1, aba2, aba3, aba4 = st.tabs([
