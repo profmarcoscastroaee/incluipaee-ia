@@ -235,6 +235,34 @@ hr {
     border-color: #e2e8f0;
 }
 
+
+
+/* Ajuste de largura da barra lateral para nomes longos no menu */
+section[data-testid="stSidebar"] {
+    min-width: 360px !important;
+    max-width: 360px !important;
+    width: 360px !important;
+}
+
+section[data-testid="stSidebar"] > div {
+    min-width: 360px !important;
+    max-width: 360px !important;
+    width: 360px !important;
+}
+
+section[data-testid="stSidebar"] label,
+section[data-testid="stSidebar"] p,
+section[data-testid="stSidebar"] span {
+    white-space: normal !important;
+    overflow-wrap: normal !important;
+    word-break: normal !important;
+}
+
+section[data-testid="stSidebar"] [role="radiogroup"] label {
+    padding-top: 4px !important;
+    padding-bottom: 4px !important;
+}
+
 #MainMenu {visibility: hidden;}
 footer {visibility: hidden;}
 header {visibility: hidden;}
@@ -6053,12 +6081,13 @@ elif menu == "Articulação Pedagógica Inclusiva":
                             nivel_engajamento=nivel_engajamento,
                             observacoes=observacoes,
                         )
-                        st.success("Escuta docente salva com sucesso.")
+                        st.success("Escuta docente salva com sucesso. Acesse a aba Histórico de Escutas para baixar o registro em Word ou PDF.")
                         st.rerun()
 
         with aba_historico:
             with st.container(border=True):
                 st.markdown("### Histórico de Escutas Docentes")
+                st.caption("Cada escuta registrada pode ser visualizada, baixada em TXT, PDF ou Word e excluída, se necessário.")
                 escutas = listar_escutas_docentes(estudante_id)
 
                 if escutas:
