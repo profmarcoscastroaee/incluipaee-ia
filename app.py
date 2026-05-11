@@ -1,13 +1,16 @@
 
-# INCLUISRM V25 - Plano AEE IA com histórico em horário local e relatórios visuais
+# INCLUISRM V26 - Plano AEE IA com histórico em horário local e relatórios visuais
 # Atualização: corrige fuso horário America/Recife e preserva layout visual dos relatórios.
 
 import os
 import re
 import sqlite3
 import calendar
-from datetime import datetime, date, time
-from zoneinfo import ZoneInfo
+from datetime import datetime, date, time, timezone, timedelta
+try:
+    from zoneinfo import ZoneInfo
+except Exception:
+    ZoneInfo = None
 from pathlib import Path
 from html import escape
 
@@ -64,14 +67,23 @@ DOCUMENTOS_AVALIACOES_DIR.mkdir(parents=True, exist_ok=True)
 
 APP_NAME = "INCLUISRM"
 APP_SUBTITLE = "Sistema Inteligente de Articulação Pedagógica Inclusiva"
-APP_VERSION = "V25"
-APP_VERSION_LABEL = "Plano Mensal IA • Histórico com Horário Local • Relatórios Visuais"
-FUSO_LOCAL = ZoneInfo("America/Recife")
+APP_VERSION = "V26"
+APP_VERSION_LABEL = "Base V25 • Relatórios Visuais • Histórico America/Recife Corrigido"
+# Fuso fixo UTC-3 usado por Recife/Pernambuco.
+# Usar timezone/timedelta evita erro em ambientes Render sem base tzdata completa.
+FUSO_LOCAL = timezone(timedelta(hours=-3), name="America/Recife")
+os.environ["TZ"] = "America/Recife"
+try:
+    import time as _time_module
+    if hasattr(_time_module, "tzset"):
+        _time_module.tzset()
+except Exception:
+    pass
 
 
 def agora_local():
-    """Retorna data/hora no fuso local usado pela escola/Render."""
-    return datetime.now(FUSO_LOCAL)
+    """Retorna data/hora no fuso local America/Recife, independente do UTC do servidor."""
+    return datetime.now(timezone.utc).astimezone(FUSO_LOCAL)
 
 
 # ======================================================
@@ -1406,7 +1418,15 @@ OPCOES_BARREIRAS = [
 ]
 
 def hoje_str():
+    """Data/hora local para salvar histórico e documentos."""
     return agora_local().strftime("%d/%m/%Y %H:%M")
+
+
+def normalizar_data_historico(data_texto):
+    """Mantém o texto salvo. Registros antigos em UTC não são alterados automaticamente.
+    Novos registros usam hoje_str() em America/Recife.
+    """
+    return data_texto or "Data não informada"
 
 
 def formatar_data(data_obj):
@@ -8266,7 +8286,7 @@ Modelo obrigatório para cada atendimento:
                     sugestao_hist = item[7] or ""
                     plano_hist = item[11] or item[12] or ""
                     conteudo_hist = diagnostico_hist or sugestao_hist or plano_hist or item[13] or ""
-                    titulo_hist = f"{tipo_hist} - {data_geracao}"
+                    titulo_hist = f"{tipo_hist} - {normalizar_data_historico(data_geracao)}"
                     if mes_hist or ano_hist:
                         titulo_hist += f" - {mes_hist or ''}/{ano_hist or ''}"
                     with st.expander(titulo_hist):
