@@ -1,5 +1,4 @@
-
-# INCLUISRM V26 - Plano AEE IA com histórico em horário local e relatórios visuais
+# INCLUISRM V27 - Plano AEE IA com histórico em horário local e relatórios visuais
 # Atualização: corrige fuso horário America/Recife e preserva layout visual dos relatórios.
 
 import os
@@ -67,8 +66,8 @@ DOCUMENTOS_AVALIACOES_DIR.mkdir(parents=True, exist_ok=True)
 
 APP_NAME = "INCLUISRM"
 APP_SUBTITLE = "Sistema Inteligente de Articulação Pedagógica Inclusiva"
-APP_VERSION = "V26"
-APP_VERSION_LABEL = "Base V25 • Relatórios Visuais • Histórico America/Recife Corrigido"
+APP_VERSION = "V27"
+APP_VERSION_LABEL = "Plano AEE IA com Escuta Docente integrada • Relatórios Visuais • Histórico America/Recife Corrigido"
 # Fuso fixo UTC-3 usado por Recife/Pernambuco.
 # Usar timezone/timedelta evita erro em ambientes Render sem base tzdata completa.
 FUSO_LOCAL = timezone(timedelta(hours=-3), name="America/Recife")
@@ -4852,8 +4851,18 @@ Assinatura: _______________________________________
 
 
 def montar_contexto_plano_aee_ia(estudante, avaliacao=None, entrevista=None, estudo=None, plano_manual=None):
-    """Reúne os dados pedagógicos disponíveis para o módulo Plano AEE - IA."""
+    """Reúne os dados pedagógicos disponíveis para o módulo Plano AEE - IA.
+
+    Nesta versão, o Plano AEE - IA passa a considerar também:
+    - Escutas docentes salvas;
+    - Histórico de escutas docentes;
+    - Relatórios de Apoio ao Docente gerados e salvos.
+
+    Observação: a finalidade continua sendo exclusivamente pedagógica e educacional.
+    """
     historico_txt = listar_atendimentos_texto(estudante[0])
+    escutas_docentes = listar_escutas_docentes(estudante[0])[:10]
+    relatorios_docentes = listar_relatorios_docente(estudante[0])[:5]
 
     estudante_txt = f"""
 Código interno: {estudante[1]}
@@ -4871,6 +4880,22 @@ Horário preferencial: {estudante[8]}
     estudo_txt = texto_estudo_caso(estudante, ("", *estudo)) if estudo else "Nenhum estudo de caso GRE registrado."
     plano_txt = texto_plano_aee(estudante, ("", *plano_manual)) if plano_manual else "Nenhum plano AEE manual registrado."
 
+    textos_escutas = []
+    for esc in escutas_docentes:
+        try:
+            textos_escutas.append(texto_escuta_docente(estudante, esc))
+        except Exception:
+            textos_escutas.append(str(esc))
+    escutas_txt = "\n\n---\n\n".join(textos_escutas) if textos_escutas else "Nenhuma escuta docente registrada para este estudante."
+
+    textos_relatorios = []
+    for rel in relatorios_docentes:
+        try:
+            textos_relatorios.append(texto_relatorio_docente(estudante, rel))
+        except Exception:
+            textos_relatorios.append(str(rel))
+    relatorios_docente_txt = "\n\n---\n\n".join(textos_relatorios) if textos_relatorios else "Nenhum Relatório de Apoio ao Docente salvo para este estudante."
+
     pergunta_busca = f"""
 AEE plano mensal atendimento sala de recursos multifuncionais estudante {estudante[4]} {estudante[2]}
 comunicação funcional autonomia CAA tecnologia assistiva recursos visuais rotina estruturada robótica impressão 3D.
@@ -4885,6 +4910,10 @@ comunicação funcional autonomia CAA tecnologia assistiva recursos visuais roti
         "entrevista_txt": entrevista_txt,
         "estudo_txt": estudo_txt,
         "plano_txt": plano_txt,
+        "escutas_docentes_txt": escutas_txt,
+        "relatorios_docente_txt": relatorios_docente_txt,
+        "qtd_escutas_docentes": len(escutas_docentes),
+        "qtd_relatorios_docente": len(relatorios_docentes),
         "historico_txt": historico_txt,
         "contexto_base": contexto_base,
         "arquivos_base": arquivos_base,
@@ -4904,7 +4933,7 @@ Perfil educacional informado: {estudante[4]}
 Ano/Série: {estudante[2]}
 
 Síntese inicial:
-O diagnóstico pedagógico deve considerar os registros já disponíveis no cadastro, entrevista familiar, avaliação pedagógica, estudo de caso, plano AEE e atendimentos. Caso ainda existam poucos registros, recomenda-se utilizar este documento como roteiro de observação inicial, sem conclusões definitivas sobre evolução.
+O diagnóstico pedagógico deve considerar os registros já disponíveis no cadastro, entrevista familiar, avaliação pedagógica, estudo de caso, escuta docente, relatórios de apoio ao docente, plano AEE e atendimentos. Caso ainda existam poucos registros, recomenda-se utilizar este documento como roteiro de observação inicial, sem conclusões definitivas sobre evolução.
 
 Focos de observação prioritários:
 - Comunicação funcional e formas de expressão utilizadas pelo estudante.
@@ -4949,6 +4978,12 @@ ESTUDO DE CASO GRE:
 
 PLANO AEE MANUAL:
 {ctx['plano_txt']}
+
+ESCUTA DOCENTE / HISTÓRICO DE ESCUTAS:
+{ctx['escutas_docentes_txt']}
+
+RELATÓRIOS DE APOIO AO DOCENTE SALVOS:
+{ctx['relatorios_docente_txt']}
 
 ATENDIMENTOS REGISTRADOS:
 {ctx['historico_txt']}
@@ -5041,6 +5076,12 @@ ESTUDO DE CASO GRE:
 
 PLANO AEE MANUAL:
 {ctx['plano_txt']}
+
+ESCUTA DOCENTE / HISTÓRICO DE ESCUTAS:
+{ctx['escutas_docentes_txt']}
+
+RELATÓRIOS DE APOIO AO DOCENTE SALVOS:
+{ctx['relatorios_docente_txt']}
 
 ATENDIMENTOS REGISTRADOS:
 {ctx['historico_txt']}
@@ -5171,6 +5212,12 @@ ESTUDO DE CASO GRE:
 PLANO AEE MANUAL:
 {ctx['plano_txt']}
 
+ESCUTA DOCENTE / HISTÓRICO DE ESCUTAS:
+{ctx['escutas_docentes_txt']}
+
+RELATÓRIOS DE APOIO AO DOCENTE SALVOS:
+{ctx['relatorios_docente_txt']}
+
 ATENDIMENTOS REGISTRADOS:
 {ctx['historico_txt']}
 
@@ -5258,7 +5305,7 @@ tecnologia assistiva, recursos maker, robótica, impressão 3D e inclusão escol
 Você é um assistente pedagógico especializado em Atendimento Educacional Especializado (AEE), Educação Inclusiva, Sala de Recursos Multifuncionais (SRM), tecnologias educacionais inclusivas e elaboração de Plano AEE/PAEE.
 
 TAREFA:
-Elabore uma sugestão de Plano AEE/PAEE com linguagem formal, técnica, objetiva e pedagógica, cruzando as informações do cadastro, entrevista com a família, avaliação pedagógica, estudo de caso GRE, histórico de atendimentos e os trechos recuperados das bases científica e pedagógica.
+Elabore uma sugestão de Plano AEE/PAEE com linguagem formal, técnica, objetiva e pedagógica, cruzando as informações do cadastro, entrevista com a família, avaliação pedagógica, estudo de caso GRE, escuta docente, relatórios de apoio ao docente, histórico de atendimentos e os trechos recuperados das bases científica e pedagógica.
 
 REGRAS DE SEGURANÇA E PRIVACIDADE:
 - Não usar nome real de estudante.
@@ -7905,13 +7952,33 @@ elif menu == "Plano AEE - IA":
         if not estudo_ia:
             pendencias.append("Estudo de caso GRE")
 
+        escutas_docentes_ia = listar_escutas_docentes(estudante_id)
+        relatorios_docente_ia = listar_relatorios_docente(estudante_id)
+
         with st.container(border=True):
             st.markdown("### ✅ Dados usados pela IA")
-            c1, c2, c3, c4 = st.columns(4)
+            c1, c2, c3, c4, c5, c6 = st.columns(6)
             c1.metric("Entrevista familiar", "OK" if entrevista_ia else "Pendente")
             c2.metric("Avaliação pedagógica", "OK" if avaliacao_ia else "Pendente")
             c3.metric("Estudo de caso GRE", "OK" if estudo_ia else "Pendente")
-            c4.metric("Plano AEE manual", "OK" if plano_manual_ia else "Opcional")
+            c4.metric("Escuta docente", f"{len(escutas_docentes_ia)} registro(s)" if escutas_docentes_ia else "Pendente")
+            c5.metric("Relatórios docentes", f"{len(relatorios_docente_ia)} salvo(s)" if relatorios_docente_ia else "Opcional")
+            c6.metric("Plano AEE manual", "OK" if plano_manual_ia else "Opcional")
+
+            fontes_ativas = []
+            if entrevista_ia:
+                fontes_ativas.append("entrevista familiar")
+            if avaliacao_ia:
+                fontes_ativas.append("avaliação pedagógica")
+            if estudo_ia:
+                fontes_ativas.append("estudo de caso GRE")
+            if escutas_docentes_ia:
+                fontes_ativas.append("escuta docente/histórico de escutas")
+            if relatorios_docente_ia:
+                fontes_ativas.append("relatórios de apoio ao docente")
+            if plano_manual_ia:
+                fontes_ativas.append("plano AEE manual")
+
             if pendencias:
                 st.warning(
                     "Ainda faltam dados para uma sugestão mais personalizada: " + ", ".join(pendencias) + ". "
@@ -7919,6 +7986,9 @@ elif menu == "Plano AEE - IA":
                 )
             else:
                 st.success("Dados mínimos encontrados. A IA pode gerar sugestões mais personalizadas para o estudante.")
+
+            if fontes_ativas:
+                st.caption("Fontes pedagógicas consideradas neste estudante: " + ", ".join(fontes_ativas) + ".")
 
         escolha_plano_ia = st.radio(
             "Escolha o que deseja fazer",
