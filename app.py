@@ -1,4 +1,5 @@
-# INCLUISRM V27 - Plano AEE IA com histórico em horário local e relatórios visuais
+
+# INCLUISRM V28 - Plano AEE IA com histórico em horário local e relatórios visuais
 # Atualização: corrige fuso horário America/Recife e preserva layout visual dos relatórios.
 
 import os
@@ -66,7 +67,7 @@ DOCUMENTOS_AVALIACOES_DIR.mkdir(parents=True, exist_ok=True)
 
 APP_NAME = "INCLUISRM"
 APP_SUBTITLE = "Sistema Inteligente de Articulação Pedagógica Inclusiva"
-APP_VERSION = "V27"
+APP_VERSION = "V28"
 APP_VERSION_LABEL = "Plano AEE IA com Escuta Docente integrada • Relatórios Visuais • Histórico America/Recife Corrigido"
 # Fuso fixo UTC-3 usado por Recife/Pernambuco.
 # Usar timezone/timedelta evita erro em ambientes Render sem base tzdata completa.
@@ -907,6 +908,37 @@ def criar_tabelas():
         ("encaminhamentos", "TEXT"),
     ]:
         adicionar_coluna_se_nao_existe(cursor, "atendimentos", coluna, definicao)
+
+    # Recursos pedagógicos vinculados a cada atendimento.
+    # Armazena apenas nomes, categorias, links e observações do material usado,
+    # sem upload de imagens ou registro visual do estudante.
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS recursos_atendimento (
+            id SERIAL PRIMARY KEY,
+            atendimento_id INTEGER NOT NULL,
+            estudante_id INTEGER NOT NULL,
+            nome_recurso TEXT,
+            categoria_recurso TEXT,
+            link_recurso TEXT,
+            observacao_uso TEXT,
+            criado_em TEXT,
+            FOREIGN KEY(estudante_id) REFERENCES estudantes(id),
+            FOREIGN KEY(atendimento_id) REFERENCES atendimentos(id)
+        )
+        """
+    )
+
+    for coluna, definicao in [
+        ("atendimento_id", "INTEGER"),
+        ("estudante_id", "INTEGER"),
+        ("nome_recurso", "TEXT"),
+        ("categoria_recurso", "TEXT"),
+        ("link_recurso", "TEXT"),
+        ("observacao_uso", "TEXT"),
+        ("criado_em", "TEXT"),
+    ]:
+        adicionar_coluna_se_nao_existe(cursor, "recursos_atendimento", coluna, definicao)
 
     cursor.execute(
         """
@@ -2763,21 +2795,42 @@ def salvar_atendimento(
     nivel_avanco, nivel_dificuldade, nivel_engajamento, nivel_evolucao,
     encaminhamentos,
 ):
-    inserir_registro(
-        "atendimentos",
-        [
-            "estudante_id", "data_atendimento", "objetivo", "atividade", "resposta_estudante",
-            "avancos", "dificuldades", "evolucao", "qtd_atividades", "nivel_resposta",
-            "nivel_avanco", "nivel_dificuldade", "nivel_engajamento", "nivel_evolucao",
-            "encaminhamentos",
-        ],
-        [
-            estudante_id, data_atendimento, objetivo, atividade, resposta_estudante,
-            avancos, dificuldades, evolucao, qtd_atividades, nivel_resposta,
-            nivel_avanco, nivel_dificuldade, nivel_engajamento, nivel_evolucao,
-            encaminhamentos,
-        ],
-    )
+    """Salva atendimento e retorna o ID criado para vincular recursos pedagógicos."""
+    campos = [
+        "estudante_id", "data_atendimento", "objetivo", "atividade", "resposta_estudante",
+        "avancos", "dificuldades", "evolucao", "qtd_atividades", "nivel_resposta",
+        "nivel_avanco", "nivel_dificuldade", "nivel_engajamento", "nivel_evolucao",
+        "encaminhamentos",
+    ]
+    valores = [
+        estudante_id, data_atendimento, objetivo, atividade, resposta_estudante,
+        avancos, dificuldades, evolucao, qtd_atividades, nivel_resposta,
+        nivel_avanco, nivel_dificuldade, nivel_engajamento, nivel_evolucao,
+        encaminhamentos,
+    ]
+
+    conn = conectar()
+    cursor = conn.cursor()
+    placeholders = ", ".join(["?"] * len(valores))
+    colunas = ", ".join(campos)
+
+    if USAR_POSTGRES:
+        cursor.execute(
+            f"INSERT INTO atendimentos ({colunas}) VALUES ({placeholders}) RETURNING id",
+            valores,
+        )
+        atendimento_id = cursor.fetchone()[0]
+    else:
+        cursor.execute(
+            f"INSERT INTO atendimentos ({colunas}) VALUES ({placeholders})",
+            valores,
+        )
+        atendimento_id = cursor.lastrowid
+
+    conn.commit()
+    conn.close()
+    limpar_cache_dados()
+    return atendimento_id
 
 
 @st.cache_data(ttl=30, show_spinner=False)
@@ -2840,7 +2893,69 @@ def atualizar_atendimento(atendimento_id, data_atendimento, objetivo, atividade,
 
 
 def excluir_atendimento(atendimento_id):
+    excluir_recursos_por_atendimento(atendimento_id)
     excluir_registro("atendimentos", atendimento_id)
+
+
+# ======================================================
+# CRUD - RECURSOS PEDAGÓGICOS DO ATENDIMENTO
+# ======================================================
+def salvar_recurso_atendimento(atendimento_id, estudante_id, nome_recurso, categoria_recurso, link_recurso, observacao_uso):
+    inserir_registro(
+        "recursos_atendimento",
+        [
+            "atendimento_id", "estudante_id", "nome_recurso", "categoria_recurso",
+            "link_recurso", "observacao_uso", "criado_em",
+        ],
+        [
+            atendimento_id, estudante_id, nome_recurso, categoria_recurso,
+            link_recurso, observacao_uso, hoje_str(),
+        ],
+    )
+
+
+@st.cache_data(ttl=30, show_spinner=False)
+def listar_recursos_atendimento(atendimento_id):
+    conn = conectar()
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        SELECT id, nome_recurso, categoria_recurso, link_recurso, observacao_uso, criado_em
+        FROM recursos_atendimento
+        WHERE atendimento_id = ?
+        ORDER BY id ASC
+        """,
+        (atendimento_id,),
+    )
+    dados = cursor.fetchall()
+    conn.close()
+    return dados
+
+
+def excluir_recursos_por_atendimento(atendimento_id):
+    conn = conectar()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM recursos_atendimento WHERE atendimento_id=?", (atendimento_id,))
+    conn.commit()
+    conn.close()
+    limpar_cache_dados()
+
+
+def texto_recursos_atendimento(atendimento_id):
+    recursos = listar_recursos_atendimento(atendimento_id)
+    if not recursos:
+        return "Nenhum recurso pedagógico com link registrado para este atendimento."
+
+    linhas = []
+    for i, r in enumerate(recursos, start=1):
+        _, nome, categoria, link, observacao, criado_em = r
+        linhas.append(
+            f"{i}. {nome or 'Recurso não informado'}\n"
+            f"   Categoria: {categoria or 'Não informada'}\n"
+            f"   Link: {link or 'Não informado'}\n"
+            f"   Observação de uso: {observacao or 'Não informada'}"
+        )
+    return "\n\n".join(linhas)
 
 
 # ======================================================
@@ -4101,6 +4216,9 @@ Engajamento: {a[12]}/10
 
 Encaminhamentos:
 {a[14] or 'Não informado.'}
+
+Materiais/recursos pedagógicos utilizados no atendimento:
+{texto_recursos_atendimento(a[0])}
 """.strip()
 
 
@@ -8396,13 +8514,84 @@ elif menu == "Atendimentos":
                 indice = calcular_indice_geral(nivel_resposta, nivel_avanco, nivel_dificuldade, nivel_engajamento)
                 st.info(f"Índice geral calculado automaticamente: {indice}/10")
                 encaminhamentos = st.text_area("Encaminhamentos")
+
+                st.markdown("#### 🧩 Recursos pedagógicos utilizados")
+                st.caption(
+                    "Registre apenas o material criado ou utilizado no atendimento. "
+                    "Não insira fotos do estudante; use links do Drive, Canva, Wordwall, modelos 3D, jogos ou documentos pedagógicos."
+                )
+
+                qtd_recursos = st.number_input(
+                    "Quantidade de recursos/materiais utilizados",
+                    min_value=0,
+                    max_value=10,
+                    value=0,
+                    step=1,
+                    help="Use quando houver mais de um material pedagógico vinculado ao atendimento.",
+                )
+
+                categorias_recursos = [
+                    "CAA / Comunicação alternativa",
+                    "Rotina visual",
+                    "Jogo pedagógico",
+                    "Atividade digital",
+                    "Wordwall",
+                    "Canva",
+                    "Impressão 3D",
+                    "Robótica educacional",
+                    "Material concreto/manipulável",
+                    "Tecnologia assistiva",
+                    "Outro",
+                ]
+
+                recursos_registrados = []
+                for i in range(int(qtd_recursos)):
+                    st.markdown(f"**Recurso {i + 1}**")
+                    c1, c2 = st.columns([1.2, 1])
+                    with c1:
+                        nome_recurso = st.text_input(
+                            "Nome do recurso/material",
+                            key=f"recurso_nome_{i}",
+                            placeholder="Ex.: Prancha CAA alimentar, atividade Wordwall, modelo 3D...",
+                        )
+                    with c2:
+                        categoria_recurso = st.selectbox(
+                            "Categoria",
+                            categorias_recursos,
+                            key=f"recurso_categoria_{i}",
+                        )
+                    link_recurso = st.text_input(
+                        "Link do material",
+                        key=f"recurso_link_{i}",
+                        placeholder="Cole aqui o link do Drive, Canva, Wordwall, arquivo 3D, vídeo ou documento.",
+                    )
+                    observacao_uso = st.text_area(
+                        "Observação sobre o uso do recurso",
+                        key=f"recurso_obs_{i}",
+                        placeholder="Ex.: apresentou maior engajamento; precisou de mediação; facilitou a escolha visual...",
+                        height=80,
+                    )
+                    recursos_registrados.append((nome_recurso, categoria_recurso, link_recurso, observacao_uso))
+
                 if st.form_submit_button("Salvar atendimento"):
-                    salvar_atendimento(
+                    atendimento_id = salvar_atendimento(
                         estudante_id, data_atendimento.strftime("%d/%m/%Y"), objetivo, atividade, resposta,
                         avancos, dificuldades, evolucao, 1, nivel_resposta, nivel_avanco,
                         nivel_dificuldade, nivel_engajamento, indice, encaminhamentos,
                     )
-                    st.success("Atendimento registrado.")
+
+                    for nome_recurso, categoria_recurso, link_recurso, observacao_uso in recursos_registrados:
+                        if nome_recurso.strip() or link_recurso.strip() or observacao_uso.strip():
+                            salvar_recurso_atendimento(
+                                atendimento_id,
+                                estudante_id,
+                                nome_recurso.strip(),
+                                categoria_recurso,
+                                link_recurso.strip(),
+                                observacao_uso.strip(),
+                            )
+
+                    st.success("Atendimento registrado com recursos pedagógicos vinculados.")
                     st.rerun()
 
         atendimentos = listar_atendimentos_com_id(estudante_id)
@@ -8418,6 +8607,25 @@ elif menu == "Atendimentos":
                     with st.expander(f"Atendimento em {a[1]}"):
                         texto = texto_atendimento(estudante, a)
                         st.text(texto)
+
+                        recursos_do_atendimento = listar_recursos_atendimento(a[0])
+                        if recursos_do_atendimento:
+                            st.markdown("#### 🧩 Recursos pedagógicos vinculados")
+                            dados_recursos = []
+                            for r in recursos_do_atendimento:
+                                _, nome, categoria, link, observacao, criado_em = r
+                                dados_recursos.append({
+                                    "Recurso/material": nome or "Não informado",
+                                    "Categoria": categoria or "Não informada",
+                                    "Link": link or "",
+                                    "Observação": observacao or "",
+                                })
+                            st.dataframe(pd.DataFrame(dados_recursos), use_container_width=True)
+                            for r in recursos_do_atendimento:
+                                _, nome, categoria, link, observacao, criado_em = r
+                                if link:
+                                    st.markdown(f"🔗 [{nome or 'Abrir recurso pedagógico'}]({link})")
+
                         export_buttons(texto, f"Registro_Atendimento_{estudante[1]}_{a[0]}", tipo_pdf="atendimento")
                         if st.button("Excluir atendimento", key=f"exc_at_{a[0]}"):
                             excluir_atendimento(a[0])
