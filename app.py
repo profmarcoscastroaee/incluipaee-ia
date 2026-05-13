@@ -1,5 +1,5 @@
 
-# INCLUISRM V29 - Plano AEE IA com histórico em horário local e relatórios visuais
+# INCLUISRM V30 - Plano AEE IA com histórico em horário local e relatórios visuais
 # Atualização: corrige fuso horário America/Recife e preserva layout visual dos relatórios.
 
 import os
@@ -67,8 +67,8 @@ DOCUMENTOS_AVALIACOES_DIR.mkdir(parents=True, exist_ok=True)
 
 APP_NAME = "INCLUISRM"
 APP_SUBTITLE = "Sistema Inteligente de Articulação Pedagógica Inclusiva"
-APP_VERSION = "V28"
-APP_VERSION_LABEL = "Plano AEE IA com Escuta Docente integrada • Relatórios Visuais • Histórico America/Recife Corrigido"
+APP_VERSION = "V30"
+APP_VERSION_LABEL = "Perfil Pedagógico unificado • Relatórios Visuais por identidade • Estudo Pedagógico visual"
 # Fuso fixo UTC-3 usado por Recife/Pernambuco.
 # Usar timezone/timedelta evita erro em ambientes Render sem base tzdata completa.
 FUSO_LOCAL = timezone(timedelta(hours=-3), name="America/Recife")
@@ -1704,6 +1704,7 @@ MAPA_TIPOS_VISUAIS = {
     "plano": "plano_aee",
     "avaliacao": "avaliacao_pedagogica",
     "estudo": "estudo_pedagogico",
+    "estudo_ia_previa": "estudo_pedagogico",
     "relatorio": "evolucao",
     "atendimento": "atendimento",
     "escuta_docente": "escuta_docente",
@@ -1711,6 +1712,7 @@ MAPA_TIPOS_VISUAIS = {
     "cadastro": "cadastro",
     "professor": "professor",
     "relatorio_docente": "relatorio_docente",
+    "relatorio_docente_salvo": "relatorio_docente",
     "perfil_pedagogico": "perfil_pedagogico",
     "documento": "documento",
 }
@@ -4471,8 +4473,8 @@ def gerar_pdf_documento(conteudo, codigo, tipo="documento"):
         "professor": ("Ficha_Professor_AEE", "FICHA DE IDENTIFICAÇÃO DO(A) PROFESSOR(A) AEE"),
         "entrevista": ("Entrevista_Familia", "ENTREVISTA COM A FAMÍLIA"),
         "avaliacao": ("Avaliacao_Pedagogica", "AVALIAÇÃO PEDAGÓGICA INICIAL"),
-        "estudo": ("Estudo_Caso", "ESTUDO DE CASO"),
-        "plano": ("Plano_AEE_PAEE", "PLANO AEE / PAEE"),
+        "estudo": ("Estudo_Pedagogico", "ESTUDO PEDAGÓGICO DO ESTUDANTE - AEE"),
+        "plano": ("Plano_AEE_PAEE", "PLANO DE ATENDIMENTO EDUCACIONAL ESPECIALIZADO - AEE"),
         "atendimento": ("Registro_Atendimento", "REGISTRO DE ATENDIMENTO DO AEE"),
         "agenda": ("Agenda_Atendimentos", "AGENDA DE ATENDIMENTOS"),
         "relatorio": ("Relatorio_GRE", "RELATÓRIO GRE"),
@@ -5290,6 +5292,11 @@ Focos de observação prioritários:
 - Resposta a recursos visuais, tecnológicos, concretos, sensoriais e maker.
 - Barreiras comunicacionais, pedagógicas, atitudinais e de acessibilidade.
 
+Sugestões gerais para o planejamento do AEE:
+- Definir objetivos prioritários a partir das barreiras e potencialidades registradas.
+- Selecionar recursos acessíveis e estratégias de mediação compatíveis com o perfil pedagógico do estudante.
+- Registrar sistematicamente as respostas do estudante para ajustar o planejamento.
+
 Encaminhamento:
 Registrar os atendimentos semanalmente para que o sistema consiga gerar análises evolutivas mais consistentes.
 """.strip()
@@ -5349,7 +5356,10 @@ ESTRUTURE EM:
 5. Recursos com maior chance de resposta
 6. Cuidados pedagógicos no atendimento
 7. Indicadores a observar nos próximos atendimentos
-8. Observação sobre suficiência dos dados
+8. Sugestões gerais para o planejamento do AEE
+9. Observação sobre suficiência dos dados
+
+Na seção 8, incluir objetivos prioritários, recursos sugeridos, estratégias de mediação, organização inicial dos atendimentos e formas de acompanhamento, sem repetir um relatório separado.
 """
     try:
         resposta = client.responses.create(model="gpt-4.1-mini", input=prompt)
@@ -5357,6 +5367,11 @@ ESTRUTURE EM:
     except Exception as e:
         return f"{fallback}\n\nObservação técnica: não foi possível gerar com IA agora. Erro: {e}"
 
+
+
+def gerar_perfil_pedagogico_aee_ia(estudante, avaliacao=None, entrevista=None, estudo=None, plano_manual=None):
+    """Nome pedagógico atual da função de perfil. Mantém a função antiga como base por compatibilidade."""
+    return gerar_diagnostico_aee_ia(estudante, avaliacao, entrevista, estudo, plano_manual)
 
 def gerar_sugestao_geral_aee_ia(estudante, avaliacao=None, entrevista=None, estudo=None, plano_manual=None):
     """Gera uma sugestão geral de atendimento para orientar o semestre/período."""
@@ -7937,7 +7952,8 @@ elif menu == "Estudo de Caso":
                         )
 
                         texto_previa_estudo = f"""
-ESTUDO DE CASO GRE - SUGESTÃO GERADA POR IA
+ESTUDO PEDAGÓGICO DO ESTUDANTE - AEE
+Sugestão gerada por IA para revisão do professor do AEE
 
 Código interno do estudante: {estudante[1]}
 Ano/Série: {estudante[2] or 'Não informado.'}
@@ -8270,7 +8286,7 @@ Documento preliminar para revisão do professor do AEE antes do salvamento defin
 elif menu == "Plano AEE - IA":
     st.markdown('<div class="subtitulo">🧠 Plano AEE - IA</div>', unsafe_allow_html=True)
     st.caption(
-        "Módulo de planejamento pedagógico inteligente para diagnóstico, sugestão geral, plano mensal, evolução e histórico do AEE."
+        "Módulo de planejamento pedagógico inteligente para perfil pedagógico, plano mensal, evolução e histórico do AEE."
     )
 
     estudantes = listar_estudantes()
@@ -8341,7 +8357,6 @@ elif menu == "Plano AEE - IA":
             "Escolha o que deseja fazer",
             [
                 "🧩 Perfil Pedagógico Inteligente",
-                "📘 Sugestão Geral AEE",
                 "📅 Plano Mensal IA",
                 "📈 Evolução IA",
                 "📚 Bases de Conhecimento",
@@ -8364,20 +8379,20 @@ elif menu == "Plano AEE - IA":
             )
             if st.button("🧩 Gerar Perfil Pedagógico Inteligente", key=f"gerar_perfil_pedagogico_v22_{estudante_id}"):
                 with st.spinner("Gerando Perfil Pedagógico Inteligente com IA..."):
-                    st.session_state[f"diagnostico_ia_v19_{estudante_id}"] = gerar_diagnostico_aee_ia(
+                    st.session_state[f"perfil_pedagogico_ia_v30_{estudante_id}"] = gerar_perfil_pedagogico_aee_ia(
                         estudante, avaliacao_ia, entrevista_ia, estudo_ia, plano_manual_ia
                     )
 
-            if f"diagnostico_ia_v19_{estudante_id}" in st.session_state:
-                diagnostico_txt = st.text_area(
+            if f"perfil_pedagogico_ia_v30_{estudante_id}" in st.session_state:
+                perfil_pedagogico_txt = st.text_area(
                     "Perfil pedagógico gerado",
-                    st.session_state[f"diagnostico_ia_v19_{estudante_id}"],
+                    st.session_state[f"perfil_pedagogico_ia_v30_{estudante_id}"],
                     height=520,
-                    key=f"diagnostico_txt_v19_{estudante_id}",
+                    key=f"perfil_pedagogico_txt_v30_{estudante_id}",
                 )
                 col_d1, col_d2 = st.columns([1, 1])
                 with col_d1:
-                    export_buttons(diagnostico_txt, f"Perfil_Pedagogico_Inteligente_{estudante[1]}", tipo_pdf="perfil_pedagogico")
+                    export_buttons(perfil_pedagogico_txt, f"Perfil_Pedagogico_Inteligente_{estudante[1]}", tipo_pdf="perfil_pedagogico")
                 with col_d2:
                     if st.button("💾 Salvar perfil pedagógico no histórico", key=f"salvar_perfil_pedagogico_v22_{estudante_id}"):
                         salvar_historico_plano_aee_ia(
@@ -8386,46 +8401,15 @@ elif menu == "Plano AEE - IA":
                             ano_referencia=agora_local().year,
                             qtd_atendimentos_semana=1,
                             tipo_geracao="Perfil Pedagógico Inteligente",
-                            diagnostico_ia=diagnostico_txt,
+                            diagnostico_ia=perfil_pedagogico_txt,
                             observacoes="Perfil Pedagógico Inteligente gerado no módulo Plano AEE - IA.",
                         )
                         st.success("Perfil pedagógico salvo no histórico IA.")
                         st.rerun()
 
-        elif escolha_plano_ia == "📘 Sugestão Geral AEE":
-            st.markdown("### 📘 Sugestão geral de atendimento AEE")
-            st.info(
-                "Gera o norte pedagógico do período: objetivos prioritários, recursos sugeridos, estratégias, organização dos atendimentos e indicadores de acompanhamento."
-            )
-            if st.button("📘 Gerar Sugestão Geral AEE - IA", key=f"gerar_sug_geral_v19_{estudante_id}"):
-                with st.spinner("Gerando sugestão geral de atendimento..."):
-                    st.session_state[f"sugestao_geral_ia_v19_{estudante_id}"] = gerar_sugestao_geral_aee_ia(
-                        estudante, avaliacao_ia, entrevista_ia, estudo_ia, plano_manual_ia
-                    )
-
-            if f"sugestao_geral_ia_v19_{estudante_id}" in st.session_state:
-                sugestao_txt = st.text_area(
-                    "Sugestão geral gerada",
-                    st.session_state[f"sugestao_geral_ia_v19_{estudante_id}"],
-                    height=560,
-                    key=f"sugestao_geral_txt_v19_{estudante_id}",
-                )
-                col_s1, col_s2 = st.columns([1, 1])
-                with col_s1:
-                    export_buttons(sugestao_txt, f"Sugestao_Geral_AEE_IA_{estudante[1]}", tipo_pdf="perfil_pedagogico")
-                with col_s2:
-                    if st.button("💾 Salvar sugestão geral no histórico", key=f"salvar_sug_geral_v19_{estudante_id}"):
-                        salvar_historico_plano_aee_ia(
-                            estudante_id=estudante_id,
-                            mes_referencia="",
-                            ano_referencia=agora_local().year,
-                            qtd_atendimentos_semana=1,
-                            tipo_geracao="Sugestão Geral AEE",
-                            sugestao_geral=sugestao_txt,
-                            observacoes="Sugestão geral de atendimento gerada no módulo Plano AEE - IA.",
-                        )
-                        st.success("Sugestão geral salva no histórico IA.")
-                        st.rerun()
+        # A opção "Sugestão Geral AEE" foi incorporada ao Perfil Pedagógico Inteligente.
+        # A função gerar_sugestao_geral_aee_ia permanece no código apenas para compatibilidade
+        # com históricos antigos, mas não aparece mais como botão separado na interface.
 
         elif escolha_plano_ia == "📅 Plano Mensal IA":
             st.markdown("### 📅 Plano mensal inteligente")
@@ -8548,7 +8532,7 @@ Modelo obrigatório para cada atendimento:
                     )
                 else:
                     with st.spinner("Gerando análise evolutiva com base nos atendimentos..."):
-                        st.session_state[f"evolucao_ia_v19_{estudante_id}"] = gerar_diagnostico_aee_ia(
+                        st.session_state[f"evolucao_ia_v19_{estudante_id}"] = gerar_perfil_pedagogico_aee_ia(
                             estudante, avaliacao_ia, entrevista_ia, estudo_ia, plano_manual_ia
                         )
 
@@ -8680,7 +8664,7 @@ Modelo obrigatório para cada atendimento:
                     with st.expander(f"Plano em {p[1]}"):
                         texto = texto_plano_aee(estudante, p)
                         st.text(texto)
-                        export_buttons(texto, f"Plano_AEE_PAEE_{estudante[1]}_{p[0]}", tipo_pdf="perfil_pedagogico")
+                        export_buttons(texto, f"Plano_AEE_PAEE_{estudante[1]}_{p[0]}", tipo_pdf="plano")
                         if st.button("Excluir plano", key=f"exc_plano_v19_{p[0]}"):
                             excluir_registro("planos_aee", p[0])
                             st.success("Plano excluído.")
