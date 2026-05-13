@@ -1,5 +1,5 @@
 
-# INCLUISRM V25 - Plano AEE IA com histórico em horário local e relatórios visuais
+# INCLUISRM V31 - Plano AEE IA com histórico em horário local e relatórios visuais
 # Atualização: corrige fuso horário America/Recife e preserva layout visual dos relatórios.
 
 import os
@@ -5869,20 +5869,142 @@ Professor(a) AEE: ______________________________________________________
 """.strip()
 
 
+def buscar_ultimos_planos_aee_ia(estudante_id, limite=20):
+    """Retorna os últimos registros do módulo Plano AEE - IA.
+
+    Usado para que documentos consolidados, como Estudo de Caso e Plano AEE,
+    possam aproveitar também o Perfil Pedagógico Inteligente, Sugestão Geral AEE
+    e Plano Mensal IA quando o Plano AEE Manual estiver vazio.
+    """
+    conn = conectar()
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        SELECT id, data_geracao, mes_referencia, ano_referencia, qtd_atendimentos_semana,
+               tipo_geracao, diagnostico_ia, sugestao_geral, objetivos_prioritarios,
+               recursos_sugeridos, estrategias_recomendadas, plano_mensal,
+               sugestoes_semanais, observacoes
+        FROM plano_aee_ia
+        WHERE estudante_id=?
+        ORDER BY id DESC
+        LIMIT ?
+        """,
+        (estudante_id, limite),
+    )
+    dados = cursor.fetchall()
+    conn.close()
+    return dados or []
+
+
+def plano_aee_ia_para_dict(registro):
+    if not registro:
+        return {}
+    campos = [
+        "id", "data_geracao", "mes_referencia", "ano_referencia", "qtd_atendimentos_semana",
+        "tipo_geracao", "diagnostico_ia", "sugestao_geral", "objetivos_prioritarios",
+        "recursos_sugeridos", "estrategias_recomendadas", "plano_mensal",
+        "sugestoes_semanais", "observacoes",
+    ]
+    return dict(zip(campos, registro))
+
+
+def filtrar_planos_ia_por_tipo(registros, tipo_procurado):
+    tipo_procurado = str(tipo_procurado or "").lower()
+    for reg in registros:
+        d = plano_aee_ia_para_dict(reg)
+        if tipo_procurado in str(d.get("tipo_geracao", "")).lower():
+            return d
+    return {}
+
+
+def texto_valido(valor):
+    valor = str(valor or "").strip()
+    if not valor:
+        return ""
+    if valor.lower() in ["não informado", "não informado.", "none", "null"]:
+        return ""
+    return valor
+
+
+def extrair_secao_textual(texto, palavras_chave, max_chars=1800):
+    """Extrai uma seção textual simples de relatórios gerados pela IA.
+
+    Procura uma linha que contenha uma das palavras-chave e retorna o conteúdo até
+    a próxima seção numerada/titulada. Se não encontrar, retorna vazio.
+    """
+    texto = str(texto or "")
+    if not texto.strip():
+        return ""
+
+    linhas = texto.splitlines()
+    chaves = [str(c).lower() for c in palavras_chave]
+    capturando = False
+    saida = []
+
+    for linha in linhas:
+        limpa = linha.strip().strip("#*-• ")
+        baixa = limpa.lower()
+
+        encontrou = any(chave in baixa for chave in chaves)
+        if not capturando and encontrou:
+            capturando = True
+            saida.append(limpa)
+            continue
+
+        if capturando:
+            # Para ao encontrar nova seção numerada/título grande.
+            if saida and (
+                re.match(r"^(\d+\.|\d+\)|[A-ZÁÉÍÓÚÂÊÔÃÕÇ ]{8,})", limpa)
+                and not any(chave in baixa for chave in chaves)
+            ):
+                break
+            if limpa:
+                saida.append(limpa)
+
+    resultado = "\n".join(saida).strip()
+    if len(resultado) > max_chars:
+        resultado = resultado[:max_chars].rstrip() + "..."
+    return resultado
+
+
+def montar_fontes_plano_aee_consolidado(planos_ia):
+    fontes = []
+    for d in planos_ia:
+        tipo = texto_valido(d.get("tipo_geracao"))
+        data = texto_valido(d.get("data_geracao"))
+        mes = texto_valido(d.get("mes_referencia"))
+        ano = texto_valido(d.get("ano_referencia"))
+        if tipo:
+            complemento = f" - {mes}/{ano}" if mes or ano else ""
+            fontes.append(f"{tipo} ({data}{complemento})")
+    return "; ".join(fontes) if fontes else "Nenhum relatório de IA localizado."
+
+
 def texto_estudo_plano_aee_gre(estudante, estudo=None, plano=None):
+    """Gera o documento Estudo de Caso + Plano AEE.
+
+    Atualização V31:
+    - A Parte 3 prioriza o Plano AEE Manual quando preenchido.
+    - Quando o Plano AEE Manual estiver vazio, usa também os registros do Plano AEE - IA:
+      Perfil Pedagógico Inteligente, Sugestão Geral AEE e Plano Mensal IA.
+    - Evita deixar a Parte 3 como "Não informado" quando já existem relatórios IA úteis.
+    """
     if estudo is None:
         estudo = ultima_linha("estudos_caso", CAMPOS_ESTUDO_CASO, estudante[0])
     if plano is None:
-        plano = ultima_linha(
-            "planos_aee",
-            CAMPOS_PLANO_AEE,
-            estudante[0],
-        )
+        plano = ultima_linha("planos_aee", CAMPOS_PLANO_AEE, estudante[0])
+
+    registros_ia_raw = buscar_ultimos_planos_aee_ia(estudante[0], limite=30)
+    registros_ia = [plano_aee_ia_para_dict(r) for r in registros_ia_raw]
+    plano_mensal_ia = filtrar_planos_ia_por_tipo(registros_ia_raw, "Plano Mensal")
+    sugestao_geral_ia = filtrar_planos_ia_por_tipo(registros_ia_raw, "Sugestão Geral")
+    perfil_pedagogico_ia = filtrar_planos_ia_por_tipo(registros_ia_raw, "Perfil Pedagógico")
 
     dados_estudo = dict(zip(CAMPOS_ESTUDO_CASO, estudo or []))
+
     def e(campo):
-        valor = dados_estudo.get(campo)
-        return valor if valor not in (None, "") else "Não informado."
+        valor = texto_valido(dados_estudo.get(campo))
+        return valor if valor else "Não informado."
 
     dados_plano = {}
     if plano:
@@ -5890,12 +6012,120 @@ def texto_estudo_plano_aee_gre(estudante, estudo=None, plano=None):
         if len(valores_plano) == len(CAMPOS_PLANO_AEE):
             dados_plano = dict(zip(CAMPOS_PLANO_AEE, valores_plano))
         else:
-            chaves_antigas = ["data_registro", "objetivos_gerais", "objetivos_especificos", "habilidades_prioritarias", "recursos_acessibilidade", "estrategias", "organizacao_atendimento", "parcerias", "avaliacao_acompanhamento", "observacoes"]
+            chaves_antigas = [
+                "data_registro", "objetivos_gerais", "objetivos_especificos",
+                "habilidades_prioritarias", "recursos_acessibilidade", "estrategias",
+                "organizacao_atendimento", "parcerias", "avaliacao_acompanhamento",
+                "observacoes",
+            ]
             dados_plano = dict(zip(chaves_antigas, valores_plano))
 
+    texto_plano_mensal = "\n".join([
+        texto_valido(plano_mensal_ia.get("plano_mensal")),
+        texto_valido(plano_mensal_ia.get("sugestoes_semanais")),
+    ]).strip()
+    texto_sugestao = texto_valido(sugestao_geral_ia.get("sugestao_geral"))
+    texto_perfil = texto_valido(perfil_pedagogico_ia.get("diagnostico_ia"))
+
+    fontes_ia_txt = montar_fontes_plano_aee_consolidado(registros_ia[:6])
+
+    def valor_manual(campo):
+        return texto_valido(dados_plano.get(campo))
+
     def p(campo):
-        valor = dados_plano.get(campo)
-        return valor if valor not in (None, "") else "Não informado."
+        """Busca primeiro no Plano AEE Manual; se vazio, usa IA conforme o campo."""
+        manual = valor_manual(campo)
+        if manual:
+            return manual
+
+        if campo == "habilidades_prioritarias":
+            return (
+                extrair_secao_textual(texto_plano_mensal, ["habilidades prioritárias", "habilidades do mês"])
+                or extrair_secao_textual(texto_sugestao, ["eixos prioritários", "objetivos específicos"])
+                or extrair_secao_textual(texto_perfil, ["potencialidades observadas", "necessidades prioritárias"])
+                or "Consultar o Perfil Pedagógico Inteligente e o Plano Mensal IA para definição das habilidades prioritárias."
+            )
+
+        if campo == "recursos_acessibilidade":
+            return (
+                extrair_secao_textual(texto_plano_mensal, ["recursos necessários", "recursos utilizados"])
+                or extrair_secao_textual(texto_sugestao, ["recursos de acessibilidade", "tecnologia educacional"])
+                or extrair_secao_textual(texto_perfil, ["recursos com maior chance de resposta"])
+                or "Usar recursos de acessibilidade, tecnologia assistiva, materiais concretos, recursos visuais/táteis e estratégias indicadas nos relatórios IA disponíveis."
+            )
+
+        if campo == "objetivos_gerais":
+            return (
+                extrair_secao_textual(texto_plano_mensal, ["objetivo do mês", "objetivo geral"])
+                or extrair_secao_textual(texto_sugestao, ["objetivo geral de atendimento", "objetivo geral"])
+                or "Promover participação, autonomia, comunicação funcional, acessibilidade e desenvolvimento pedagógico do estudante no AEE."
+            )
+
+        if campo == "objetivos_especificos":
+            return (
+                extrair_secao_textual(texto_sugestao, ["objetivos específicos"])
+                or extrair_secao_textual(texto_plano_mensal, ["roteiro por data", "atendimento 1", "sugestões semanais"])
+                or extrair_secao_textual(texto_perfil, ["necessidades prioritárias", "indicadores a observar"])
+                or "Definir objetivos específicos com base no Perfil Pedagógico Inteligente, na Sugestão Geral AEE e no Plano Mensal IA salvos no histórico."
+            )
+
+        if campo == "metodologia":
+            return (
+                extrair_secao_textual(texto_sugestao, ["organização sugerida dos atendimentos"])
+                or extrair_secao_textual(texto_plano_mensal, ["roteiro por data real de atendimento", "roteiro por data", "como registrar"])
+                or "Atendimentos organizados em etapas curtas, com mediação pedagógica, recursos acessíveis, registro sistemático e acompanhamento da resposta do estudante."
+            )
+
+        if campo == "estrategias":
+            return (
+                extrair_secao_textual(texto_sugestao, ["sugestões de atividades", "atividades plugadas", "atividades desplugadas", "estratégias"])
+                or extrair_secao_textual(texto_plano_mensal, ["atividade proposta", "mediação"])
+                or extrair_secao_textual(texto_perfil, ["cuidados pedagógicos", "estratégias adaptadas"])
+                or "Utilizar estratégias individualizadas, instruções claras, recursos visuais/táteis, atividades práticas e acompanhamento progressivo."
+            )
+
+        if campo == "prazo":
+            mes = texto_valido(plano_mensal_ia.get("mes_referencia"))
+            ano = texto_valido(plano_mensal_ia.get("ano_referencia"))
+            if mes or ano:
+                return f"Período de referência do Plano Mensal IA: {mes}/{ano}."
+            return "Prazo a ser definido conforme calendário de atendimentos e registros de evolução."
+
+        if campo == "acoes_escola":
+            return (
+                extrair_secao_textual(texto_plano_mensal, ["ajustes possíveis para o mês seguinte"])
+                or extrair_secao_textual(texto_sugestao, ["cuidados para revisão do plano", "organização sugerida"])
+                or "Articular professor do AEE, sala comum, gestão, família e demais profissionais, garantindo acessibilidade, registro e acompanhamento contínuo."
+            )
+
+        if campo == "barreiras_identificadas":
+            return (
+                extrair_secao_textual(texto_perfil, ["barreiras identificadas"])
+                or extrair_secao_textual(texto_sugestao, ["eixos prioritários"])
+                or e("dificuldades")
+            )
+
+        if campo == "parcerias":
+            return (
+                texto_valido(dados_estudo.get("parcerias"))
+                or "Articulação com família, equipe escolar, professor da sala comum, profissionais de apoio e rede intersetorial quando necessário."
+            )
+
+        if campo == "avaliacao_acompanhamento":
+            return (
+                extrair_secao_textual(texto_plano_mensal, ["indicadores para avaliação mensal", "indicador"])
+                or extrair_secao_textual(texto_sugestao, ["indicadores de acompanhamento", "como registrar evidências"])
+                or extrair_secao_textual(texto_perfil, ["indicadores a observar"])
+                or "Acompanhar participação, autonomia, comunicação, engajamento, resposta às mediações, uso dos recursos e evolução pedagógica nos atendimentos."
+            )
+
+        if campo == "observacoes":
+            return (
+                manual
+                or f"Parte 3 preenchida considerando os registros disponíveis no Plano AEE Manual e nos relatórios do Plano AEE - IA. Fontes IA consideradas: {fontes_ia_txt}."
+            )
+
+        return manual or "Não informado."
 
     return f"""
 {texto_cabecalho_gre("ESTUDO DE CASO E PLANO DE ATENDIMENTO EDUCACIONAL ESPECIALIZADO")}
@@ -5944,25 +6174,15 @@ Justificativa: {e('justificativa_apoio')}
 Nome do apoio: {e('nome_profissional_apoio')}
 2.4 Recursos de tecnologia educacional e/ou assistiva utilizados:
 {e('recursos_tecnologia_assistiva')}
-2.5 Observações relevantes para o ambiente educacional/acompanhamento terapêutico:
+
+Observações sobre o ambiente educacional:
 {e('observacoes_ambiente_educacional')}
-2.6 Habilidades observadas e desenvolvidas:
-{e('habilidades_observadas') or e('potencialidades')}
-2.7 Habilidades que precisam ser desenvolvidas:
-{e('habilidades_a_desenvolver') or e('dificuldades')}
-2.8 Indicadores de altas habilidades/superdotação:
-{e('indicadores_altas_habilidades')}
-2.9 Caso seja pessoa surda, recursos utilizados:
-{e('recursos_surdez')}
-Observações sobre surdez/audição/comunicação:
-{e('observacoes_surdez')}
 
-SÍNTESE PEDAGÓGICA DO ESTUDO DE CASO
-Contextualização:
-{e('contextualizacao')}
+Habilidades observadas:
+{e('habilidades_observadas')}
 
-Potencialidades:
-{e('potencialidades')}
+Habilidades a desenvolver:
+{e('habilidades_a_desenvolver')}
 
 Dificuldades/barreiras observadas:
 {e('dificuldades')}
@@ -6023,7 +6243,6 @@ Professor(a) AEE: _______________________________________
 Coordenação/Gestão: _____________________________________
 Responsável: ____________________________________________
 """.strip()
-
 
 def resumo_indicadores_atendimentos(estudante_id):
     atendimentos = listar_atendimentos(estudante_id)
