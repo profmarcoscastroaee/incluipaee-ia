@@ -1,5 +1,5 @@
 
-# INCLUISRM V29 - Plano AEE IA com histórico em horário local e relatórios visuais
+# INCLUISRM V25 - Plano AEE IA com histórico em horário local e relatórios visuais
 # Atualização: corrige fuso horário America/Recife e preserva layout visual dos relatórios.
 
 import os
@@ -1572,173 +1572,14 @@ def gerar_docx_documento(conteudo, nome_base, tipo="documento"):
 
 
 # ======================================================
-# RELATÓRIOS VISUAIS - PADRÃO INCLUISRM
+# RELATÓRIOS VISUAIS - PLANO AEE IA
 # ======================================================
-# Regra pedagógica adotada:
-# - Evitar "diagnóstico" em títulos e seções pedagógicas do AEE.
-# - Usar "diagnóstico" apenas quando a informação vier de laudo/documento clínico.
-# - Aplicar identidade visual própria por tipo de relatório.
-
-CORES_RELATORIOS = {
-    "perfil_pedagogico": {
-        "titulo": "PERFIL PEDAGÓGICO DO ESTUDANTE - AEE",
-        "subtitulo": "Relatório pedagógico de apoio ao Atendimento Educacional Especializado",
-        "icone": "🧩",
-        "cor_principal": "0F172A",
-        "cor_titulo": "1D4ED8",
-        "cor_secundaria": "DBEAFE",
-        "cor_clara": "F8FAFC",
-    },
-    "plano_mensal": {
-        "titulo": "PLANO MENSAL AEE - IA",
-        "subtitulo": "Relatório visual de planejamento pedagógico",
-        "icone": "📅",
-        "cor_principal": "166534",
-        "cor_titulo": "15803D",
-        "cor_secundaria": "DCFCE7",
-        "cor_clara": "F7FEE7",
-    },
-    "plano_aee": {
-        "titulo": "PLANO DE ATENDIMENTO EDUCACIONAL ESPECIALIZADO - AEE",
-        "subtitulo": "Documento pedagógico para organização dos atendimentos",
-        "icone": "📝",
-        "cor_principal": "075985",
-        "cor_titulo": "0369A1",
-        "cor_secundaria": "E0F2FE",
-        "cor_clara": "F0F9FF",
-    },
-    "avaliacao_pedagogica": {
-        "titulo": "AVALIAÇÃO PEDAGÓGICA DO AEE",
-        "subtitulo": "Registro educacional de observação, barreiras, potencialidades e aprendizagem",
-        "icone": "📋",
-        "cor_principal": "0E7490",
-        "cor_titulo": "0891B2",
-        "cor_secundaria": "CFFAFE",
-        "cor_clara": "ECFEFF",
-    },
-    "estudo_pedagogico": {
-        "titulo": "ESTUDO PEDAGÓGICO DO ESTUDANTE - AEE",
-        "subtitulo": "Síntese pedagógica para planejamento, acompanhamento e articulação escolar",
-        "icone": "📘",
-        "cor_principal": "581C87",
-        "cor_titulo": "7E22CE",
-        "cor_secundaria": "F3E8FF",
-        "cor_clara": "FAF5FF",
-    },
-    "relatorio_docente": {
-        "titulo": "RELATÓRIO DE ARTICULAÇÃO DOCENTE",
-        "subtitulo": "Orientações pedagógicas para diálogo entre AEE e sala comum",
-        "icone": "👩‍🏫",
-        "cor_principal": "7C2D12",
-        "cor_titulo": "C2410C",
-        "cor_secundaria": "FFEDD5",
-        "cor_clara": "FFF7ED",
-    },
-    "escuta_docente": {
-        "titulo": "ESCUTA DOCENTE - AEE",
-        "subtitulo": "Registro pedagógico de observações do professor da sala comum",
-        "icone": "🗣️",
-        "cor_principal": "4338CA",
-        "cor_titulo": "4F46E5",
-        "cor_secundaria": "E0E7FF",
-        "cor_clara": "EEF2FF",
-    },
-    "entrevista_familiar": {
-        "titulo": "ENTREVISTA COM A FAMÍLIA - AEE",
-        "subtitulo": "Registro de informações familiares relevantes ao planejamento pedagógico",
-        "icone": "🏠",
-        "cor_principal": "BE123C",
-        "cor_titulo": "E11D48",
-        "cor_secundaria": "FFE4E6",
-        "cor_clara": "FFF1F2",
-    },
-    "atendimento": {
-        "titulo": "REGISTRO DE ATENDIMENTO AEE",
-        "subtitulo": "Acompanhamento pedagógico das atividades realizadas na Sala de Recursos",
-        "icone": "✅",
-        "cor_principal": "854D0E",
-        "cor_titulo": "CA8A04",
-        "cor_secundaria": "FEF3C7",
-        "cor_clara": "FEFCE8",
-    },
-    "evolucao": {
-        "titulo": "RELATÓRIO DE EVOLUÇÃO PEDAGÓGICA - AEE",
-        "subtitulo": "Análise educacional do acompanhamento e das respostas às mediações",
-        "icone": "📈",
-        "cor_principal": "115E59",
-        "cor_titulo": "0F766E",
-        "cor_secundaria": "CCFBF1",
-        "cor_clara": "F0FDFA",
-    },
-    "cadastro": {
-        "titulo": "FICHA DE IDENTIFICAÇÃO EDUCACIONAL",
-        "subtitulo": "Cadastro pedagógico e informações escolares do estudante",
-        "icone": "🗂️",
-        "cor_principal": "334155",
-        "cor_titulo": "475569",
-        "cor_secundaria": "E2E8F0",
-        "cor_clara": "F8FAFC",
-    },
-    "professor": {
-        "titulo": "FICHA DO PROFESSOR AEE",
-        "subtitulo": "Registro profissional para articulação pedagógica inclusiva",
-        "icone": "👤",
-        "cor_principal": "374151",
-        "cor_titulo": "4B5563",
-        "cor_secundaria": "E5E7EB",
-        "cor_clara": "F9FAFB",
-    },
-    "documento": {
-        "titulo": "RELATÓRIO PEDAGÓGICO AEE",
-        "subtitulo": "Documento pedagógico de apoio ao Atendimento Educacional Especializado",
-        "icone": "📄",
-        "cor_principal": "0F172A",
-        "cor_titulo": "1D4ED8",
-        "cor_secundaria": "E2E8F0",
-        "cor_clara": "F8FAFC",
-    },
-}
-
-MAPA_TIPOS_VISUAIS = {
-    "plano_ia_visual": "plano_mensal",
-    "plano": "plano_aee",
-    "avaliacao": "avaliacao_pedagogica",
-    "estudo": "estudo_pedagogico",
-    "relatorio": "evolucao",
-    "atendimento": "atendimento",
-    "escuta_docente": "escuta_docente",
-    "entrevista": "entrevista_familiar",
-    "cadastro": "cadastro",
-    "professor": "professor",
-    "relatorio_docente": "relatorio_docente",
-    "perfil_pedagogico": "perfil_pedagogico",
-    "documento": "documento",
-}
-
-
-def obter_tema_relatorio(tipo_relatorio="documento", titulo_doc=None, subtitulo_doc=None):
-    chave = MAPA_TIPOS_VISUAIS.get(tipo_relatorio, tipo_relatorio)
-    tema = CORES_RELATORIOS.get(chave, CORES_RELATORIOS["documento"]).copy()
-    if titulo_doc:
-        tema["titulo"] = titulo_doc
-    if subtitulo_doc:
-        tema["subtitulo"] = subtitulo_doc
-    return tema
-
-
 def limpar_marcadores_relatorio(texto):
     """Remove marcações simples de Markdown usadas pela IA para melhorar Word/PDF."""
     texto = str(texto or "")
     texto = texto.replace("**", "")
     texto = re.sub(r"^#{1,6}\s*", "", texto, flags=re.MULTILINE)
     texto = texto.replace("---", "")
-    # Ajuste terminológico global para títulos pedagógicos
-    texto = texto.replace("PERFIL PEDAGÓGICO DO ESTUDANTE - AEE", "PERFIL PEDAGÓGICO DO ESTUDANTE - AEE")
-    texto = texto.replace("DIAGNÓSTICO PEDAGÓGICO INICIAL", "PERFIL PEDAGÓGICO INICIAL")
-    texto = texto.replace("Perfil Pedagógico AEE", "Perfil Pedagógico do Estudante - AEE")
-    texto = texto.replace("perfil pedagógico", "perfil pedagógico")
-    texto = texto.replace("Esse diagnóstico visa", "Este perfil pedagógico tem como objetivo")
-    texto = texto.replace("Este diagnóstico visa", "Este perfil pedagógico tem como objetivo")
     return texto.strip()
 
 
@@ -1752,8 +1593,7 @@ def eh_titulo_relatorio(linha):
         return True
     palavras_chave = [
         "Identificação", "Objetivo", "Habilidades", "Recursos", "Estratégias", "Avaliação",
-        "Indicadores", "Ajustes", "Registro", "Organização", "Perfil", "Mapeamento", "Sugestão",
-        "Síntese", "Potencialidades", "Barreiras", "Necessidades", "Cuidados", "Observação",
+        "Indicadores", "Ajustes", "Registro", "Organização", "Diagnóstico", "Sugestão"
     ]
     return any(linha.lower().startswith(k.lower()) for k in palavras_chave)
 
@@ -1762,23 +1602,21 @@ def extrair_linhas_chave_valor(texto):
     pares = []
     for raw in str(texto or "").splitlines():
         linha = limpar_marcadores_relatorio(raw).strip(" -•\t")
-        if ":" in linha and len(linha) < 150:
+        if ":" in linha and len(linha) < 140:
             chave, valor = linha.split(":", 1)
-            if chave and valor and len(chave) <= 52:
+            if chave and valor and len(chave) <= 45:
                 pares.append((chave.strip(), valor.strip()))
     return pares
 
 
-def gerar_docx_relatorio_visual(conteudo, nome_base, tipo_relatorio="documento", titulo_doc=None, subtitulo_doc=None):
-    """Gera Word com layout visual padronizado e identidade por tipo de relatório."""
+def gerar_docx_plano_aee_ia_visual(conteudo, nome_base, titulo_doc="PLANO MENSAL AEE - IA"):
+    """Gera Word com layout visual para planos IA: capa, cards, seções e tabela de atendimentos."""
     from docx import Document
     from docx.shared import Pt, RGBColor, Inches
     from docx.enum.text import WD_ALIGN_PARAGRAPH
     from docx.enum.table import WD_TABLE_ALIGNMENT, WD_CELL_VERTICAL_ALIGNMENT
     from docx.oxml import OxmlElement
     from docx.oxml.ns import qn
-
-    tema = obter_tema_relatorio(tipo_relatorio, titulo_doc, subtitulo_doc)
 
     def set_cell_bg(cell, fill):
         tc_pr = cell._tc.get_or_add_tcPr()
@@ -1795,7 +1633,7 @@ def gerar_docx_relatorio_visual(conteudo, nome_base, tipo_relatorio="documento",
         r.font.color.rgb = RGBColor.from_string(color)
         cell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
 
-    nome_arquivo = f"relatorio_visual_{nome_base}.docx".replace("/", "-").replace("\\", "-")
+    nome_arquivo = f"plano_aee_ia_visual_{nome_base}.docx".replace("/", "-").replace("\\", "-")
     doc = Document()
     sec = doc.sections[0]
     sec.top_margin = Inches(0.45)
@@ -1803,16 +1641,18 @@ def gerar_docx_relatorio_visual(conteudo, nome_base, tipo_relatorio="documento",
     sec.left_margin = Inches(0.55)
     sec.right_margin = Inches(0.55)
 
+    # Capa / cabeçalho
     header = doc.add_table(rows=1, cols=2)
     header.alignment = WD_TABLE_ALIGNMENT.CENTER
     header.autofit = True
-    set_cell_bg(header.cell(0, 0), tema["cor_principal"])
-    set_cell_bg(header.cell(0, 1), tema["cor_secundaria"])
-    set_cell_text(header.cell(0, 0), "INCLUISRM\nSistema Inteligente de Articulação Pedagógica Inclusiva", True, "FFFFFF", 11)
-    set_cell_text(header.cell(0, 1), f"{tema['icone']} {tema['titulo']}\n{tema['subtitulo']}", True, tema["cor_principal"], 12)
+    set_cell_bg(header.cell(0,0), "0F172A")
+    set_cell_bg(header.cell(0,1), "E0F2FE")
+    set_cell_text(header.cell(0,0), "INCLUISRM\nSistema Inteligente de Articulação Pedagógica Inclusiva", True, "FFFFFF", 11)
+    set_cell_text(header.cell(0,1), f"🧠 {titulo_doc}\nDocumento pedagógico gerado com apoio de IA", True, "0F172A", 12)
 
     doc.add_paragraph("")
 
+    # Cards de identificação
     pares = extrair_linhas_chave_valor(conteudo)[:8]
     if pares:
         doc.add_heading("Identificação segura", level=2)
@@ -1820,13 +1660,13 @@ def gerar_docx_relatorio_visual(conteudo, nome_base, tipo_relatorio="documento",
         t.alignment = WD_TABLE_ALIGNMENT.CENTER
         for chave, valor in pares:
             row = t.add_row().cells
-            set_cell_bg(row[0], tema["cor_secundaria"])
-            set_cell_bg(row[1], tema["cor_clara"])
-            set_cell_text(row[0], chave, True, tema["cor_principal"], 9)
+            set_cell_bg(row[0], "DBEAFE")
+            set_cell_bg(row[1], "F8FAFC")
+            set_cell_text(row[0], chave, True, "1E3A8A", 9)
             set_cell_text(row[1], valor, False, "111827", 9)
 
     doc.add_paragraph("")
-    doc.add_heading("Conteúdo pedagógico", level=2)
+    doc.add_heading("Roteiro pedagógico do atendimento", level=2)
 
     texto = limpar_marcadores_relatorio(conteudo)
     for raw in texto.splitlines():
@@ -1838,7 +1678,7 @@ def gerar_docx_relatorio_visual(conteudo, nome_base, tipo_relatorio="documento",
             r = p.add_run(linha)
             r.bold = True
             r.font.size = Pt(12)
-            r.font.color.rgb = RGBColor.from_string(tema["cor_titulo"])
+            r.font.color.rgb = RGBColor(30, 64, 175)
             continue
         if linha.startswith("-") or linha.startswith("•"):
             p = doc.add_paragraph(style=None)
@@ -1852,9 +1692,9 @@ def gerar_docx_relatorio_visual(conteudo, nome_base, tipo_relatorio="documento",
 
     doc.add_paragraph("")
     foot = doc.add_table(rows=1, cols=1)
-    set_cell_bg(foot.cell(0, 0), "F1F5F9")
+    set_cell_bg(foot.cell(0,0), "F1F5F9")
     set_cell_text(
-        foot.cell(0, 0),
+        foot.cell(0,0),
         f"Documento gerado em {agora_local().strftime('%d/%m/%Y %H:%M')} pelo INCLUISRM • LabTec3DI/UFRPE • Uso pedagógico no AEE",
         False,
         "475569",
@@ -1865,115 +1705,64 @@ def gerar_docx_relatorio_visual(conteudo, nome_base, tipo_relatorio="documento",
     return nome_arquivo
 
 
-def gerar_docx_plano_aee_ia_visual(conteudo, nome_base, titulo_doc="PLANO MENSAL AEE - IA"):
-    """Compatibilidade: mantém a chamada antiga do Plano Mensal."""
-    return gerar_docx_relatorio_visual(conteudo, nome_base, tipo_relatorio="plano_mensal", titulo_doc=titulo_doc)
-
-
-def gerar_pdf_relatorio_visual(conteudo, nome_base, tipo_relatorio="documento", titulo_doc=None, subtitulo_doc=None):
-    """Gera PDF com layout profissional, cards e identidade visual por relatório."""
+def gerar_pdf_plano_aee_ia_visual(conteudo, nome_base, titulo_doc="PLANO MENSAL AEE - IA"):
+    """Gera PDF com visual mais profissional usando cards, cores e seções."""
     from reportlab.lib import colors
-    from reportlab.lib.enums import TA_CENTER
+    from reportlab.lib.enums import TA_CENTER, TA_LEFT
     from reportlab.lib.pagesizes import A4
     from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
     from reportlab.lib.units import cm
-    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
 
-    tema = obter_tema_relatorio(tipo_relatorio, titulo_doc, subtitulo_doc)
-    nome_arquivo = f"relatorio_visual_{nome_base}.pdf".replace("/", "-").replace("\\", "-")
-    doc = SimpleDocTemplate(
-        nome_arquivo,
-        pagesize=A4,
-        rightMargin=1.35 * cm,
-        leftMargin=1.35 * cm,
-        topMargin=1.15 * cm,
-        bottomMargin=1.15 * cm,
-    )
+    nome_arquivo = f"plano_aee_ia_visual_{nome_base}.pdf".replace("/", "-").replace("\\", "-")
+    doc = SimpleDocTemplate(nome_arquivo, pagesize=A4, rightMargin=1.35*cm, leftMargin=1.35*cm, topMargin=1.15*cm, bottomMargin=1.15*cm)
     styles = getSampleStyleSheet()
-    title_style = ParagraphStyle(
-        "TitleVisualINCLUISRM",
-        parent=styles["Title"],
-        alignment=TA_CENTER,
-        fontSize=16,
-        leading=20,
-        textColor=colors.HexColor("#" + tema["cor_principal"]),
-        spaceAfter=8,
-    )
-    subtitle_style = ParagraphStyle(
-        "SubtitleVisualINCLUISRM",
-        parent=styles["Normal"],
-        alignment=TA_CENTER,
-        fontSize=9,
-        textColor=colors.HexColor("#475569"),
-        spaceAfter=12,
-    )
-    sec_style = ParagraphStyle(
-        "SecVisualINCLUISRM",
-        parent=styles["Heading2"],
-        fontSize=12,
-        leading=15,
-        textColor=colors.HexColor("#" + tema["cor_titulo"]),
-        spaceBefore=8,
-        spaceAfter=5,
-    )
-    normal_style = ParagraphStyle(
-        "NormalVisualINCLUISRM",
-        parent=styles["Normal"],
-        fontSize=9.5,
-        leading=13,
-        textColor=colors.HexColor("#111827"),
-        spaceAfter=4,
-    )
-    bullet_style = ParagraphStyle("BulletVisualINCLUISRM", parent=normal_style, leftIndent=12, firstLineIndent=-8)
-    small_style = ParagraphStyle(
-        "SmallVisualINCLUISRM",
-        parent=styles["Normal"],
-        alignment=TA_CENTER,
-        fontSize=8,
-        textColor=colors.HexColor("#64748b"),
-    )
+    title_style = ParagraphStyle("TitlePlanoIA", parent=styles["Title"], alignment=TA_CENTER, fontSize=16, leading=20, textColor=colors.HexColor("#0f172a"), spaceAfter=8)
+    subtitle_style = ParagraphStyle("SubtitlePlanoIA", parent=styles["Normal"], alignment=TA_CENTER, fontSize=9, textColor=colors.HexColor("#475569"), spaceAfter=12)
+    sec_style = ParagraphStyle("SecPlanoIA", parent=styles["Heading2"], fontSize=12, leading=15, textColor=colors.HexColor("#1d4ed8"), spaceBefore=8, spaceAfter=5)
+    normal_style = ParagraphStyle("NormalPlanoIA", parent=styles["Normal"], fontSize=9.5, leading=13, textColor=colors.HexColor("#111827"), spaceAfter=4)
+    bullet_style = ParagraphStyle("BulletPlanoIA", parent=normal_style, leftIndent=12, firstLineIndent=-8)
+    small_style = ParagraphStyle("SmallPlanoIA", parent=styles["Normal"], alignment=TA_CENTER, fontSize=8, textColor=colors.HexColor("#64748b"))
 
     elementos = []
     capa = Table(
-        [[
-            Paragraph("<b>INCLUISRM</b><br/>Sistema Inteligente de Articulação Pedagógica Inclusiva", normal_style),
-            Paragraph(f"<b>{escape(tema['icone'] + ' ' + tema['titulo'])}</b><br/>{escape(tema['subtitulo'])}", normal_style),
-        ]],
-        colWidths=[7.3 * cm, 10.2 * cm],
+        [[Paragraph("<b>INCLUISRM</b><br/>Sistema Inteligente de Articulação Pedagógica Inclusiva", normal_style),
+          Paragraph(f"<b>{escape(titulo_doc)}</b><br/>Relatório visual de planejamento pedagógico", normal_style)]],
+        colWidths=[7.3*cm, 10.2*cm],
     )
     capa.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (0, 0), colors.HexColor("#" + tema["cor_principal"])),
-        ("TEXTCOLOR", (0, 0), (0, 0), colors.white),
-        ("BACKGROUND", (1, 0), (1, 0), colors.HexColor("#" + tema["cor_secundaria"])),
-        ("BOX", (0, 0), (-1, -1), 0.6, colors.HexColor("#CBD5E1")),
-        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-        ("LEFTPADDING", (0, 0), (-1, -1), 10),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 10),
-        ("TOPPADDING", (0, 0), (-1, -1), 10),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 10),
+        ("BACKGROUND", (0,0), (0,0), colors.HexColor("#0f172a")),
+        ("TEXTCOLOR", (0,0), (0,0), colors.white),
+        ("BACKGROUND", (1,0), (1,0), colors.HexColor("#e0f2fe")),
+        ("BOX", (0,0), (-1,-1), 0.6, colors.HexColor("#cbd5e1")),
+        ("VALIGN", (0,0), (-1,-1), "MIDDLE"),
+        ("LEFTPADDING", (0,0), (-1,-1), 10),
+        ("RIGHTPADDING", (0,0), (-1,-1), 10),
+        ("TOPPADDING", (0,0), (-1,-1), 10),
+        ("BOTTOMPADDING", (0,0), (-1,-1), 10),
     ]))
     elementos.append(capa)
     elementos.append(Spacer(1, 12))
-    elementos.append(Paragraph(escape(tema["titulo"]), title_style))
-    elementos.append(Paragraph(escape(tema["subtitulo"]), subtitle_style))
+    elementos.append(Paragraph(titulo_doc, title_style))
+    elementos.append(Paragraph("Planejamento organizado em linguagem pedagógica, com foco em execução, registro e acompanhamento evolutivo.", subtitle_style))
 
     pares = extrair_linhas_chave_valor(conteudo)[:8]
     if pares:
         dados = [[Paragraph("<b>Campo</b>", normal_style), Paragraph("<b>Informação</b>", normal_style)]]
         for chave, valor in pares:
             dados.append([Paragraph(escape(chave), normal_style), Paragraph(escape(valor), normal_style)])
-        tabela = Table(dados, colWidths=[5.2 * cm, 12.3 * cm])
+        tabela = Table(dados, colWidths=[5.2*cm, 12.3*cm])
         tabela.setStyle(TableStyle([
-            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#" + tema["cor_principal"])),
-            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-            ("BACKGROUND", (0, 1), (0, -1), colors.HexColor("#" + tema["cor_secundaria"])),
-            ("BACKGROUND", (1, 1), (1, -1), colors.HexColor("#" + tema["cor_clara"])),
-            ("GRID", (0, 0), (-1, -1), 0.35, colors.HexColor("#CBD5E1")),
-            ("VALIGN", (0, 0), (-1, -1), "TOP"),
-            ("LEFTPADDING", (0, 0), (-1, -1), 7),
-            ("RIGHTPADDING", (0, 0), (-1, -1), 7),
-            ("TOPPADDING", (0, 0), (-1, -1), 5),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+            ("BACKGROUND", (0,0), (-1,0), colors.HexColor("#1d4ed8")),
+            ("TEXTCOLOR", (0,0), (-1,0), colors.white),
+            ("BACKGROUND", (0,1), (0,-1), colors.HexColor("#dbeafe")),
+            ("BACKGROUND", (1,1), (1,-1), colors.HexColor("#f8fafc")),
+            ("GRID", (0,0), (-1,-1), 0.35, colors.HexColor("#cbd5e1")),
+            ("VALIGN", (0,0), (-1,-1), "TOP"),
+            ("LEFTPADDING", (0,0), (-1,-1), 7),
+            ("RIGHTPADDING", (0,0), (-1,-1), 7),
+            ("TOPPADDING", (0,0), (-1,-1), 5),
+            ("BOTTOMPADDING", (0,0), (-1,-1), 5),
         ]))
         elementos.append(tabela)
         elementos.append(Spacer(1, 10))
@@ -1992,27 +1781,11 @@ def gerar_pdf_relatorio_visual(conteudo, nome_base, tipo_relatorio="documento", 
             elementos.append(Paragraph(escape(linha), normal_style))
 
     elementos.append(Spacer(1, 14))
-    rodape = Table(
-        [[Paragraph(
-            f"Gerado em {agora_local().strftime('%d/%m/%Y %H:%M')} pelo INCLUISRM • LabTec3DI/UFRPE • Documento pedagógico de apoio ao AEE",
-            small_style,
-        )]],
-        colWidths=[17.5 * cm],
-    )
-    rodape.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#F1F5F9")),
-        ("BOX", (0, 0), (-1, -1), 0.3, colors.HexColor("#CBD5E1")),
-        ("TOPPADDING", (0, 0), (-1, -1), 6),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-    ]))
+    rodape = Table([[Paragraph(f"Gerado em {agora_local().strftime('%d/%m/%Y %H:%M')} pelo INCLUISRM • LabTec3DI/UFRPE • Documento pedagógico de apoio ao AEE", small_style)]], colWidths=[17.5*cm])
+    rodape.setStyle(TableStyle([("BACKGROUND", (0,0), (-1,-1), colors.HexColor("#f1f5f9")), ("BOX", (0,0), (-1,-1), 0.3, colors.HexColor("#cbd5e1")), ("TOPPADDING", (0,0), (-1,-1), 6), ("BOTTOMPADDING", (0,0), (-1,-1), 6)]))
     elementos.append(rodape)
     doc.build(elementos)
     return nome_arquivo
-
-
-def gerar_pdf_plano_aee_ia_visual(conteudo, nome_base, titulo_doc="PLANO MENSAL AEE - IA"):
-    """Compatibilidade: mantém a chamada antiga do Plano Mensal."""
-    return gerar_pdf_relatorio_visual(conteudo, nome_base, tipo_relatorio="plano_mensal", titulo_doc=titulo_doc)
 
 
 def export_buttons(texto, nome_base, tipo_pdf="documento"):
@@ -2029,8 +1802,8 @@ def export_buttons(texto, nome_base, tipo_pdf="documento"):
 
     with col_pdf:
         if st.button("Gerar PDF", key=f"gerar_pdf_{nome_base}_{tipo_pdf}"):
-            if tipo_pdf in MAPA_TIPOS_VISUAIS:
-                arquivo = gerar_pdf_relatorio_visual(texto, nome_base, tipo_relatorio=tipo_pdf)
+            if tipo_pdf == "plano_ia_visual":
+                arquivo = gerar_pdf_plano_aee_ia_visual(texto, nome_base)
             else:
                 arquivo = gerar_pdf_documento(texto, nome_base, tipo=tipo_pdf)
             st.session_state[f"pdf_{nome_base}_{tipo_pdf}"] = arquivo
@@ -2048,8 +1821,8 @@ def export_buttons(texto, nome_base, tipo_pdf="documento"):
     with col_word:
         if st.button("Gerar Word", key=f"gerar_docx_{nome_base}_{tipo_pdf}"):
             try:
-                if tipo_pdf in MAPA_TIPOS_VISUAIS:
-                    arquivo = gerar_docx_relatorio_visual(texto, nome_base, tipo_relatorio=tipo_pdf)
+                if tipo_pdf == "plano_ia_visual":
+                    arquivo = gerar_docx_plano_aee_ia_visual(texto, nome_base)
                 else:
                     arquivo = gerar_docx_documento(texto, nome_base, tipo=tipo_pdf)
                 st.session_state[f"docx_{nome_base}_{tipo_pdf}"] = arquivo
@@ -5266,21 +5039,19 @@ comunicação funcional autonomia CAA tecnologia assistiva recursos visuais roti
 
 
 def gerar_diagnostico_aee_ia(estudante, avaliacao=None, entrevista=None, estudo=None, plano_manual=None):
-    """Gera perfil pedagógico inicial/evolutivo para apoiar o professor do AEE.
-    Mantém o nome da função por compatibilidade com versões anteriores.
-    """
+    """Gera diagnóstico pedagógico inicial/evolutivo para apoiar o professor do AEE."""
     ctx = montar_contexto_plano_aee_ia(estudante, avaliacao, entrevista, estudo, plano_manual)
     client = obter_cliente_openai()
 
     fallback = f"""
-PERFIL PEDAGÓGICO INICIAL - PLANO AEE IA
+DIAGNÓSTICO PEDAGÓGICO INICIAL - PLANO AEE IA
 
 Código interno: {estudante[1]}
 Perfil educacional informado: {estudante[4]}
 Ano/Série: {estudante[2]}
 
 Síntese inicial:
-O perfil pedagógico deve considerar os registros já disponíveis no cadastro, entrevista familiar, avaliação pedagógica, estudo de caso, escuta docente, relatórios de apoio ao docente, plano AEE e atendimentos. Caso ainda existam poucos registros, recomenda-se utilizar este documento como roteiro de observação inicial, sem conclusões definitivas sobre evolução.
+O diagnóstico pedagógico deve considerar os registros já disponíveis no cadastro, entrevista familiar, avaliação pedagógica, estudo de caso, escuta docente, relatórios de apoio ao docente, plano AEE e atendimentos. Caso ainda existam poucos registros, recomenda-se utilizar este documento como roteiro de observação inicial, sem conclusões definitivas sobre evolução.
 
 Focos de observação prioritários:
 - Comunicação funcional e formas de expressão utilizadas pelo estudante.
@@ -5301,7 +5072,7 @@ Registrar os atendimentos semanalmente para que o sistema consiga gerar análise
 Você é especialista em Atendimento Educacional Especializado (AEE), educação inclusiva, tecnologia assistiva, CAA, cultura maker e avaliação pedagógica funcional.
 
 TAREFA:
-Gere um PERFIL PEDAGÓGICO DO ESTUDANTE - AEE com base nos dados disponíveis. O texto deve apoiar o professor do AEE na organização dos atendimentos e não deve criar diagnóstico clínico, médico ou terapêutico.
+Gere um DIAGNÓSTICO PEDAGÓGICO AEE com base nos dados disponíveis. O texto deve apoiar o professor do AEE na organização dos atendimentos e NÃO deve criar diagnóstico clínico.
 
 REGRAS:
 - Não usar nome real do estudante.
@@ -8377,7 +8148,7 @@ elif menu == "Plano AEE - IA":
                 )
                 col_d1, col_d2 = st.columns([1, 1])
                 with col_d1:
-                    export_buttons(diagnostico_txt, f"Perfil_Pedagogico_Inteligente_{estudante[1]}", tipo_pdf="perfil_pedagogico")
+                    export_buttons(diagnostico_txt, f"Perfil_Pedagogico_Inteligente_{estudante[1]}", tipo_pdf="plano")
                 with col_d2:
                     if st.button("💾 Salvar perfil pedagógico no histórico", key=f"salvar_perfil_pedagogico_v22_{estudante_id}"):
                         salvar_historico_plano_aee_ia(
@@ -8412,7 +8183,7 @@ elif menu == "Plano AEE - IA":
                 )
                 col_s1, col_s2 = st.columns([1, 1])
                 with col_s1:
-                    export_buttons(sugestao_txt, f"Sugestao_Geral_AEE_IA_{estudante[1]}", tipo_pdf="perfil_pedagogico")
+                    export_buttons(sugestao_txt, f"Sugestao_Geral_AEE_IA_{estudante[1]}", tipo_pdf="plano")
                 with col_s2:
                     if st.button("💾 Salvar sugestão geral no histórico", key=f"salvar_sug_geral_v19_{estudante_id}"):
                         salvar_historico_plano_aee_ia(
@@ -8680,7 +8451,7 @@ Modelo obrigatório para cada atendimento:
                     with st.expander(f"Plano em {p[1]}"):
                         texto = texto_plano_aee(estudante, p)
                         st.text(texto)
-                        export_buttons(texto, f"Plano_AEE_PAEE_{estudante[1]}_{p[0]}", tipo_pdf="perfil_pedagogico")
+                        export_buttons(texto, f"Plano_AEE_PAEE_{estudante[1]}_{p[0]}", tipo_pdf="plano")
                         if st.button("Excluir plano", key=f"exc_plano_v19_{p[0]}"):
                             excluir_registro("planos_aee", p[0])
                             st.success("Plano excluído.")
