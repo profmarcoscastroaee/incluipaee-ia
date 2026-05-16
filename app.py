@@ -1,5 +1,5 @@
 
-# INCLUISRM V33 - Relatório GRE com Parte 3 integrada ao Plano AEE Manual e IA
+# INCLUISRM V34 - Inteligação com modelo 3D Plano AEE Manual e IA
 # Atualização: corrige fuso horário America/Recife e preserva layout visual dos relatórios.
 
 import os
@@ -4774,51 +4774,76 @@ Engajamento: {a[11] if len(a) > 11 else 'Não informado.'}/10
 
 
 # ======================================================
-# BUSCA DE MODELOS 3D
+# BUSCA DE MODELOS 3D - RECURSOS PEDAGÓGICOS
 # ======================================================
+from urllib.parse import quote_plus
+
+
+def formatar_termo_busca_3d(termo):
+    """Formata o termo para uso seguro em URLs de busca."""
+    return quote_plus(str(termo or "").strip())
+
+
 def link_busca_thingiverse(termo):
-    termo_formatado = termo.replace(" ", "%20")
+    """Gera link de busca no Thingiverse."""
+    termo_formatado = formatar_termo_busca_3d(termo)
     return f"https://www.thingiverse.com/search?q={termo_formatado}&type=things"
 
 
 def link_busca_printables(termo):
-    termo_formatado = termo.replace(" ", "%20")
+    """Gera link de busca no Printables."""
+    termo_formatado = formatar_termo_busca_3d(termo)
     return f"https://www.printables.com/search/models?q={termo_formatado}"
 
 
 def link_busca_makerworld(termo):
-    termo_formatado = termo.replace(" ", "%20")
+    """Gera link de busca no MakerWorld."""
+    termo_formatado = formatar_termo_busca_3d(termo)
     return f"https://makerworld.com/pt/search/models?keyword={termo_formatado}"
 
 
 def gerar_termos_3d_com_ia(conteudo_paee):
-    """Gera exatamente 5 termos/objetos para busca de modelos 3D."""
+    """
+    Gera exatamente 5 termos de busca para modelos 3D pedagógicos.
+    Os termos são preferencialmente em inglês porque retornam mais resultados
+    nas plataformas de modelos 3D.
+    """
     client = obter_cliente_openai()
 
     termos_padrao = [
-        "braille alphabet",
-        "tactile math",
+        "tactile alphabet",
         "visual schedule",
+        "fine motor skills",
         "communication cards",
-        "sensory toy",
+        "sensory shapes",
     ]
 
     if client is None or not conteudo_paee:
         return termos_padrao
 
     prompt = f"""
-Analise o PAEE abaixo e gere exatamente 5 objetos ou recursos 3D pedagógicos para busca
-em sites como Thingiverse, Printables e MakerWorld.
+Analise o plano AEE abaixo e gere exatamente 5 termos curtos em inglês para busca de modelos 3D pedagógicos.
 
-Use termos curtos, preferencialmente em inglês, porque retornam mais modelos.
-Priorize recursos inclusivos, táteis, manipuláveis, visuais, sensoriais, comunicação alternativa,
-matemática concreta, alfabetização, autonomia ou organização da rotina.
+Priorize recursos:
+- inclusivos;
+- táteis;
+- manipuláveis;
+- visuais;
+- para alfabetização;
+- coordenação motora fina;
+- CAA;
+- rotina visual;
+- autonomia;
+- cultura maker;
+- robótica educacional simples.
 
+Não cite diagnóstico clínico.
+Não use nome do estudante.
 Não explique.
 Retorne apenas 5 linhas.
 Cada linha deve conter apenas um termo de busca.
 
-PAEE:
+PLANO AEE:
 {conteudo_paee}
 """
 
@@ -4836,8 +4861,67 @@ PAEE:
                 termos.append(termo)
 
         return termos[:5] if termos else termos_padrao
+
     except Exception:
         return termos_padrao
+
+
+def gerar_links_modelos_3d(conteudo_paee):
+    """
+    Gera texto completo com sugestões de busca em MakerWorld,
+    Printables e Thingiverse.
+    """
+    termos = gerar_termos_3d_com_ia(conteudo_paee)
+
+    linhas = []
+    linhas.append("SUGESTÕES DE MODELOS 3D PARA APOIO PEDAGÓGICO")
+    linhas.append("")
+    linhas.append(
+        "Observação: os links abaixo são sugestões de busca em plataformas públicas de modelos 3D. "
+        "O professor deverá avaliar a adequação pedagógica, segurança, tamanho da peça, faixa etária, "
+        "necessidade de adaptação e viabilidade de impressão antes do uso com o estudante."
+    )
+    linhas.append("")
+
+    for termo in termos:
+        linhas.append(f"Recurso sugerido: {termo}")
+        linhas.append(f"- MakerWorld: {link_busca_makerworld(termo)}")
+        linhas.append(f"- Printables: {link_busca_printables(termo)}")
+        linhas.append(f"- Thingiverse: {link_busca_thingiverse(termo)}")
+        linhas.append("")
+
+    return "\n".join(linhas)
+
+
+def bloco_sugestoes_3d_streamlit(conteudo_base, estudante_id, estudante_codigo, origem="sugestao", nome_extra=""):
+    """
+    Bloco visual reutilizável para Streamlit.
+    Pode ser usado após a Sugestão Geral AEE ou após o Plano Mensal IA.
+    """
+    st.markdown("### 🧩 Sugestões de modelos 3D para apoio pedagógico")
+    st.caption(
+        "Gera termos de busca e links em plataformas públicas de modelos 3D. "
+        "Use como apoio complementar ao planejamento do AEE."
+    )
+
+    chave_base = f"links_3d_{origem}_{estudante_id}{nome_extra}"
+
+    if st.button("🔎 Gerar links de modelos 3D", key=f"gerar_{chave_base}"):
+        st.session_state[chave_base] = gerar_links_modelos_3d(conteudo_base)
+
+    if chave_base in st.session_state:
+        links_3d_txt = st.text_area(
+            "Links sugeridos para busca de modelos 3D",
+            st.session_state[chave_base],
+            height=340,
+            key=f"text_area_{chave_base}",
+        )
+
+        export_buttons(
+            links_3d_txt,
+            f"Links_Modelos_3D_{origem}_{estudante_codigo}{nome_extra}",
+            tipo_pdf="documento",
+        )
 
 
 # ======================================================
@@ -8482,6 +8566,13 @@ elif menu == "Plano AEE - IA":
                     height=560,
                     key=f"sugestao_geral_txt_v19_{estudante_id}",
                 )
+                bloco_sugestoes_3d_streamlit(
+                    conteudo_base=sugestao_txt,
+                    estudante_id=estudante_id,
+                    estudante_codigo=estudante[1],
+                    origem="Sugestao_Geral_AEE",
+                )
+
                 col_s1, col_s2 = st.columns([1, 1])
                 with col_s1:
                     export_buttons(sugestao_txt, f"Sugestao_Geral_AEE_IA_{estudante[1]}", tipo_pdf="plano")
@@ -8588,6 +8679,14 @@ Modelo obrigatório para cada atendimento:
                     height=680,
                     key=f"plano_mensal_txt_v19_{estudante_id}",
                 )
+                bloco_sugestoes_3d_streamlit(
+                    conteudo_base=plano_mensal_txt,
+                    estudante_id=estudante_id,
+                    estudante_codigo=estudante[1],
+                    origem="Plano_Mensal_AEE",
+                    nome_extra=f"_{mes_ref}_{ano_ref}",
+                )
+
                 col_pm1, col_pm2 = st.columns([1, 1])
                 with col_pm1:
                     export_buttons(plano_mensal_txt, f"Plano_Mensal_AEE_IA_{estudante[1]}_{mes_ref}_{ano_ref}", tipo_pdf="plano_ia_visual")
