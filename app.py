@@ -1,5 +1,5 @@
 
-# INCLUISRM V34 - Inteligação com modelo 3D Plano AEE Manual e IA
+# INCLUISRM V34 - Relatório GRE com Parte 3 integrada ao Plano AEE Manual e IA
 # Atualização: corrige fuso horário America/Recife e preserva layout visual dos relatórios.
 
 import os
@@ -1789,55 +1789,75 @@ def gerar_pdf_plano_aee_ia_visual(conteudo, nome_base, titulo_doc="PLANO MENSAL 
 
 
 def export_buttons(texto, nome_base, tipo_pdf="documento"):
-    col_txt, col_pdf, col_word = st.columns(3)
+    """Botões de exportação organizados em uma única linha.
+
+    Fluxo:
+    - TXT baixa diretamente;
+    - PDF/Word primeiro geram o arquivo e, em seguida, habilitam o botão de download.
+
+    Essa organização evita que os botões fiquem empilhados/desalinhados na tela.
+    """
+    chave_pdf = f"pdf_{nome_base}_{tipo_pdf}"
+    chave_docx = f"docx_{nome_base}_{tipo_pdf}"
+
+    col_txt, col_pdf_gerar, col_pdf_baixar, col_word_gerar, col_word_baixar = st.columns([1, 1, 1, 1, 1])
 
     with col_txt:
         st.download_button(
-            "Baixar em .txt",
+            "📄 Baixar TXT",
             data=texto,
             file_name=f"{nome_base}.txt",
             mime="text/plain",
             key=f"txt_{nome_base}_{tipo_pdf}",
+            use_container_width=True,
         )
 
-    with col_pdf:
-        if st.button("Gerar PDF", key=f"gerar_pdf_{nome_base}_{tipo_pdf}"):
+    with col_pdf_gerar:
+        if st.button("📕 Gerar PDF", key=f"gerar_pdf_{nome_base}_{tipo_pdf}", use_container_width=True):
             if tipo_pdf == "plano_ia_visual":
                 arquivo = gerar_pdf_plano_aee_ia_visual(texto, nome_base)
             else:
                 arquivo = gerar_pdf_documento(texto, nome_base, tipo=tipo_pdf)
-            st.session_state[f"pdf_{nome_base}_{tipo_pdf}"] = arquivo
+            st.session_state[chave_pdf] = arquivo
 
-        if f"pdf_{nome_base}_{tipo_pdf}" in st.session_state:
-            with open(st.session_state[f"pdf_{nome_base}_{tipo_pdf}"], "rb") as f:
+    with col_pdf_baixar:
+        if chave_pdf in st.session_state:
+            with open(st.session_state[chave_pdf], "rb") as f:
                 st.download_button(
-                    "Baixar PDF",
+                    "⬇️ Baixar PDF",
                     data=f,
                     file_name=f"{nome_base}.pdf",
                     mime="application/pdf",
                     key=f"download_pdf_{nome_base}_{tipo_pdf}",
+                    use_container_width=True,
                 )
+        else:
+            st.button("⬇️ Baixar PDF", key=f"download_pdf_disabled_{nome_base}_{tipo_pdf}", disabled=True, use_container_width=True)
 
-    with col_word:
-        if st.button("Gerar Word", key=f"gerar_docx_{nome_base}_{tipo_pdf}"):
+    with col_word_gerar:
+        if st.button("📘 Gerar Word", key=f"gerar_docx_{nome_base}_{tipo_pdf}", use_container_width=True):
             try:
                 if tipo_pdf == "plano_ia_visual":
                     arquivo = gerar_docx_plano_aee_ia_visual(texto, nome_base)
                 else:
                     arquivo = gerar_docx_documento(texto, nome_base, tipo=tipo_pdf)
-                st.session_state[f"docx_{nome_base}_{tipo_pdf}"] = arquivo
+                st.session_state[chave_docx] = arquivo
             except ModuleNotFoundError:
                 st.error("Biblioteca python-docx não instalada. Rode: pip install python-docx")
 
-        if f"docx_{nome_base}_{tipo_pdf}" in st.session_state:
-            with open(st.session_state[f"docx_{nome_base}_{tipo_pdf}"], "rb") as f:
+    with col_word_baixar:
+        if chave_docx in st.session_state:
+            with open(st.session_state[chave_docx], "rb") as f:
                 st.download_button(
-                    "Baixar Word",
+                    "⬇️ Baixar Word",
                     data=f,
                     file_name=f"{nome_base}.docx",
                     mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                     key=f"download_docx_{nome_base}_{tipo_pdf}",
+                    use_container_width=True,
                 )
+        else:
+            st.button("⬇️ Baixar Word", key=f"download_docx_disabled_{nome_base}_{tipo_pdf}", disabled=True, use_container_width=True)
 
 
 # ======================================================
@@ -4866,13 +4886,32 @@ PLANO AEE:
         return termos_padrao
 
 
-def gerar_links_modelos_3d(conteudo_paee):
+def gerar_lista_modelos_3d(conteudo_paee):
     """
-    Gera texto completo com sugestões de busca em MakerWorld,
-    Printables e Thingiverse.
+    Retorna uma lista estruturada com termo e links.
+    Essa lista é usada para exibir cards e botões clicáveis na tela do Streamlit.
     """
     termos = gerar_termos_3d_com_ia(conteudo_paee)
 
+    sugestoes = []
+    for termo in termos:
+        sugestoes.append(
+            {
+                "termo": termo,
+                "makerworld": link_busca_makerworld(termo),
+                "printables": link_busca_printables(termo),
+                "thingiverse": link_busca_thingiverse(termo),
+            }
+        )
+
+    return sugestoes
+
+
+def gerar_texto_modelos_3d(sugestoes):
+    """
+    Gera a versão textual das sugestões para exportação em TXT, PDF e Word.
+    No relatório exportado ficam os links completos, enquanto na tela aparecem botões.
+    """
     linhas = []
     linhas.append("SUGESTÕES DE MODELOS 3D PARA APOIO PEDAGÓGICO")
     linhas.append("")
@@ -4883,46 +4922,82 @@ def gerar_links_modelos_3d(conteudo_paee):
     )
     linhas.append("")
 
-    for termo in termos:
+    for item in sugestoes:
+        termo = item.get("termo", "Recurso pedagógico")
         linhas.append(f"Recurso sugerido: {termo}")
-        linhas.append(f"- MakerWorld: {link_busca_makerworld(termo)}")
-        linhas.append(f"- Printables: {link_busca_printables(termo)}")
-        linhas.append(f"- Thingiverse: {link_busca_thingiverse(termo)}")
+        linhas.append(f"- MakerWorld: {item.get('makerworld', '')}")
+        linhas.append(f"- Printables: {item.get('printables', '')}")
+        linhas.append(f"- Thingiverse: {item.get('thingiverse', '')}")
         linhas.append("")
 
     return "\n".join(linhas)
 
 
+def gerar_links_modelos_3d(conteudo_paee):
+    """
+    Mantém compatibilidade com versões anteriores do sistema.
+    Retorna diretamente o texto com os links completos.
+    """
+    return gerar_texto_modelos_3d(gerar_lista_modelos_3d(conteudo_paee))
+
+
 def bloco_sugestoes_3d_streamlit(conteudo_base, estudante_id, estudante_codigo, origem="sugestao", nome_extra=""):
     """
     Bloco visual reutilizável para Streamlit.
-    Pode ser usado após a Sugestão Geral AEE ou após o Plano Mensal IA.
+    Na tela: exibe cards com 3 botões clicáveis por sugestão.
+    Nos arquivos exportados: mantém links completos em texto.
     """
     st.markdown("### 🧩 Sugestões de modelos 3D para apoio pedagógico")
     st.caption(
-        "Gera termos de busca e links em plataformas públicas de modelos 3D. "
-        "Use como apoio complementar ao planejamento do AEE."
+        "Gera sugestões de busca em plataformas públicas de modelos 3D. "
+        "Na tela, os links aparecem como botões; nos relatórios exportados, aparecem como links completos."
     )
 
-    chave_base = f"links_3d_{origem}_{estudante_id}{nome_extra}"
+    chave_base = f"sugestoes_3d_{origem}_{estudante_id}{nome_extra}"
 
-    if st.button("🔎 Gerar links de modelos 3D", key=f"gerar_{chave_base}"):
-        st.session_state[chave_base] = gerar_links_modelos_3d(conteudo_base)
+    if st.button("🔎 Gerar sugestões de modelos 3D", key=f"gerar_{chave_base}"):
+        st.session_state[chave_base] = gerar_lista_modelos_3d(conteudo_base)
 
     if chave_base in st.session_state:
-        links_3d_txt = st.text_area(
-            "Links sugeridos para busca de modelos 3D",
-            st.session_state[chave_base],
-            height=340,
-            key=f"text_area_{chave_base}",
+        sugestoes = st.session_state[chave_base]
+
+        st.info(
+            "Os links abaixo são sugestões de busca. Avalie segurança, tamanho, faixa etária, "
+            "adequação pedagógica, necessidade de adaptação e viabilidade de impressão antes do uso."
         )
 
+        for i, item in enumerate(sugestoes, start=1):
+            termo = item.get("termo", "Recurso pedagógico")
+
+            with st.container(border=True):
+                st.markdown(f"**Recurso sugerido {i}:** {termo}")
+
+                col1, col2, col3 = st.columns(3)
+
+                with col1:
+                    st.link_button("🌐 MakerWorld", item.get("makerworld", "#"))
+
+                with col2:
+                    st.link_button("🧩 Printables", item.get("printables", "#"))
+
+                with col3:
+                    st.link_button("🔎 Thingiverse", item.get("thingiverse", "#"))
+
+        texto_exportacao = gerar_texto_modelos_3d(sugestoes)
+
+        with st.expander("📄 Visualizar texto que será exportado em PDF/Word/TXT"):
+            st.text_area(
+                "Texto com links completos",
+                texto_exportacao,
+                height=340,
+                key=f"text_area_{chave_base}",
+            )
+
         export_buttons(
-            links_3d_txt,
+            texto_exportacao,
             f"Links_Modelos_3D_{origem}_{estudante_codigo}{nome_extra}",
             tipo_pdf="documento",
         )
-
 
 # ======================================================
 # PAEE SEM IA / COM IA
@@ -8573,22 +8648,22 @@ elif menu == "Plano AEE - IA":
                     origem="Sugestao_Geral_AEE",
                 )
 
-                col_s1, col_s2 = st.columns([1, 1])
-                with col_s1:
-                    export_buttons(sugestao_txt, f"Sugestao_Geral_AEE_IA_{estudante[1]}", tipo_pdf="plano")
-                with col_s2:
-                    if st.button("💾 Salvar sugestão geral no histórico", key=f"salvar_sug_geral_v19_{estudante_id}"):
-                        salvar_historico_plano_aee_ia(
-                            estudante_id=estudante_id,
-                            mes_referencia="",
-                            ano_referencia=agora_local().year,
-                            qtd_atendimentos_semana=1,
-                            tipo_geracao="Sugestão Geral AEE",
-                            sugestao_geral=sugestao_txt,
-                            observacoes="Sugestão geral de atendimento gerada no módulo Plano AEE - IA.",
-                        )
-                        st.success("Sugestão geral salva no histórico IA.")
-                        st.rerun()
+                st.markdown("### 📤 Exportar Sugestão Geral AEE")
+                export_buttons(sugestao_txt, f"Sugestao_Geral_AEE_IA_{estudante[1]}", tipo_pdf="plano")
+
+                st.markdown("### 💾 Salvar no histórico")
+                if st.button("💾 Salvar sugestão geral no histórico", key=f"salvar_sug_geral_v19_{estudante_id}"):
+                    salvar_historico_plano_aee_ia(
+                        estudante_id=estudante_id,
+                        mes_referencia="",
+                        ano_referencia=agora_local().year,
+                        qtd_atendimentos_semana=1,
+                        tipo_geracao="Sugestão Geral AEE",
+                        sugestao_geral=sugestao_txt,
+                        observacoes="Sugestão geral de atendimento gerada no módulo Plano AEE - IA.",
+                    )
+                    st.success("Sugestão geral salva no histórico IA.")
+                    st.rerun()
 
         elif escolha_plano_ia == "📅 Plano Mensal IA":
             st.markdown("### 📅 Plano mensal inteligente")
@@ -8687,22 +8762,22 @@ Modelo obrigatório para cada atendimento:
                     nome_extra=f"_{mes_ref}_{ano_ref}",
                 )
 
-                col_pm1, col_pm2 = st.columns([1, 1])
-                with col_pm1:
-                    export_buttons(plano_mensal_txt, f"Plano_Mensal_AEE_IA_{estudante[1]}_{mes_ref}_{ano_ref}", tipo_pdf="plano_ia_visual")
-                with col_pm2:
-                    if st.button("💾 Salvar plano mensal no histórico", key=f"salvar_plano_mensal_v19_{estudante_id}"):
-                        salvar_historico_plano_aee_ia(
-                            estudante_id=estudante_id,
-                            mes_referencia=mes_ref,
-                            ano_referencia=ano_ref,
-                            qtd_atendimentos_semana=int(qtd_semana),
-                            tipo_geracao="Plano Mensal IA",
-                            plano_mensal=plano_mensal_txt,
-                            observacoes=f"Plano mensal calculado automaticamente com {total_atendimentos_calculado} atendimento(s) no mês, considerando os dias: {', '.join(dias_atendimento_ref)}.",
-                        )
-                        st.success("Plano mensal salvo no histórico IA.")
-                        st.rerun()
+                st.markdown("### 📤 Exportar Plano Mensal AEE")
+                export_buttons(plano_mensal_txt, f"Plano_Mensal_AEE_IA_{estudante[1]}_{mes_ref}_{ano_ref}", tipo_pdf="plano_ia_visual")
+
+                st.markdown("### 💾 Salvar no histórico")
+                if st.button("💾 Salvar plano mensal no histórico", key=f"salvar_plano_mensal_v19_{estudante_id}"):
+                    salvar_historico_plano_aee_ia(
+                        estudante_id=estudante_id,
+                        mes_referencia=mes_ref,
+                        ano_referencia=ano_ref,
+                        qtd_atendimentos_semana=int(qtd_semana),
+                        tipo_geracao="Plano Mensal IA",
+                        plano_mensal=plano_mensal_txt,
+                        observacoes=f"Plano mensal calculado automaticamente com {total_atendimentos_calculado} atendimento(s) no mês, considerando os dias: {', '.join(dias_atendimento_ref)}.",
+                    )
+                    st.success("Plano mensal salvo no histórico IA.")
+                    st.rerun()
 
         elif escolha_plano_ia == "📈 Evolução IA":
             st.markdown("### 📈 Evolução inteligente")
