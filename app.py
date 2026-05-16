@@ -1,6 +1,6 @@
 
-# INCLUISRM V34 - Relatório GRE com Parte 3 integrada ao Plano AEE Manual e IA
-# Atualização: corrige fuso horário America/Recife e preserva layout visual dos relatórios.
+# INCLUISRM V38 - Recursos Pedagógicos e Tecnologia Assistiva da Escola integrados à IA
+# Atualização: integra banco de recursos pedagógicos/TA da escola, importação por planilha e uso nos Planos AEE/IA.
 
 import os
 import re
@@ -67,8 +67,8 @@ DOCUMENTOS_AVALIACOES_DIR.mkdir(parents=True, exist_ok=True)
 
 APP_NAME = "INCLUISRM"
 APP_SUBTITLE = "Sistema Inteligente de Articulação Pedagógica Inclusiva"
-APP_VERSION = "V33"
-APP_VERSION_LABEL = "Perfil Pedagógico Integrado • Parte 3 GRE com dados do Plano Manual e IA • Relatórios Visuais"
+APP_VERSION = "V38"
+APP_VERSION_LABEL = "Recursos Pedagógicos e TA da Escola • IA contextualizada • Relatórios GRE"
 # Fuso fixo UTC-3 usado por Recife/Pernambuco.
 # Usar timezone/timedelta evita erro em ambientes Render sem base tzdata completa.
 FUSO_LOCAL = timezone(timedelta(hours=-3), name="America/Recife")
@@ -966,6 +966,49 @@ def criar_tabelas():
     ]:
         adicionar_coluna_se_nao_existe(cursor, "agenda", coluna, definicao)
 
+
+    # Banco de Recursos Pedagógicos e Tecnologia Assistiva da Escola.
+    # Permite cadastrar ou importar recursos reais disponíveis na unidade escolar
+    # para que a IA gere sugestões contextualizadas ao que a escola possui.
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS recursos_escola (
+            id SERIAL PRIMARY KEY,
+            escola_nome TEXT,
+            nome_recurso TEXT NOT NULL,
+            categoria TEXT,
+            descricao TEXT,
+            quantidade INTEGER DEFAULT 1,
+            localizacao TEXT,
+            publico_indicado TEXT,
+            objetivo_pedagogico TEXT,
+            status TEXT,
+            origem TEXT,
+            link_referencia TEXT,
+            observacoes TEXT,
+            criado_em TEXT
+        )
+        """
+    )
+
+    for coluna, definicao in [
+        ("escola_nome", "TEXT"),
+        ("nome_recurso", "TEXT"),
+        ("categoria", "TEXT"),
+        ("descricao", "TEXT"),
+        ("quantidade", "INTEGER DEFAULT 1"),
+        ("localizacao", "TEXT"),
+        ("publico_indicado", "TEXT"),
+        ("objetivo_pedagogico", "TEXT"),
+        ("status", "TEXT"),
+        ("origem", "TEXT"),
+        ("link_referencia", "TEXT"),
+        ("observacoes", "TEXT"),
+        ("criado_em", "TEXT"),
+    ]:
+        adicionar_coluna_se_nao_existe(cursor, "recursos_escola", coluna, definicao)
+
+
     cursor.execute(
         """
         CREATE TABLE IF NOT EXISTS documentos_gre_gerados (
@@ -1448,6 +1491,33 @@ OPCOES_BARREIRAS = [
     "Outros",
 ]
 
+OPCOES_CATEGORIAS_RECURSOS_ESCOLA = [
+    "Tecnologia Assistiva",
+    "Recurso pedagógico",
+    "Comunicação Aumentativa e Alternativa (CAA)",
+    "Recurso visual",
+    "Recurso tátil/sensorial",
+    "Material manipulável",
+    "Impressão 3D / Cultura maker",
+    "Robótica educacional",
+    "Tecnologia digital",
+    "Acessibilidade física/motora",
+    "Baixa visão / ampliação",
+    "Libras / Surdez",
+    "Braille",
+    "Jogos pedagógicos",
+    "Música / expressão artística",
+    "Outro",
+]
+
+OPCOES_STATUS_RECURSOS_ESCOLA = [
+    "Disponível",
+    "Disponível com agendamento",
+    "Em manutenção",
+    "Emprestado",
+    "Indisponível",
+]
+
 def hoje_str():
     """Data/hora local para salvar histórico e documentos."""
     return agora_local().strftime("%d/%m/%Y %H:%M")
@@ -1858,6 +1928,346 @@ def export_buttons(texto, nome_base, tipo_pdf="documento"):
                 )
         else:
             st.button("⬇️ Baixar Word", key=f"download_docx_disabled_{nome_base}_{tipo_pdf}", disabled=True, use_container_width=True)
+
+
+
+# ======================================================
+# CRUD - RECURSOS PEDAGÓGICOS E TECNOLOGIA ASSISTIVA DA ESCOLA
+# ======================================================
+def cadastrar_recurso_escola(
+    escola_nome,
+    nome_recurso,
+    categoria,
+    descricao,
+    quantidade,
+    localizacao,
+    publico_indicado,
+    objetivo_pedagogico,
+    status,
+    origem,
+    link_referencia,
+    observacoes,
+):
+    conn = conectar()
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        INSERT INTO recursos_escola (
+            escola_nome, nome_recurso, categoria, descricao, quantidade,
+            localizacao, publico_indicado, objetivo_pedagogico, status,
+            origem, link_referencia, observacoes, criado_em
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            escola_nome,
+            nome_recurso,
+            categoria,
+            descricao,
+            int(quantidade or 1),
+            localizacao,
+            publico_indicado,
+            objetivo_pedagogico,
+            status,
+            origem,
+            link_referencia,
+            observacoes,
+            hoje_str(),
+        ),
+    )
+    conn.commit()
+    conn.close()
+    limpar_cache_dados()
+
+
+@st.cache_data(ttl=30, show_spinner=False)
+def listar_recursos_escola(escola_nome=None, apenas_disponiveis=False):
+    conn = conectar()
+    cursor = conn.cursor()
+
+    query = """
+        SELECT id, escola_nome, nome_recurso, categoria, descricao, quantidade,
+               localizacao, publico_indicado, objetivo_pedagogico, status,
+               origem, link_referencia, observacoes, criado_em
+        FROM recursos_escola
+    """
+    filtros = []
+    params = []
+
+    if escola_nome and str(escola_nome).strip():
+        filtros.append("(escola_nome = ? OR escola_nome IS NULL OR escola_nome = '')")
+        params.append(escola_nome)
+
+    if apenas_disponiveis:
+        filtros.append("(status IS NULL OR status = '' OR status IN ('Disponível', 'Disponível com agendamento'))")
+
+    if filtros:
+        query += " WHERE " + " AND ".join(filtros)
+
+    query += " ORDER BY escola_nome, categoria, nome_recurso"
+
+    cursor.execute(query, tuple(params))
+    dados = cursor.fetchall()
+    conn.close()
+    return dados
+
+
+def excluir_recurso_escola(recurso_id):
+    conn = conectar()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM recursos_escola WHERE id = ?", (recurso_id,))
+    conn.commit()
+    conn.close()
+    limpar_cache_dados()
+
+
+def importar_recursos_escola_dataframe(df, escola_padrao=""):
+    """Importa recursos por planilha CSV/XLSX.
+
+    Colunas aceitas:
+    escola_nome, nome_recurso, categoria, descricao, quantidade, localizacao,
+    publico_indicado, objetivo_pedagogico, status, origem, link_referencia, observacoes.
+
+    Também aceita variações simples de nomes como recurso, nome, qtd, local.
+    """
+    if df is None or df.empty:
+        return 0, []
+
+    mapa_colunas = {
+        "escola": "escola_nome",
+        "unidade": "escola_nome",
+        "escola_nome": "escola_nome",
+        "recurso": "nome_recurso",
+        "nome": "nome_recurso",
+        "nome_recurso": "nome_recurso",
+        "nome do recurso": "nome_recurso",
+        "categoria": "categoria",
+        "descrição": "descricao",
+        "descricao": "descricao",
+        "quantidade": "quantidade",
+        "qtd": "quantidade",
+        "local": "localizacao",
+        "localização": "localizacao",
+        "localizacao": "localizacao",
+        "público indicado": "publico_indicado",
+        "publico indicado": "publico_indicado",
+        "publico_indicado": "publico_indicado",
+        "objetivo": "objetivo_pedagogico",
+        "objetivo pedagógico": "objetivo_pedagogico",
+        "objetivo pedagogico": "objetivo_pedagogico",
+        "objetivo_pedagogico": "objetivo_pedagogico",
+        "status": "status",
+        "situação": "status",
+        "situacao": "status",
+        "origem": "origem",
+        "link": "link_referencia",
+        "link_referencia": "link_referencia",
+        "observação": "observacoes",
+        "observacao": "observacoes",
+        "observações": "observacoes",
+        "observacoes": "observacoes",
+    }
+
+    df_trabalho = df.copy()
+    df_trabalho.columns = [
+        mapa_colunas.get(str(c).strip().lower(), str(c).strip().lower())
+        for c in df_trabalho.columns
+    ]
+
+    importados = 0
+    erros = []
+
+    for idx, row in df_trabalho.iterrows():
+        nome = str(row.get("nome_recurso", "") or "").strip()
+        if not nome:
+            erros.append(f"Linha {idx + 2}: recurso sem nome.")
+            continue
+
+        def campo(nome_col, padrao=""):
+            valor = row.get(nome_col, padrao)
+            if pd.isna(valor):
+                return padrao
+            return str(valor).strip()
+
+        qtd_raw = row.get("quantidade", 1)
+        try:
+            qtd = int(float(qtd_raw)) if not pd.isna(qtd_raw) else 1
+        except Exception:
+            qtd = 1
+
+        cadastrar_recurso_escola(
+            escola_nome=campo("escola_nome", escola_padrao),
+            nome_recurso=nome,
+            categoria=campo("categoria", "Recurso pedagógico"),
+            descricao=campo("descricao", ""),
+            quantidade=qtd,
+            localizacao=campo("localizacao", ""),
+            publico_indicado=campo("publico_indicado", ""),
+            objetivo_pedagogico=campo("objetivo_pedagogico", ""),
+            status=campo("status", "Disponível"),
+            origem=campo("origem", "Importação por planilha"),
+            link_referencia=campo("link_referencia", ""),
+            observacoes=campo("observacoes", ""),
+        )
+        importados += 1
+
+    return importados, erros
+
+
+def listar_recursos_escola_texto(escola_nome=None, limite=40):
+    recursos = listar_recursos_escola(escola_nome=escola_nome, apenas_disponiveis=True)
+    if not recursos:
+        return "Nenhum recurso pedagógico ou tecnologia assistiva da escola cadastrado até o momento."
+
+    linhas = []
+    for r in recursos[:limite]:
+        (
+            _id, escola, nome, categoria, descricao, quantidade, localizacao,
+            publico, objetivo, status, origem, link, obs, criado_em
+        ) = r
+        linhas.append(
+            f"- {nome} | Categoria: {categoria or 'Não informada'} | Quantidade: {quantidade or 1} | "
+            f"Local: {localizacao or 'Não informado'} | Status: {status or 'Não informado'} | "
+            f"Objetivo pedagógico: {objetivo or descricao or 'Não informado'}"
+        )
+    return "\n".join(linhas)
+
+
+def renderizar_pagina_recursos_escola():
+    st.markdown('<div class="subtitulo">🏫 Recursos Pedagógicos e Tecnologia Assistiva da Escola</div>', unsafe_allow_html=True)
+    st.markdown(
+        """
+        <div class="descricao">
+        Cadastre ou importe os recursos reais disponíveis na escola para que o Plano AEE - IA e o Plano Mensal
+        possam sugerir atividades pedagógicas contextualizadas com a estrutura existente.
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    aba1, aba2, aba3, aba4 = st.tabs([
+        "➕ Cadastro manual",
+        "📥 Importar planilha",
+        "📦 Banco de recursos",
+        "📊 Indicadores",
+    ])
+
+    with aba1:
+        st.markdown("#### Cadastrar recurso da escola")
+        with st.form("form_recurso_escola"):
+            col1, col2 = st.columns(2)
+            with col1:
+                escola_nome = st.text_input("Escola/unidade", placeholder="Ex.: EREM Ernesto Silva")
+                nome_recurso = st.text_input("Nome do recurso *", placeholder="Ex.: Tablet, prancha CAA, impressora 3D")
+                categoria = st.selectbox("Categoria", OPCOES_CATEGORIAS_RECURSOS_ESCOLA)
+                quantidade = st.number_input("Quantidade", min_value=1, value=1, step=1)
+                status = st.selectbox("Status", OPCOES_STATUS_RECURSOS_ESCOLA)
+            with col2:
+                localizacao = st.text_input("Localização", placeholder="Ex.: Sala de Recursos, laboratório, biblioteca")
+                publico_indicado = st.text_input("Público indicado", placeholder="Ex.: TEA, baixa visão, deficiência física, todos")
+                origem = st.text_input("Origem/aquisição", placeholder="Ex.: PDDE, doação, escola, projeto")
+                link_referencia = st.text_input("Link de referência", placeholder="Opcional")
+
+            descricao = st.text_area("Descrição do recurso", height=90)
+            objetivo_pedagogico = st.text_area("Objetivo pedagógico / possibilidades de uso", height=90)
+            observacoes = st.text_area("Observações", height=80)
+
+            salvar = st.form_submit_button("💾 Salvar recurso", use_container_width=True)
+            if salvar:
+                if not nome_recurso.strip():
+                    st.error("Informe o nome do recurso.")
+                else:
+                    cadastrar_recurso_escola(
+                        escola_nome, nome_recurso, categoria, descricao, quantidade,
+                        localizacao, publico_indicado, objetivo_pedagogico, status,
+                        origem, link_referencia, observacoes
+                    )
+                    st.success("Recurso cadastrado com sucesso.")
+
+    with aba2:
+        st.markdown("#### Importar recursos por planilha")
+        st.info(
+            "A planilha pode ter colunas como: escola_nome, nome_recurso, categoria, descricao, quantidade, "
+            "localizacao, publico_indicado, objetivo_pedagogico, status, origem, link_referencia e observacoes."
+        )
+        escola_padrao = st.text_input("Escola padrão para linhas sem escola informada", key="escola_padrao_importacao")
+        arquivo = st.file_uploader("Enviar planilha CSV ou Excel", type=["csv", "xlsx", "xls"])
+
+        if arquivo is not None:
+            try:
+                if arquivo.name.lower().endswith(".csv"):
+                    df_import = pd.read_csv(arquivo)
+                else:
+                    df_import = pd.read_excel(arquivo)
+
+                st.dataframe(df_import.head(20), use_container_width=True)
+
+                if st.button("📥 Importar recursos da planilha", use_container_width=True):
+                    total, erros = importar_recursos_escola_dataframe(df_import, escola_padrao=escola_padrao)
+                    st.success(f"{total} recurso(s) importado(s) com sucesso.")
+                    if erros:
+                        st.warning("Algumas linhas não foram importadas:")
+                        st.write(erros[:20])
+            except Exception as e:
+                st.error(f"Não foi possível ler a planilha: {e}")
+
+    with aba3:
+        st.markdown("#### Banco de recursos cadastrados")
+        recursos = listar_recursos_escola()
+        if not recursos:
+            st.info("Nenhum recurso cadastrado até o momento.")
+        else:
+            df = pd.DataFrame(
+                recursos,
+                columns=[
+                    "ID", "Escola", "Recurso", "Categoria", "Descrição", "Quantidade",
+                    "Localização", "Público indicado", "Objetivo pedagógico", "Status",
+                    "Origem", "Link", "Observações", "Criado em"
+                ],
+            )
+            st.dataframe(df, use_container_width=True, hide_index=True)
+
+            st.markdown("#### Excluir recurso")
+            ids = df["ID"].tolist()
+            mapa_ids = {row["ID"]: f"{row['Recurso']} - {row['Escola'] or 'Sem escola informada'}" for _, row in df.iterrows()}
+            recurso_id = st.selectbox("Selecione o recurso para excluir", ids, format_func=lambda x: mapa_ids.get(x, str(x)))
+            if st.button("🗑️ Excluir recurso selecionado"):
+                excluir_recurso_escola(recurso_id)
+                st.success("Recurso excluído.")
+                st.rerun()
+
+    with aba4:
+        recursos = listar_recursos_escola()
+        if not recursos:
+            st.info("Cadastre recursos para visualizar indicadores.")
+        else:
+            df = pd.DataFrame(
+                recursos,
+                columns=[
+                    "ID", "Escola", "Recurso", "Categoria", "Descrição", "Quantidade",
+                    "Localização", "Público indicado", "Objetivo pedagógico", "Status",
+                    "Origem", "Link", "Observações", "Criado em"
+                ],
+            )
+            total_itens = len(df)
+            total_unidades = int(pd.to_numeric(df["Quantidade"], errors="coerce").fillna(1).sum())
+            categorias = df["Categoria"].nunique()
+            disponiveis = df[df["Status"].isin(["Disponível", "Disponível com agendamento"])].shape[0]
+
+            col1, col2, col3, col4 = st.columns(4)
+            col1.metric("Tipos de recursos", total_itens)
+            col2.metric("Unidades cadastradas", total_unidades)
+            col3.metric("Categorias", categorias)
+            col4.metric("Disponíveis", disponiveis)
+
+            graf = df.groupby("Categoria", dropna=False)["Quantidade"].sum().reset_index()
+            graf["Categoria"] = graf["Categoria"].fillna("Não informada")
+            chart = alt.Chart(graf).mark_bar().encode(
+                x=alt.X("Quantidade:Q", title="Quantidade"),
+                y=alt.Y("Categoria:N", sort="-x", title="Categoria"),
+                tooltip=["Categoria", "Quantidade"],
+            )
+            st.altair_chart(chart, use_container_width=True)
+
 
 
 # ======================================================
@@ -5157,6 +5567,10 @@ Horário preferencial: {estudante[8]}
     estudo_txt = texto_estudo_caso(estudante, ("", *estudo)) if estudo else "Nenhum estudo de caso GRE registrado."
     plano_txt = texto_plano_aee(estudante, ("", *plano_manual)) if plano_manual else "Nenhum plano AEE manual registrado."
 
+    # Recursos reais cadastrados pela escola/unidade.
+    # A IA deve priorizar esses recursos antes de sugerir materiais externos.
+    recursos_escola_txt = listar_recursos_escola_texto(limite=60)
+
     textos_escutas = []
     for esc in escutas_docentes:
         try:
@@ -5187,6 +5601,7 @@ comunicação funcional autonomia CAA tecnologia assistiva recursos visuais roti
         "entrevista_txt": entrevista_txt,
         "estudo_txt": estudo_txt,
         "plano_txt": plano_txt,
+        "recursos_escola_txt": recursos_escola_txt,
         "escutas_docentes_txt": escutas_txt,
         "relatorios_docente_txt": relatorios_docente_txt,
         "qtd_escutas_docentes": len(escutas_docentes),
@@ -5255,6 +5670,9 @@ ESTUDO DE CASO GRE:
 
 PLANO AEE MANUAL:
 {ctx['plano_txt']}
+
+RECURSOS PEDAGÓGICOS E TECNOLOGIAS ASSISTIVAS CADASTRADOS NA ESCOLA:
+{ctx['recursos_escola_txt']}
 
 ESCUTA DOCENTE / HISTÓRICO DE ESCUTAS:
 {ctx['escutas_docentes_txt']}
@@ -5353,6 +5771,9 @@ ESTUDO DE CASO GRE:
 
 PLANO AEE MANUAL:
 {ctx['plano_txt']}
+
+RECURSOS PEDAGÓGICOS E TECNOLOGIAS ASSISTIVAS CADASTRADOS NA ESCOLA:
+{ctx['recursos_escola_txt']}
 
 ESCUTA DOCENTE / HISTÓRICO DE ESCUTAS:
 {ctx['escutas_docentes_txt']}
@@ -5489,6 +5910,9 @@ ESTUDO DE CASO GRE:
 PLANO AEE MANUAL:
 {ctx['plano_txt']}
 
+RECURSOS PEDAGÓGICOS E TECNOLOGIAS ASSISTIVAS CADASTRADOS NA ESCOLA:
+{ctx['recursos_escola_txt']}
+
 ESCUTA DOCENTE / HISTÓRICO DE ESCUTAS:
 {ctx['escutas_docentes_txt']}
 
@@ -5568,6 +5992,7 @@ Horário preferencial: {estudante[8]}
     avaliacao_txt = texto_avaliacao(estudante, ("", *avaliacao)) if avaliacao else "Nenhuma avaliação pedagógica registrada."
     entrevista_txt = texto_entrevista(estudante, ("", *entrevista)) if entrevista else "Nenhuma entrevista com a família registrada."
     estudo_txt = texto_estudo_caso(estudante, ("", *estudo)) if estudo else "Nenhum estudo de caso GRE registrado."
+    recursos_escola_txt = listar_recursos_escola_texto(limite=60)
 
     pergunta_busca = f"""
 Plano AEE PAEE para estudante com perfil {estudante[4]}, ano/série {estudante[2]},
@@ -5612,6 +6037,9 @@ AVALIAÇÃO PEDAGÓGICA:
 
 ESTUDO DE CASO GRE:
 {estudo_txt}
+
+RECURSOS PEDAGÓGICOS E TECNOLOGIAS ASSISTIVAS CADASTRADOS NA ESCOLA:
+{recursos_escola_txt}
 
 HISTÓRICO DE ATENDIMENTOS:
 {historico_txt}
@@ -6214,7 +6642,7 @@ def consolidar_textos_plano_aee_ia(estudante_id):
 def texto_estudo_plano_aee_gre(estudante, estudo=None, plano=None):
     """Gera o documento Estudo de Caso + Plano AEE.
 
-    V33:
+    V38:
     - A Parte 3 usa primeiro os dados do Plano AEE Manual.
     - Quando o manual estiver vazio, busca automaticamente dados estruturados do
       Perfil Pedagógico Inteligente, Plano Mensal IA e registros antigos de
@@ -6726,6 +7154,7 @@ with st.sidebar:
             "Articulação Pedagógica Inclusiva",
             "Estudo de Caso",
             "Plano AEE - IA",
+            "Recursos Pedagógicos e TA da Escola",
             "Agenda de Atendimentos",
             "Atendimentos",
             "Relatórios GRE",
@@ -8961,6 +9390,10 @@ Modelo obrigatório para cada atendimento:
                             st.rerun()
             else:
                 st.info("Nenhum registro IA salvo ainda.")
+
+
+elif menu == "Recursos Pedagógicos e TA da Escola":
+    renderizar_pagina_recursos_escola()
 
 elif menu == "Atendimentos":
     st.markdown('<div class="subtitulo">📌 Registro dos atendimentos</div>', unsafe_allow_html=True)
