@@ -1,6 +1,6 @@
 
-# INCLUISRM V38 - Recursos Pedagógicos e Tecnologia Assistiva da Escola integrados à IA
-# Atualização: menu reposicionado após Entrevista com a Família e IA orientada a registrar ausência de recursos cadastrados.
+# INCLUISRM V39 - Perfil docente, modo maker inclusivo e projetos norteadores no AEE
+# Atualização: integra perfil pedagógico/tecnológico do professor AEE e docente regular, modo maker inclusivo e projetos interdisciplinares sem caracterizar reforço escolar.
 
 import os
 import re
@@ -67,8 +67,8 @@ DOCUMENTOS_AVALIACOES_DIR.mkdir(parents=True, exist_ok=True)
 
 APP_NAME = "INCLUISRM"
 APP_SUBTITLE = "Sistema Inteligente de Articulação Pedagógica Inclusiva"
-APP_VERSION = "V38"
-APP_VERSION_LABEL = "Recursos Pedagógicos e TA da Escola • IA contextualizada • Relatórios GRE"
+APP_VERSION = "V39"
+APP_VERSION_LABEL = "Perfil Docente • Modo Maker Inclusivo • Projetos Norteadores • IA contextualizada"
 # Fuso fixo UTC-3 usado por Recife/Pernambuco.
 # Usar timezone/timedelta evita erro em ambientes Render sem base tzdata completa.
 FUSO_LOCAL = timezone(timedelta(hours=-3), name="America/Recife")
@@ -474,6 +474,18 @@ def criar_tabelas():
         """
     )
 
+    # Perfil pedagógico/tecnológico do professor AEE para personalizar as sugestões da IA.
+    for coluna, definicao in [
+        ("areas_interesse", "TEXT"),
+        ("nivel_tecnologico", "TEXT"),
+        ("modo_maker", "TEXT"),
+        ("interesse_formacao_maker", "TEXT"),
+        ("projetos_interesse", "TEXT"),
+        ("preferencias_metodologicas", "TEXT"),
+    ]:
+        adicionar_coluna_se_nao_existe(cursor, "professores", coluna, definicao)
+
+
     cursor.execute(
         """
         CREATE TABLE IF NOT EXISTS estudante_professor (
@@ -679,6 +691,19 @@ def criar_tabelas():
     )
 
     adicionar_coluna_se_nao_existe(cursor, "escutas_docentes", "codigo_docente", "TEXT")
+
+    # Perfil de atuação do docente da sala regular para orientar relatórios mais realistas.
+    for coluna, definicao in [
+        ("areas_interesse_docente", "TEXT"),
+        ("nivel_tecnologico_docente", "TEXT"),
+        ("modo_maker_docente", "TEXT"),
+        ("interesse_formacao_maker_docente", "TEXT"),
+        ("interesse_projetos_interdisciplinares", "TEXT"),
+        ("projeto_interesse_docente", "TEXT"),
+        ("preferencias_metodologicas_docente", "TEXT"),
+    ]:
+        adicionar_coluna_se_nao_existe(cursor, "escutas_docentes", coluna, definicao)
+
 
     cursor.execute(
         """
@@ -1239,6 +1264,13 @@ CAMPOS_ESCUTA_DOCENTE = [
     "nivel_autonomia",
     "nivel_engajamento",
     "observacoes",
+    "areas_interesse_docente",
+    "nivel_tecnologico_docente",
+    "modo_maker_docente",
+    "interesse_formacao_maker_docente",
+    "interesse_projetos_interdisciplinares",
+    "projeto_interesse_docente",
+    "preferencias_metodologicas_docente",
 ]
 
 CAMPOS_RELATORIO_DOCENTE = [
@@ -1517,6 +1549,58 @@ OPCOES_STATUS_RECURSOS_ESCOLA = [
     "Emprestado",
     "Indisponível",
 ]
+
+OPCOES_AREAS_INTERESSE_DOCENTE = [
+    "Alfabetização",
+    "Comunicação Alternativa (CAA)",
+    "Recursos visuais",
+    "Artes",
+    "Música",
+    "Jogos pedagógicos",
+    "Tecnologia educacional",
+    "Cultura maker",
+    "Robótica educacional",
+    "Impressão 3D",
+    "Programação",
+    "Ciências",
+    "Matemática manipulável",
+    "Leitura e escrita",
+    "Coordenação motora",
+    "Autonomia e vida diária",
+    "Ensino médio / projetos interdisciplinares",
+    "Atividades desplugadas",
+    "Projetos com materiais de baixo custo",
+    "Outro",
+]
+
+OPCOES_NIVEL_TECNOLOGICO_DOCENTE = [
+    "Básico",
+    "Intermediário",
+    "Avançado",
+]
+
+OPCOES_NIVEL_PROJETO_NORTEADOR = [
+    "Desplugado / baixa tecnologia",
+    "Maker básico",
+    "Maker intermediário",
+    "Maker avançado",
+]
+
+OPCOES_PROJETOS_NORTEADORES = [
+    "Carrinho seguidor de linha",
+    "Carrinho movido à energia solar",
+    "Estação meteorológica simples",
+    "Horta inteligente",
+    "Robótica simples",
+    "Podcast escolar",
+    "Impressão 3D / protótipo tátil",
+    "Automação residencial simples",
+    "Jogo educativo",
+    "Ebook interativo",
+    "Experimento científico acessível",
+    "Projeto livre / personalizado",
+]
+
 
 def hoje_str():
     """Data/hora local para salvar histórico e documentos."""
@@ -2490,17 +2574,38 @@ def excluir_estudante(estudante_id):
 # ======================================================
 # CRUD - PROFESSOR
 # ======================================================
-def salvar_professor(nome_referencia, escola, regional, formacao, carga_horaria, turno_atuacao, observacoes):
+def salvar_professor(
+    nome_referencia,
+    escola,
+    regional,
+    formacao,
+    carga_horaria,
+    turno_atuacao,
+    observacoes,
+    areas_interesse="",
+    nivel_tecnologico="Básico",
+    modo_maker="Não",
+    interesse_formacao_maker="Não",
+    projetos_interesse="",
+    preferencias_metodologicas="",
+):
     conn = conectar()
     cursor = conn.cursor()
     cursor.execute(
         """
         INSERT INTO professores (
             nome_referencia, escola, regional, formacao, carga_horaria,
-            turno_atuacao, observacoes, criado_em
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            turno_atuacao, observacoes, criado_em,
+            areas_interesse, nivel_tecnologico, modo_maker,
+            interesse_formacao_maker, projetos_interesse, preferencias_metodologicas
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
-        (nome_referencia, escola, regional, formacao, carga_horaria, turno_atuacao, observacoes, hoje_str()),
+        (
+            nome_referencia, escola, regional, formacao, carga_horaria,
+            turno_atuacao, observacoes, hoje_str(),
+            areas_interesse, nivel_tecnologico, modo_maker,
+            interesse_formacao_maker, projetos_interesse, preferencias_metodologicas,
+        ),
     )
     conn.commit()
     conn.close()
@@ -2513,7 +2618,8 @@ def listar_professores():
     cursor = conn.cursor()
     cursor.execute(
         """
-        SELECT id, nome_referencia, escola, regional, formacao, carga_horaria, turno_atuacao, observacoes, criado_em
+        SELECT id, nome_referencia, escola, regional, formacao, carga_horaria, turno_atuacao, observacoes, criado_em,
+               areas_interesse, nivel_tecnologico, modo_maker, interesse_formacao_maker, projetos_interesse, preferencias_metodologicas
         FROM professores
         ORDER BY id DESC
         """
@@ -2523,17 +2629,39 @@ def listar_professores():
     return dados
 
 
-def atualizar_professor(professor_id, nome_referencia, escola, regional, formacao, carga_horaria, turno_atuacao, observacoes):
+def atualizar_professor(
+    professor_id,
+    nome_referencia,
+    escola,
+    regional,
+    formacao,
+    carga_horaria,
+    turno_atuacao,
+    observacoes,
+    areas_interesse="",
+    nivel_tecnologico="Básico",
+    modo_maker="Não",
+    interesse_formacao_maker="Não",
+    projetos_interesse="",
+    preferencias_metodologicas="",
+):
     conn = conectar()
     cursor = conn.cursor()
     cursor.execute(
         """
         UPDATE professores
         SET nome_referencia=?, escola=?, regional=?, formacao=?,
-            carga_horaria=?, turno_atuacao=?, observacoes=?
+            carga_horaria=?, turno_atuacao=?, observacoes=?,
+            areas_interesse=?, nivel_tecnologico=?, modo_maker=?,
+            interesse_formacao_maker=?, projetos_interesse=?, preferencias_metodologicas=?
         WHERE id=?
         """,
-        (nome_referencia, escola, regional, formacao, carga_horaria, turno_atuacao, observacoes, professor_id),
+        (
+            nome_referencia, escola, regional, formacao, carga_horaria,
+            turno_atuacao, observacoes, areas_interesse, nivel_tecnologico,
+            modo_maker, interesse_formacao_maker, projetos_interesse,
+            preferencias_metodologicas, professor_id,
+        ),
     )
     conn.commit()
     conn.close()
@@ -2930,6 +3058,13 @@ def salvar_escuta_docente(
     nivel_autonomia,
     nivel_engajamento,
     observacoes,
+    areas_interesse_docente="",
+    nivel_tecnologico_docente="Básico",
+    modo_maker_docente="Não",
+    interesse_formacao_maker_docente="Não",
+    interesse_projetos_interdisciplinares="Não",
+    projeto_interesse_docente="",
+    preferencias_metodologicas_docente="",
 ):
     inserir_registro(
         "escutas_docentes",
@@ -2955,6 +3090,13 @@ def salvar_escuta_docente(
             "nivel_autonomia",
             "nivel_engajamento",
             "observacoes",
+            "areas_interesse_docente",
+            "nivel_tecnologico_docente",
+            "modo_maker_docente",
+            "interesse_formacao_maker_docente",
+            "interesse_projetos_interdisciplinares",
+            "projeto_interesse_docente",
+            "preferencias_metodologicas_docente",
         ],
         [
             estudante_id,
@@ -2978,6 +3120,13 @@ def salvar_escuta_docente(
             nivel_autonomia,
             nivel_engajamento,
             observacoes,
+            areas_interesse_docente,
+            nivel_tecnologico_docente,
+            modo_maker_docente,
+            interesse_formacao_maker_docente,
+            interesse_projetos_interdisciplinares,
+            projeto_interesse_docente,
+            preferencias_metodologicas_docente,
         ],
     )
 
@@ -3011,7 +3160,14 @@ def listar_escutas_docentes(estudante_id):
                nivel_participacao,
                nivel_autonomia,
                nivel_engajamento,
-               observacoes
+               observacoes,
+               areas_interesse_docente,
+               nivel_tecnologico_docente,
+               modo_maker_docente,
+               interesse_formacao_maker_docente,
+               interesse_projetos_interdisciplinares,
+               projeto_interesse_docente,
+               preferencias_metodologicas_docente
         FROM escutas_docentes
         WHERE estudante_id=?
         ORDER BY id DESC
@@ -3083,6 +3239,15 @@ INDICADORES:
 Participação: {v('nivel_participacao')}/10
 Autonomia: {v('nivel_autonomia')}/10
 Engajamento: {v('nivel_engajamento')}/10
+
+PERFIL PEDAGÓGICO/TECNOLÓGICO DO DOCENTE DA SALA REGULAR:
+Áreas de interesse/atuação: {v('areas_interesse_docente')}
+Nível tecnológico: {v('nivel_tecnologico_docente')}
+Modo maker inclusivo ativado: {v('modo_maker_docente')}
+Interesse em formação maker/tecnologias: {v('interesse_formacao_maker_docente')}
+Interesse em projetos interdisciplinares: {v('interesse_projetos_interdisciplinares')}
+Projeto/tema que gostaria de trabalhar: {v('projeto_interesse_docente')}
+Preferências metodológicas: {v('preferencias_metodologicas_docente')}
 
 OBSERVAÇÕES:
 {v('observacoes')}
@@ -3307,6 +3472,9 @@ REGRAS OBRIGATÓRIAS:
 - Usar linguagem pedagógica, objetiva, acolhedora e institucional.
 - O documento deve orientar o professor da sala regular, sem rotular o estudante.
 - Focar em participação, aprendizagem, barreiras, potencialidades, estratégias e avaliação inclusiva.
+- Considerar o perfil pedagógico/tecnológico do docente da sala regular, quando registrado na Escuta Docente.
+- Não sugerir robótica, impressão 3D, programação ou tecnologias complexas quando o docente indicar baixa familiaridade tecnológica ou não ativar modo maker.
+- Quando houver interesse em projetos interdisciplinares, propor caminhos pedagógicos acessíveis e progressivos, deixando claro que o AEE não é reforço escolar.
 - Quando os dados forem insuficientes, escrever que a informação não foi localizada nos registros.
 
 DADOS DISPONÍVEIS NO SISTEMA:
@@ -4034,6 +4202,14 @@ Formação: {p[4] or 'Não informado.'}
 Carga horária: {p[5] or 'Não informado.'}
 Turno de atuação: {p[6] or 'Não informado.'}
 Data de cadastro: {p[8] or 'Não informado.'}
+
+PERFIL PEDAGÓGICO E TECNOLÓGICO DO(A) PROFESSOR(A):
+Áreas de atuação/interesse: {p[9] if len(p) > 9 and p[9] else 'Não informado.'}
+Nível de familiaridade tecnológica: {p[10] if len(p) > 10 and p[10] else 'Não informado.'}
+Modo maker inclusivo ativado: {p[11] if len(p) > 11 and p[11] else 'Não informado.'}
+Interesse em formação maker/tecnologias educacionais: {p[12] if len(p) > 12 and p[12] else 'Não informado.'}
+Projetos/temas de interesse: {p[13] if len(p) > 13 and p[13] else 'Não informado.'}
+Preferências metodológicas: {p[14] if len(p) > 14 and p[14] else 'Não informado.'}
 
 Observações:
 {p[7] or 'Não informado.'}
@@ -5810,6 +5986,65 @@ Assinatura: _______________________________________
 
 
 
+def texto_perfil_professor_aee_para_ia():
+    """Resume o perfil pedagógico/tecnológico do professor AEE atual para orientar a IA."""
+    professores = listar_professores()
+    if not professores:
+        return (
+            "Nenhum professor AEE cadastrado no sistema. As sugestões devem ser realistas, "
+            "priorizando estratégias pedagógicas simples, desplugadas, acessíveis e de baixo custo."
+        )
+
+    p = professores[0]
+    areas = p[9] if len(p) > 9 and p[9] else "Não informado"
+    nivel = p[10] if len(p) > 10 and p[10] else "Básico"
+    maker = p[11] if len(p) > 11 and p[11] else "Não"
+    formacao = p[12] if len(p) > 12 and p[12] else "Não informado"
+    projetos = p[13] if len(p) > 13 and p[13] else "Não informado"
+    preferencias = p[14] if len(p) > 14 and p[14] else "Não informado"
+
+    return f"""
+PERFIL DO PROFESSOR AEE RESPONSÁVEL:
+Nome/referência: {p[1] or 'Não informado'}
+Escola: {p[2] or 'Não informado'}
+Áreas de atuação/interesse: {areas}
+Nível de familiaridade tecnológica: {nivel}
+Modo maker inclusivo ativado: {maker}
+Interesse em formação maker/tecnologias educacionais: {formacao}
+Projetos/temas de interesse: {projetos}
+Preferências metodológicas: {preferencias}
+
+ORIENTAÇÃO PARA A IA:
+- Respeitar o perfil do professor AEE.
+- Não sugerir robótica, impressão 3D, CNC, programação ou tecnologias complexas se o modo maker estiver desativado ou se o nível tecnológico for básico, salvo se o texto indicar interesse em aprender e a atividade for introdutória.
+- Priorizar atividades desplugadas, recursos visuais, materiais manipuláveis, organização de rotina e estratégias de acessibilidade quando o perfil tecnológico for básico.
+- Quando o modo maker estiver ativado, sugerir projetos e tecnologias de forma progressiva, segura, com etapas simples e sempre vinculadas às necessidades do estudante.
+""".strip()
+
+
+def montar_contexto_projeto_norteador_para_ia(usar_projeto=False, projeto_norteador="", nivel_projeto="", observacoes_projeto=""):
+    """Monta orientações para uso de projeto interdisciplinar no AEE sem transformar o atendimento em reforço escolar."""
+    if not usar_projeto:
+        return (
+            "Projeto norteador não ativado neste plano. Caso sugira atividades, priorize objetivos funcionais do AEE, "
+            "atividades desplugadas, recursos acessíveis e mediações pedagógicas alinhadas ao perfil do estudante."
+        )
+
+    return f"""
+PROJETO NORTEADOR DO ATENDIMENTO ATIVADO:
+Tema/projeto informado pelo professor: {projeto_norteador or 'Projeto não especificado'}
+Nível desejado: {nivel_projeto or 'Não informado'}
+Observações do professor: {observacoes_projeto or 'Não informado'}
+
+REGRAS OBRIGATÓRIAS:
+- O AEE NÃO é reforço escolar. O projeto deve ser usado como meio pedagógico para acessibilidade, participação, autonomia, organização cognitiva, comunicação, permanência, resolução de problemas e protagonismo.
+- As áreas do Ensino Médio devem aparecer de forma contextualizada, interdisciplinar e significativa, sem substituir o professor da disciplina.
+- Incluir atividades desplugadas e de baixo custo, especialmente quando houver comorbidades, fadiga, dificuldades motoras, sensoriais ou executivas.
+- Se o projeto envolver maker/robótica/impressão 3D, dividir em etapas simples, seguras e progressivas.
+- Sempre adaptar o projeto ao perfil do estudante, aos recursos da escola e ao perfil tecnológico do professor AEE.
+""".strip()
+
+
 def montar_contexto_plano_aee_ia(estudante, avaliacao=None, entrevista=None, estudo=None, plano_manual=None):
     """Reúne os dados pedagógicos disponíveis para o módulo Plano AEE - IA.
 
@@ -5843,6 +6078,7 @@ Horário preferencial: {estudante[8]}
     # Recursos reais cadastrados pela escola/unidade.
     # A IA deve priorizar esses recursos antes de sugerir materiais externos.
     recursos_escola_txt = listar_recursos_escola_texto(limite=60)
+    perfil_professor_txt = texto_perfil_professor_aee_para_ia()
 
     textos_escutas = []
     for esc in escutas_docentes:
@@ -5875,6 +6111,7 @@ comunicação funcional autonomia CAA tecnologia assistiva recursos visuais roti
         "estudo_txt": estudo_txt,
         "plano_txt": plano_txt,
         "recursos_escola_txt": recursos_escola_txt,
+        "perfil_professor_txt": perfil_professor_txt,
         "escutas_docentes_txt": escutas_txt,
         "relatorios_docente_txt": relatorios_docente_txt,
         "qtd_escutas_docentes": len(escutas_docentes),
@@ -5943,6 +6180,9 @@ ESTUDO DE CASO GRE:
 
 PLANO AEE MANUAL:
 {ctx['plano_txt']}
+
+PERFIL DO PROFESSOR AEE:
+{ctx['perfil_professor_txt']}
 
 RECURSOS PEDAGÓGICOS E TECNOLOGIAS ASSISTIVAS CADASTRADOS NA ESCOLA:
 {ctx['recursos_escola_txt']}
@@ -6045,6 +6285,9 @@ ESTUDO DE CASO GRE:
 PLANO AEE MANUAL:
 {ctx['plano_txt']}
 
+PERFIL DO PROFESSOR AEE:
+{ctx['perfil_professor_txt']}
+
 RECURSOS PEDAGÓGICOS E TECNOLOGIAS ASSISTIVAS CADASTRADOS NA ESCOLA:
 {ctx['recursos_escola_txt']}
 
@@ -6080,7 +6323,21 @@ ESTRUTURE EM:
         return f"{fallback}\n\nObservação técnica: não foi possível gerar com IA agora. Erro: {e}"
 
 
-def gerar_plano_mensal_aee_ia(estudante, mes_referencia, ano_referencia, qtd_atendimentos_semana=1, avaliacao=None, entrevista=None, estudo=None, plano_manual=None, datas_atendimentos=None):
+def gerar_plano_mensal_aee_ia(
+    estudante,
+    mes_referencia,
+    ano_referencia,
+    qtd_atendimentos_semana=1,
+    avaliacao=None,
+    entrevista=None,
+    estudo=None,
+    plano_manual=None,
+    datas_atendimentos=None,
+    usar_projeto_norteador=False,
+    projeto_norteador="",
+    nivel_projeto_norteador="",
+    observacoes_projeto_norteador="",
+):
     """Gera plano mensal aplicável às datas reais de atendimento do mês."""
     ctx = montar_contexto_plano_aee_ia(estudante, avaliacao, entrevista, estudo, plano_manual)
     client = obter_cliente_openai()
@@ -6088,6 +6345,12 @@ def gerar_plano_mensal_aee_ia(estudante, mes_referencia, ano_referencia, qtd_ate
     datas_atendimentos = datas_atendimentos or []
     datas_txt = datas_atendimentos_para_texto(datas_atendimentos)
     total_atendimentos = len(datas_atendimentos) if datas_atendimentos else qtd * 4
+    projeto_norteador_txt = montar_contexto_projeto_norteador_para_ia(
+        usar_projeto_norteador,
+        projeto_norteador,
+        nivel_projeto_norteador,
+        observacoes_projeto_norteador,
+    )
 
     fallback = f"""
 PLANO MENSAL DE ATENDIMENTO EDUCACIONAL ESPECIALIZADO (AEE)
@@ -6101,6 +6364,9 @@ Total previsto de atendimentos no mês: {total_atendimentos}
 
 Objetivo do mês:
 Organizar uma rotina inicial/progressiva de atendimento voltada à comunicação funcional, autonomia, atenção compartilhada, interação e participação nas atividades da SRM.
+
+Projeto norteador / orientação interdisciplinar:
+{projeto_norteador_txt}
 """.strip()
 
     if datas_atendimentos:
@@ -6157,11 +6423,17 @@ DATAS REAIS DE ATENDIMENTO CALCULADAS PELO SISTEMA:
 
 TOTAL REAL DE ATENDIMENTOS NO MÊS: {total_atendimentos}
 
+PROJETO NORTEADOR DO ATENDIMENTO:
+{projeto_norteador_txt}
+
 REGRAS:
 - Não usar nome real do estudante.
 - Usar código interno.
 - Não inventar evolução ainda não registrada.
 - Gerar atividades realistas para o professor aplicar.
+- O AEE não deve ser tratado como reforço escolar; o foco deve ser acessibilidade, autonomia, participação, organização cognitiva, comunicação funcional, permanência, mediação pedagógica e protagonismo.
+- Se houver projeto norteador, organizar atividades interdisciplinares sem substituir o professor da disciplina.
+- Incluir atividades desplugadas, manipuláveis, visuais, práticas e de baixo custo, especialmente para estudantes do Ensino Médio com comorbidades ou maior necessidade de apoio.
 - Cada atendimento deve ter: objetivo, atividade, recursos, mediação, registro esperado no sistema e indicador de observação.
 - Incluir progressão gradual.
 - Considerar atividades plugadas e desplugadas.
@@ -6183,6 +6455,9 @@ ESTUDO DE CASO GRE:
 PLANO AEE MANUAL:
 {ctx['plano_txt']}
 
+PERFIL DO PROFESSOR AEE:
+{ctx['perfil_professor_txt']}
+
 RECURSOS PEDAGÓGICOS E TECNOLOGIAS ASSISTIVAS CADASTRADOS NA ESCOLA:
 {ctx['recursos_escola_txt']}
 
@@ -6203,7 +6478,8 @@ FORMATO DE SAÍDA:
 2. Objetivo do mês
 3. Habilidades prioritárias do mês
 4. Recursos necessários
-5. Roteiro por data real de atendimento
+5. Projeto norteador interdisciplinar, quando ativado
+6. Roteiro por data real de atendimento
    - Data e dia da semana
    - Objetivo do atendimento
    - Atividade proposta
@@ -6266,6 +6542,7 @@ Horário preferencial: {estudante[8]}
     entrevista_txt = texto_entrevista(estudante, ("", *entrevista)) if entrevista else "Nenhuma entrevista com a família registrada."
     estudo_txt = texto_estudo_caso(estudante, ("", *estudo)) if estudo else "Nenhum estudo de caso GRE registrado."
     recursos_escola_txt = listar_recursos_escola_texto(limite=60)
+    perfil_professor_txt = texto_perfil_professor_aee_para_ia()
 
     pergunta_busca = f"""
 Plano AEE PAEE para estudante com perfil {estudante[4]}, ano/série {estudante[2]},
@@ -7751,6 +8028,40 @@ elif menu == "Cadastro do Professor AEE":
                 "Turno de atuação",
                 key=f"prof_turno_{nonce}",
             )
+            st.markdown("#### Perfil pedagógico e tecnológico do professor AEE")
+            areas_interesse_prof = st.multiselect(
+                "Áreas de atuação/interesse",
+                OPCOES_AREAS_INTERESSE_DOCENTE,
+                key=f"prof_areas_interesse_{nonce}",
+            )
+            colp1, colp2 = st.columns(2)
+            with colp1:
+                nivel_tecnologico_prof = st.selectbox(
+                    "Nível de familiaridade tecnológica",
+                    OPCOES_NIVEL_TECNOLOGICO_DOCENTE,
+                    key=f"prof_nivel_tecnologico_{nonce}",
+                )
+                modo_maker_prof = st.toggle(
+                    "🧩 Ativar modo maker inclusivo",
+                    value=False,
+                    key=f"prof_modo_maker_{nonce}",
+                    help="Quando ativado, a IA pode sugerir cultura maker, robótica, impressão 3D, programação e projetos STEAM de forma progressiva.",
+                )
+            with colp2:
+                interesse_formacao_prof = st.checkbox(
+                    "Tenho interesse em aprender tecnologias maker e educacionais",
+                    key=f"prof_interesse_formacao_{nonce}",
+                )
+                projetos_interesse_prof = st.text_input(
+                    "Projetos/temas que gostaria de trabalhar",
+                    placeholder="Ex.: carrinho solar, CAA, jogos, música, impressão 3D...",
+                    key=f"prof_projetos_interesse_{nonce}",
+                )
+            preferencias_metodologicas_prof = st.text_area(
+                "Preferências metodológicas",
+                placeholder="Ex.: atividades desplugadas, materiais de baixo custo, jogos, projetos curtos, tecnologia gradual...",
+                key=f"prof_preferencias_metodologicas_{nonce}",
+            )
             obs = st.text_area(
                 "Observações",
                 key=f"prof_obs_{nonce}",
@@ -7762,7 +8073,21 @@ elif menu == "Cadastro do Professor AEE":
             if not nome_ref.strip():
                 st.error("Informe pelo menos o nome de referência do professor.")
             else:
-                salvar_professor(nome_ref, escola, regional, formacao, carga, turno, obs)
+                salvar_professor(
+                    nome_ref,
+                    escola,
+                    regional,
+                    formacao,
+                    carga,
+                    turno,
+                    obs,
+                    areas_interesse=", ".join(areas_interesse_prof),
+                    nivel_tecnologico=nivel_tecnologico_prof,
+                    modo_maker="Sim" if modo_maker_prof else "Não",
+                    interesse_formacao_maker="Sim" if interesse_formacao_prof else "Não",
+                    projetos_interesse=projetos_interesse_prof,
+                    preferencias_metodologicas=preferencias_metodologicas_prof,
+                )
                 st.success("Cadastro do professor salvo com sucesso.")
                 st.session_state["prof_form_nonce"] += 1
                 st.rerun()
@@ -7815,6 +8140,38 @@ elif menu == "Cadastro do Professor AEE":
                         formacao_e = st.text_area("Formação", value=p[4] or "", key=f"edit_prof_formacao_{p[0]}")
                         carga_e = st.text_input("Carga horária", value=p[5] or "", key=f"edit_prof_carga_{p[0]}")
                         turno_e = st.text_input("Turno", value=p[6] or "", key=f"edit_prof_turno_{p[0]}")
+                        areas_e = st.multiselect(
+                            "Áreas de atuação/interesse",
+                            OPCOES_AREAS_INTERESSE_DOCENTE,
+                            default=[x.strip() for x in (p[9] if len(p) > 9 and p[9] else "").split(",") if x.strip() in OPCOES_AREAS_INTERESSE_DOCENTE],
+                            key=f"edit_prof_areas_{p[0]}",
+                        )
+                        nivel_e = st.selectbox(
+                            "Nível de familiaridade tecnológica",
+                            OPCOES_NIVEL_TECNOLOGICO_DOCENTE,
+                            index=OPCOES_NIVEL_TECNOLOGICO_DOCENTE.index(p[10]) if len(p) > 10 and p[10] in OPCOES_NIVEL_TECNOLOGICO_DOCENTE else 0,
+                            key=f"edit_prof_nivel_{p[0]}",
+                        )
+                        modo_maker_e = st.toggle(
+                            "🧩 Ativar modo maker inclusivo",
+                            value=(len(p) > 11 and p[11] == "Sim"),
+                            key=f"edit_prof_maker_{p[0]}",
+                        )
+                        interesse_formacao_e = st.checkbox(
+                            "Tenho interesse em aprender tecnologias maker e educacionais",
+                            value=(len(p) > 12 and p[12] == "Sim"),
+                            key=f"edit_prof_formacao_maker_{p[0]}",
+                        )
+                        projetos_e = st.text_input(
+                            "Projetos/temas que gostaria de trabalhar",
+                            value=p[13] if len(p) > 13 and p[13] else "",
+                            key=f"edit_prof_projetos_{p[0]}",
+                        )
+                        preferencias_e = st.text_area(
+                            "Preferências metodológicas",
+                            value=p[14] if len(p) > 14 and p[14] else "",
+                            key=f"edit_prof_preferencias_{p[0]}",
+                        )
                         obs_e = st.text_area("Observações", value=p[7] or "", key=f"edit_prof_obs_{p[0]}")
 
                         if st.form_submit_button("💾 Atualizar cadastro"):
@@ -7827,6 +8184,12 @@ elif menu == "Cadastro do Professor AEE":
                                 carga_e,
                                 turno_e,
                                 obs_e,
+                                areas_interesse=", ".join(areas_e),
+                                nivel_tecnologico=nivel_e,
+                                modo_maker="Sim" if modo_maker_e else "Não",
+                                interesse_formacao_maker="Sim" if interesse_formacao_e else "Não",
+                                projetos_interesse=projetos_e,
+                                preferencias_metodologicas=preferencias_e,
                             )
                             st.success("Cadastro atualizado com sucesso.")
                             st.rerun()
@@ -8520,6 +8883,46 @@ elif menu == "Articulação Pedagógica Inclusiva":
                         OPCOES_ESTRATEGIAS_INCLUSIVAS,
                     )
 
+                    st.markdown("#### Perfil de atuação do professor da sala regular")
+                    st.caption("Essas informações ajudam a IA a sugerir orientações compatíveis com a realidade do docente, sem impor tecnologias que ele ainda não domina.")
+                    areas_interesse_docente = st.multiselect(
+                        "Áreas/estratégias que o docente gosta ou tem interesse em utilizar",
+                        OPCOES_AREAS_INTERESSE_DOCENTE,
+                        key="escuta_areas_interesse_docente",
+                    )
+                    cold1, cold2 = st.columns(2)
+                    with cold1:
+                        nivel_tecnologico_docente = st.selectbox(
+                            "Nível de familiaridade tecnológica do docente",
+                            OPCOES_NIVEL_TECNOLOGICO_DOCENTE,
+                            key="escuta_nivel_tecnologico_docente",
+                        )
+                        modo_maker_docente = st.toggle(
+                            "🧩 Ativar modo maker inclusivo para este docente",
+                            value=False,
+                            key="escuta_modo_maker_docente",
+                        )
+                    with cold2:
+                        interesse_formacao_maker_docente = st.checkbox(
+                            "Docente demonstra interesse em aprender tecnologias maker/educacionais",
+                            key="escuta_interesse_formacao_maker_docente",
+                        )
+                        interesse_projetos_interdisciplinares = st.checkbox(
+                            "Docente tem interesse em projetos interdisciplinares",
+                            key="escuta_interesse_projetos_interdisciplinares",
+                        )
+                    projeto_interesse_docente = st.text_input(
+                        "Projeto/tema que o docente gostaria de trabalhar",
+                        placeholder="Ex.: carro seguidor de linha, carrinho solar, podcast, jogo educativo, experimento científico...",
+                        key="escuta_projeto_interesse_docente",
+                    )
+                    preferencias_metodologicas_docente = st.text_area(
+                        "Preferências metodológicas do docente",
+                        height=80,
+                        placeholder="Ex.: atividades desplugadas, experimentos simples, projetos curtos, recursos visuais, tecnologia gradual...",
+                        key="escuta_preferencias_metodologicas_docente",
+                    )
+
                     barreiras_percebidas = st.text_area(
                         "Barreiras percebidas",
                         height=100,
@@ -8567,6 +8970,13 @@ elif menu == "Articulação Pedagógica Inclusiva":
                             nivel_autonomia=nivel_autonomia,
                             nivel_engajamento=nivel_engajamento,
                             observacoes=observacoes,
+                            areas_interesse_docente=", ".join(areas_interesse_docente),
+                            nivel_tecnologico_docente=nivel_tecnologico_docente,
+                            modo_maker_docente="Sim" if modo_maker_docente else "Não",
+                            interesse_formacao_maker_docente="Sim" if interesse_formacao_maker_docente else "Não",
+                            interesse_projetos_interdisciplinares="Sim" if interesse_projetos_interdisciplinares else "Não",
+                            projeto_interesse_docente=projeto_interesse_docente,
+                            preferencias_metodologicas_docente=preferencias_metodologicas_docente,
                         )
                         st.success("Escuta docente salva com sucesso. Acesse a aba Histórico de Escutas para baixar o registro em Word ou PDF.")
                         st.rerun()
@@ -9416,6 +9826,48 @@ elif menu == "Plano AEE - IA":
                 "O roteiro gerado usa as datas reais do mês. Após cada encontro, registre o atendimento no módulo Atendimentos para alimentar a evolução da IA."
             )
 
+            with st.container(border=True):
+                st.markdown("### 🚀 Projeto norteador interdisciplinar")
+                st.caption(
+                    "Opcional. Use quando desejar que o plano mensal seja organizado a partir de um projeto. "
+                    "O foco continua sendo o AEE: acessibilidade, autonomia, participação, organização cognitiva, comunicação e permanência — não reforço escolar."
+                )
+                usar_projeto_norteador = st.checkbox(
+                    "Usar projeto norteador neste plano mensal",
+                    key=f"usar_projeto_norteador_{estudante_id}",
+                )
+                projeto_norteador = ""
+                nivel_projeto_norteador = ""
+                observacoes_projeto_norteador = ""
+                if usar_projeto_norteador:
+                    col_proj1, col_proj2 = st.columns(2)
+                    with col_proj1:
+                        projeto_opcao = st.selectbox(
+                            "Projeto sugerido ou tema",
+                            OPCOES_PROJETOS_NORTEADORES,
+                            key=f"projeto_opcao_norteador_{estudante_id}",
+                        )
+                        if projeto_opcao == "Projeto livre / personalizado":
+                            projeto_norteador = st.text_input(
+                                "Descreva o projeto personalizado",
+                                placeholder="Ex.: carrinho seguidor, carrinho solar, banner científico, experimento acessível...",
+                                key=f"projeto_livre_norteador_{estudante_id}",
+                            )
+                        else:
+                            projeto_norteador = projeto_opcao
+                    with col_proj2:
+                        nivel_projeto_norteador = st.selectbox(
+                            "Nível do projeto",
+                            OPCOES_NIVEL_PROJETO_NORTEADOR,
+                            key=f"nivel_projeto_norteador_{estudante_id}",
+                        )
+                    observacoes_projeto_norteador = st.text_area(
+                        "Observações sobre o projeto e o estudante",
+                        height=90,
+                        placeholder="Ex.: estudante do 3º ano, boa fala, dificuldade de compreensão em sala, interesse por tecnologia; trabalhar banner, texto, cálculo simples, registro da experiência...",
+                        key=f"obs_projeto_norteador_{estudante_id}",
+                    )
+
             if st.button("📅 Gerar Plano Mensal AEE - IA", key=f"gerar_plano_mensal_v19_{estudante_id}"):
                 with st.spinner("Gerando plano mensal por semanas e atendimentos..."):
                     plano_base = gerar_plano_mensal_aee_ia(
@@ -9428,6 +9880,10 @@ elif menu == "Plano AEE - IA":
                         estudo_ia,
                         plano_manual_ia,
                         datas_calculadas,
+                        usar_projeto_norteador=usar_projeto_norteador,
+                        projeto_norteador=projeto_norteador,
+                        nivel_projeto_norteador=nivel_projeto_norteador,
+                        observacoes_projeto_norteador=observacoes_projeto_norteador,
                     )
                     complemento = f"""
 
@@ -9435,6 +9891,9 @@ ORGANIZAÇÃO OPERACIONAL PARA REGISTRO NO SISTEMA
 Mês de referência: {mes_ref}/{ano_ref}
 Dias de atendimento selecionados: {", ".join(dias_atendimento_ref) if dias_atendimento_ref else "Não informado"}
 Total real de atendimentos no mês: {total_atendimentos_calculado}
+Projeto norteador ativado: {"Sim" if usar_projeto_norteador else "Não"}
+Projeto/tema: {projeto_norteador if usar_projeto_norteador else "Não se aplica"}
+Nível do projeto: {nivel_projeto_norteador if usar_projeto_norteador else "Não se aplica"}
 
 Datas previstas:
 {datas_atendimentos_para_texto(datas_calculadas)}
