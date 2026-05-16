@@ -1,6 +1,6 @@
 
 # INCLUISRM V38 - Recursos Pedagógicos e Tecnologia Assistiva da Escola integrados à IA
-# Atualização: integra banco de recursos pedagógicos/TA da escola, importação por planilha e uso nos Planos AEE/IA.
+# Atualização: menu reposicionado após Entrevista com a Família e IA orientada a registrar ausência de recursos cadastrados.
 
 import os
 import re
@@ -1679,6 +1679,80 @@ def extrair_linhas_chave_valor(texto):
     return pares
 
 
+def obter_tema_documento(tipo="documento", titulo_doc="", conteudo=""):
+    """Define cor e explicação do papel de cada documento pedagógico."""
+    tipo = str(tipo or "documento").lower()
+    titulo = str(titulo_doc or "").lower()
+    conteudo_txt = str(conteudo or "").lower()[:1500]
+
+    temas = {
+        "perfil": {
+            "cor": "#1d4ed8",
+            "cor_clara": "#dbeafe",
+            "titulo": "Perfil Pedagógico Inteligente",
+            "papel": "Este documento apoia o professor do AEE na leitura pedagógica inicial do estudante, organizando potencialidades, barreiras, necessidades educacionais e recursos de acessibilidade que podem orientar o planejamento das intervenções. A IA não substitui o professor: ela organiza informações e sugere caminhos pedagógicos para análise profissional.",
+        },
+        "mensal": {
+            "cor": "#15803d",
+            "cor_clara": "#dcfce7",
+            "titulo": "Plano Mensal AEE - IA",
+            "papel": "Este documento organiza as ações mensais do Atendimento Educacional Especializado, indicando objetivos, atividades, recursos, estratégias de mediação e formas de acompanhamento. Sua finalidade é apoiar o registro contínuo da evolução pedagógica do estudante e orientar os atendimentos na SRM.",
+        },
+        "paee": {
+            "cor": "#7c3aed",
+            "cor_clara": "#ede9fe",
+            "titulo": "Plano AEE / PAEE",
+            "papel": "Este documento consolida o planejamento educacional especializado do estudante, registrando objetivos, habilidades prioritárias, recursos de acessibilidade, metodologia, estratégias, barreiras, parcerias e avaliação. Ele serve como referência para o acompanhamento pedagógico e para a articulação entre AEE, sala regular, gestão e família.",
+        },
+        "docente": {
+            "cor": "#ea580c",
+            "cor_clara": "#ffedd5",
+            "titulo": "Relatório Pedagógico de Apoio ao Docente",
+            "papel": "Este documento orienta o professor da sala regular com estratégias práticas, adaptações, recursos e recomendações pedagógicas objetivas, favorecendo a participação do estudante nas atividades curriculares e fortalecendo a articulação com o AEE.",
+        },
+        "gre": {
+            "cor": "#334155",
+            "cor_clara": "#e2e8f0",
+            "titulo": "Relatório GRE",
+            "papel": "Este documento reúne informações pedagógicas e registros relevantes para fins de acompanhamento institucional, articulação com a gestão escolar e encaminhamentos à GRE quando necessário.",
+        },
+        "avaliacao": {
+            "cor": "#0f766e",
+            "cor_clara": "#ccfbf1",
+            "titulo": "Avaliação Pedagógica",
+            "papel": "Este documento registra observações pedagógicas iniciais, barreiras, potencialidades, autonomia, comunicação, interação e aprendizagem, subsidiando a elaboração do estudo de caso e do Plano AEE.",
+        },
+        "estudo": {
+            "cor": "#2563eb",
+            "cor_clara": "#dbeafe",
+            "titulo": "Estudo de Caso",
+            "papel": "Este documento sistematiza o percurso educacional, necessidades, barreiras, potencialidades e estratégias observadas, servindo de base para a elaboração do Plano AEE e para a tomada de decisões pedagógicas.",
+        },
+        "documento": {
+            "cor": "#0f172a",
+            "cor_clara": "#f1f5f9",
+            "titulo": "Documento Pedagógico",
+            "papel": "Este documento organiza informações pedagógicas para apoiar o registro, o acompanhamento e a tomada de decisão no Atendimento Educacional Especializado.",
+        },
+    }
+
+    if "perfil pedagógico" in titulo or "perfil pedagógico" in conteudo_txt or "síntese pedagógica do estudante" in conteudo_txt:
+        return temas["perfil"]
+    if "mensal" in titulo or "plano mensal" in conteudo_txt:
+        return temas["mensal"]
+    if tipo == "plano" or "plano aee" in titulo or "paee" in titulo:
+        return temas["paee"]
+    if "apoio ao docente" in titulo or "apoio ao docente" in conteudo_txt:
+        return temas["docente"]
+    if tipo == "relatorio" or "relatório gre" in titulo or "relatorio gre" in titulo:
+        return temas["gre"]
+    if tipo == "avaliacao" or "avaliação pedagógica" in titulo or "avaliacao pedagogica" in titulo:
+        return temas["avaliacao"]
+    if tipo == "estudo" or "estudo de caso" in titulo:
+        return temas["estudo"]
+    return temas["documento"]
+
+
 def gerar_docx_plano_aee_ia_visual(conteudo, nome_base, titulo_doc="PLANO MENSAL AEE - IA"):
     """Gera Word com layout visual para planos IA: capa, cards, seções e tabela de atendimentos."""
     from docx import Document
@@ -1703,6 +1777,10 @@ def gerar_docx_plano_aee_ia_visual(conteudo, nome_base, titulo_doc="PLANO MENSAL
         r.font.color.rgb = RGBColor.from_string(color)
         cell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
 
+    tema = obter_tema_documento("plano_ia_visual", titulo_doc, conteudo)
+    cor_principal = tema["cor"].replace("#", "")
+    cor_clara = tema["cor_clara"].replace("#", "")
+
     nome_arquivo = f"plano_aee_ia_visual_{nome_base}.docx".replace("/", "-").replace("\\", "-")
     doc = Document()
     sec = doc.sections[0]
@@ -1715,10 +1793,16 @@ def gerar_docx_plano_aee_ia_visual(conteudo, nome_base, titulo_doc="PLANO MENSAL
     header = doc.add_table(rows=1, cols=2)
     header.alignment = WD_TABLE_ALIGNMENT.CENTER
     header.autofit = True
-    set_cell_bg(header.cell(0,0), "0F172A")
-    set_cell_bg(header.cell(0,1), "E0F2FE")
-    set_cell_text(header.cell(0,0), "INCLUISRM\nSistema Inteligente de Articulação Pedagógica Inclusiva", True, "FFFFFF", 11)
-    set_cell_text(header.cell(0,1), f"🧠 {titulo_doc}\nDocumento pedagógico gerado com apoio de IA", True, "0F172A", 12)
+    set_cell_bg(header.cell(0,0), cor_principal)
+    set_cell_bg(header.cell(0,1), cor_clara)
+    set_cell_text(header.cell(0,0), "INCLUISRM\nSistema de Gestão do Atendimento Educacional Especializado", True, "FFFFFF", 11)
+    set_cell_text(header.cell(0,1), f"{titulo_doc}\nDocumento pedagógico gerado com apoio de IA", True, "0F172A", 12)
+
+    doc.add_paragraph("")
+
+    papel = doc.add_table(rows=1, cols=1)
+    set_cell_bg(papel.cell(0,0), cor_clara)
+    set_cell_text(papel.cell(0,0), "Papel deste documento: " + tema["papel"], False, "0F172A", 9)
 
     doc.add_paragraph("")
 
@@ -1748,7 +1832,7 @@ def gerar_docx_plano_aee_ia_visual(conteudo, nome_base, titulo_doc="PLANO MENSAL
             r = p.add_run(linha)
             r.bold = True
             r.font.size = Pt(12)
-            r.font.color.rgb = RGBColor(30, 64, 175)
+            r.font.color.rgb = RGBColor.from_string(cor_principal)
             continue
         if linha.startswith("-") or linha.startswith("•"):
             p = doc.add_paragraph(style=None)
@@ -1782,28 +1866,40 @@ def gerar_pdf_plano_aee_ia_visual(conteudo, nome_base, titulo_doc="PLANO MENSAL 
     from reportlab.lib.pagesizes import A4
     from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
     from reportlab.lib.units import cm
-    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak, Image
+
+    tema = obter_tema_documento("plano_ia_visual", titulo_doc, conteudo)
+    cor_principal = tema["cor"]
+    cor_clara = tema["cor_clara"]
 
     nome_arquivo = f"plano_aee_ia_visual_{nome_base}.pdf".replace("/", "-").replace("\\", "-")
     doc = SimpleDocTemplate(nome_arquivo, pagesize=A4, rightMargin=1.35*cm, leftMargin=1.35*cm, topMargin=1.15*cm, bottomMargin=1.15*cm)
     styles = getSampleStyleSheet()
-    title_style = ParagraphStyle("TitlePlanoIA", parent=styles["Title"], alignment=TA_CENTER, fontSize=16, leading=20, textColor=colors.HexColor("#0f172a"), spaceAfter=8)
+    title_style = ParagraphStyle("TitlePlanoIA", parent=styles["Title"], alignment=TA_CENTER, fontSize=16, leading=20, textColor=colors.HexColor(cor_principal), spaceAfter=8)
     subtitle_style = ParagraphStyle("SubtitlePlanoIA", parent=styles["Normal"], alignment=TA_CENTER, fontSize=9, textColor=colors.HexColor("#475569"), spaceAfter=12)
-    sec_style = ParagraphStyle("SecPlanoIA", parent=styles["Heading2"], fontSize=12, leading=15, textColor=colors.HexColor("#1d4ed8"), spaceBefore=8, spaceAfter=5)
+    sec_style = ParagraphStyle("SecPlanoIA", parent=styles["Heading2"], fontSize=12, leading=15, textColor=colors.HexColor(cor_principal), spaceBefore=8, spaceAfter=5)
     normal_style = ParagraphStyle("NormalPlanoIA", parent=styles["Normal"], fontSize=9.5, leading=13, textColor=colors.HexColor("#111827"), spaceAfter=4)
     bullet_style = ParagraphStyle("BulletPlanoIA", parent=normal_style, leftIndent=12, firstLineIndent=-8)
     small_style = ParagraphStyle("SmallPlanoIA", parent=styles["Normal"], alignment=TA_CENTER, fontSize=8, textColor=colors.HexColor("#64748b"))
 
     elementos = []
+    try:
+        logo = Image(LOGO_PATH, width=4.0*cm, height=1.9*cm)
+        logo.hAlign = "CENTER"
+        elementos.append(logo)
+        elementos.append(Spacer(1, 6))
+    except Exception:
+        pass
+
     capa = Table(
-        [[Paragraph("<b>INCLUISRM</b><br/>Sistema Inteligente de Articulação Pedagógica Inclusiva", normal_style),
+        [[Paragraph("<b>INCLUISRM</b><br/>Sistema de Gestão do Atendimento Educacional Especializado", normal_style),
           Paragraph(f"<b>{escape(titulo_doc)}</b><br/>Relatório visual de planejamento pedagógico", normal_style)]],
-        colWidths=[7.3*cm, 10.2*cm],
+        colWidths=[8.4*cm, 9.1*cm],
     )
     capa.setStyle(TableStyle([
-        ("BACKGROUND", (0,0), (0,0), colors.HexColor("#0f172a")),
+        ("BACKGROUND", (0,0), (0,0), colors.HexColor(cor_principal)),
         ("TEXTCOLOR", (0,0), (0,0), colors.white),
-        ("BACKGROUND", (1,0), (1,0), colors.HexColor("#e0f2fe")),
+        ("BACKGROUND", (1,0), (1,0), colors.HexColor(cor_clara)),
         ("BOX", (0,0), (-1,-1), 0.6, colors.HexColor("#cbd5e1")),
         ("VALIGN", (0,0), (-1,-1), "MIDDLE"),
         ("LEFTPADDING", (0,0), (-1,-1), 10),
@@ -1816,6 +1912,18 @@ def gerar_pdf_plano_aee_ia_visual(conteudo, nome_base, titulo_doc="PLANO MENSAL 
     elementos.append(Paragraph(titulo_doc, title_style))
     elementos.append(Paragraph("Planejamento organizado em linguagem pedagógica, com foco em execução, registro e acompanhamento evolutivo.", subtitle_style))
 
+    papel_box = Table([[Paragraph("<b>Papel deste documento:</b> " + escape(tema["papel"]), normal_style)]], colWidths=[17.5*cm])
+    papel_box.setStyle(TableStyle([
+        ("BACKGROUND", (0,0), (-1,-1), colors.HexColor(cor_clara)),
+        ("BOX", (0,0), (-1,-1), 0.45, colors.HexColor(cor_principal)),
+        ("LEFTPADDING", (0,0), (-1,-1), 8),
+        ("RIGHTPADDING", (0,0), (-1,-1), 8),
+        ("TOPPADDING", (0,0), (-1,-1), 7),
+        ("BOTTOMPADDING", (0,0), (-1,-1), 7),
+    ]))
+    elementos.append(papel_box)
+    elementos.append(Spacer(1, 10))
+
     pares = extrair_linhas_chave_valor(conteudo)[:8]
     if pares:
         dados = [[Paragraph("<b>Campo</b>", normal_style), Paragraph("<b>Informação</b>", normal_style)]]
@@ -1823,9 +1931,9 @@ def gerar_pdf_plano_aee_ia_visual(conteudo, nome_base, titulo_doc="PLANO MENSAL 
             dados.append([Paragraph(escape(chave), normal_style), Paragraph(escape(valor), normal_style)])
         tabela = Table(dados, colWidths=[5.2*cm, 12.3*cm])
         tabela.setStyle(TableStyle([
-            ("BACKGROUND", (0,0), (-1,0), colors.HexColor("#1d4ed8")),
+            ("BACKGROUND", (0,0), (-1,0), colors.HexColor(cor_principal)),
             ("TEXTCOLOR", (0,0), (-1,0), colors.white),
-            ("BACKGROUND", (0,1), (0,-1), colors.HexColor("#dbeafe")),
+            ("BACKGROUND", (0,1), (0,-1), colors.HexColor(cor_clara)),
             ("BACKGROUND", (1,1), (1,-1), colors.HexColor("#f8fafc")),
             ("GRID", (0,0), (-1,-1), 0.35, colors.HexColor("#cbd5e1")),
             ("VALIGN", (0,0), (-1,-1), "TOP"),
@@ -2114,11 +2222,27 @@ def importar_recursos_escola_dataframe(df, escola_padrao=""):
 
 
 def listar_recursos_escola_texto(escola_nome=None, limite=40):
+    """Monta o contexto dos recursos da escola para uso nos prompts da IA.
+
+    Regras pedagógicas:
+    - Se não houver recursos cadastrados, a IA deve registrar explicitamente a ausência.
+    - Se houver recursos cadastrados, a IA deve utilizá-los apenas quando forem coerentes
+      com o perfil pedagógico, as barreiras, os objetivos e as necessidades do estudante.
+    - A IA não deve forçar o uso de recurso incompatível apenas porque ele está cadastrado.
+    """
     recursos = listar_recursos_escola(escola_nome=escola_nome, apenas_disponiveis=True)
+
     if not recursos:
-        return "Nenhum recurso pedagógico ou tecnologia assistiva da escola cadastrado até o momento."
+        return (
+            "Não há recursos pedagógicos ou tecnologias assistivas cadastradas para esta escola no momento. "
+            "No relatório, registre essa informação de forma explícita quando a seção tratar dos recursos da escola. "
+            "As sugestões devem ser elaboradas com base nas necessidades pedagógicas do estudante e podem indicar, "
+            "quando necessário, recursos a serem providenciados, articulados ou construídos pela unidade escolar. "
+            "Não invente recursos como se já estivessem disponíveis."
+        )
 
     linhas = []
+    linhas.append("RECURSOS PEDAGÓGICOS E TECNOLOGIAS ASSISTIVAS CADASTRADOS NA ESCOLA:")
     for r in recursos[:limite]:
         (
             _id, escola, nome, categoria, descricao, quantidade, localizacao,
@@ -2127,8 +2251,17 @@ def listar_recursos_escola_texto(escola_nome=None, limite=40):
         linhas.append(
             f"- {nome} | Categoria: {categoria or 'Não informada'} | Quantidade: {quantidade or 1} | "
             f"Local: {localizacao or 'Não informado'} | Status: {status or 'Não informado'} | "
+            f"Público indicado: {publico or 'Não informado'} | "
             f"Objetivo pedagógico: {objetivo or descricao or 'Não informado'}"
         )
+
+    linhas.append("")
+    linhas.append(
+        "ORIENTAÇÃO PARA A IA: utilize os recursos cadastrados apenas quando forem coerentes com o perfil pedagógico, "
+        "as barreiras, os objetivos e as necessidades do estudante. Não force o uso de recursos incompatíveis. "
+        "Quando nenhum recurso cadastrado se aplicar ao caso, informe que há recursos cadastrados, mas que nenhum foi "
+        "identificado como diretamente compatível para aquela estratégia específica, sugerindo alternativas pedagógicas possíveis."
+    )
     return "\n".join(linhas)
 
 
@@ -4662,11 +4795,21 @@ def texto_agenda(df):
 # PDF
 # ======================================================
 def gerar_pdf_documento(conteudo, codigo, tipo="documento"):
+    """Gera PDF com layout mais limpo para documentos pedagógicos.
+
+    Ajustes V38:
+    - remove marcações Markdown (**, #, ---);
+    - melhora cabeçalho com logo e faixa institucional;
+    - evita que marcadores soltos como "• --" apareçam no relatório;
+    - destaca seções numeradas em azul;
+    - organiza o Perfil Pedagógico Inteligente com visual mais profissional.
+    """
     from reportlab.lib import colors
-    from reportlab.lib.enums import TA_CENTER
+    from reportlab.lib.enums import TA_CENTER, TA_LEFT
     from reportlab.lib.pagesizes import A4
     from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
-    from reportlab.platypus import HRFlowable, Paragraph, SimpleDocTemplate, Spacer, Image
+    from reportlab.lib.units import cm
+    from reportlab.platypus import HRFlowable, Paragraph, SimpleDocTemplate, Spacer, Image, Table, TableStyle
 
     nomes = {
         "cadastro": ("Cadastro_Estudante", "CADASTRO DO ESTUDANTE"),
@@ -4682,81 +4825,211 @@ def gerar_pdf_documento(conteudo, codigo, tipo="documento"):
         "documento": ("Documento", "DOCUMENTO"),
     }
     prefixo, titulo_doc = nomes.get(tipo, nomes["documento"])
+
+    conteudo_original = str(conteudo or "")
+    if tipo == "plano" and ("Perfil Pedagógico" in conteudo_original[:900] or "Síntese pedagógica do estudante" in conteudo_original[:1200]):
+        titulo_doc = "PERFIL PEDAGÓGICO INTELIGENTE - AEE"
+        prefixo = "Perfil_Pedagogico_Inteligente"
+
+    tema = obter_tema_documento(tipo, titulo_doc, conteudo_original)
+    cor_principal = tema["cor"]
+    cor_clara = tema["cor_clara"]
+
     nome_arquivo = f"{prefixo}_{codigo}.pdf".replace("/", "-").replace("\\", "-")
 
-    doc = SimpleDocTemplate(nome_arquivo, pagesize=A4, rightMargin=40, leftMargin=40, topMargin=40, bottomMargin=40)
+    doc = SimpleDocTemplate(
+        nome_arquivo,
+        pagesize=A4,
+        rightMargin=1.45 * cm,
+        leftMargin=1.45 * cm,
+        topMargin=1.15 * cm,
+        bottomMargin=1.15 * cm,
+    )
     styles = getSampleStyleSheet()
 
     titulo_style = ParagraphStyle(
-        name="Titulo",
+        name="TituloDocumentoV38",
         parent=styles["Title"],
         alignment=TA_CENTER,
-        fontSize=15,
+        fontSize=16,
         leading=20,
-        spaceAfter=14,
-        textColor=colors.black,
+        spaceAfter=10,
+        textColor=colors.HexColor(cor_principal),
+    )
+    subtitulo_style = ParagraphStyle(
+        name="SubtituloDocumentoV38",
+        parent=styles["Normal"],
+        alignment=TA_CENTER,
+        fontSize=9,
+        leading=12,
+        textColor=colors.HexColor("#475569"),
+        spaceAfter=8,
     )
     secao_style = ParagraphStyle(
-        name="Secao",
+        name="SecaoDocumentoV38",
         parent=styles["Heading2"],
         fontSize=12,
         leading=15,
-        spaceBefore=9,
+        spaceBefore=10,
         spaceAfter=5,
-        textColor=colors.darkblue,
+        textColor=colors.HexColor(cor_principal),
     )
     normal_style = ParagraphStyle(
-        name="NormalCustom",
+        name="NormalDocumentoV38",
         parent=styles["Normal"],
-        fontSize=10,
-        leading=14,
-        spaceAfter=6,
+        fontSize=9.6,
+        leading=13.5,
+        spaceAfter=5,
+        textColor=colors.HexColor("#111827"),
+        alignment=TA_LEFT,
+    )
+    bullet_style = ParagraphStyle(
+        name="BulletDocumentoV38",
+        parent=normal_style,
+        leftIndent=12,
+        firstLineIndent=-8,
+    )
+    destaque_style = ParagraphStyle(
+        name="DestaqueDocumentoV38",
+        parent=normal_style,
+        fontSize=9.5,
+        leading=13,
+        textColor=colors.HexColor("#0f172a"),
+        backColor=colors.HexColor(cor_clara),
+        borderColor=colors.HexColor(cor_principal),
+        borderWidth=0.4,
+        borderPadding=6,
+        spaceAfter=8,
     )
     rodape_style = ParagraphStyle(
-        name="Rodape",
+        name="RodapeDocumentoV38",
         parent=styles["Normal"],
-        fontSize=9,
+        fontSize=8,
         alignment=TA_CENTER,
-        textColor=colors.grey,
-        spaceBefore=18,
+        textColor=colors.HexColor("#64748b"),
+        spaceBefore=14,
     )
 
+    def limpar_linha_pdf(linha):
+        linha = str(linha or "").strip()
+        linha = linha.replace("**", "")
+        linha = re.sub(r"^#{1,6}\s*", "", linha)
+        linha = linha.replace("• --", "").replace("--", "").strip()
+        return linha
+
     elementos = []
+
+    # Cabeçalho institucional
     try:
-        logo = Image(LOGO_PATH, width=160, height=80)
+        logo = Image(LOGO_PATH, width=4.3 * cm, height=2.1 * cm)
         logo.hAlign = "CENTER"
         elementos.append(logo)
-        elementos.append(Spacer(1, 8))
+        elementos.append(Spacer(1, 6))
     except Exception:
         elementos.append(Paragraph("<b>INCLUISRM</b>", titulo_style))
 
-    elementos.append(Paragraph("<b>INCLUISRM<br/>Sistema de Gestão do Atendimento Educacional Especializado</b>", normal_style))
-    elementos.append(Spacer(1, 8))
-    elementos.append(HRFlowable(width="100%", thickness=1, color=colors.grey))
-    elementos.append(Spacer(1, 12))
-    elementos.append(Paragraph(titulo_doc, titulo_style))
-    elementos.append(Spacer(1, 12))
+    header = Table(
+        [[
+            Paragraph("<b>INCLUISRM</b><br/>Sistema de Gestão do Atendimento Educacional Especializado", normal_style),
+            Paragraph("<b>Documento pedagógico de apoio ao AEE</b><br/>Gerado com apoio do INCLUISRM", normal_style),
+        ]],
+        colWidths=[8.4 * cm, 8.4 * cm],
+    )
+    header.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (0, 0), colors.HexColor(cor_principal)),
+        ("TEXTCOLOR", (0, 0), (0, 0), colors.white),
+        ("BACKGROUND", (1, 0), (1, 0), colors.HexColor(cor_clara)),
+        ("BOX", (0, 0), (-1, -1), 0.4, colors.HexColor("#cbd5e1")),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 8),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+        ("TOPPADDING", (0, 0), (-1, -1), 7),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
+    ]))
+    elementos.append(header)
+    elementos.append(Spacer(1, 10))
+    elementos.append(HRFlowable(width="100%", thickness=0.7, color=colors.HexColor("#94a3b8")))
+    elementos.append(Spacer(1, 10))
+    elementos.append(Paragraph(f"<b>{escape(titulo_doc)}</b>", titulo_style))
+    elementos.append(Paragraph("Planejamento organizado em linguagem pedagógica, com foco em acessibilidade, participação, autonomia e acompanhamento evolutivo.", subtitulo_style))
 
-    for linha in conteudo.split("\n"):
-        linha = linha.strip()
+    papel_box = Table([[Paragraph("<b>Papel deste documento:</b> " + escape(tema["papel"]), normal_style)]], colWidths=[16.8 * cm])
+    papel_box.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor(cor_clara)),
+        ("BOX", (0, 0), (-1, -1), 0.45, colors.HexColor(cor_principal)),
+        ("LEFTPADDING", (0, 0), (-1, -1), 8),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+        ("TOPPADDING", (0, 0), (-1, -1), 7),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
+    ]))
+    elementos.append(papel_box)
+    elementos.append(Spacer(1, 10))
+
+    texto_limpo = limpar_marcadores_relatorio(conteudo_original) if 'limpar_marcadores_relatorio' in globals() else conteudo_original
+
+    # Pequeno card com identificação inicial quando houver linhas com chave/valor
+    pares = []
+    for raw in texto_limpo.splitlines()[:20]:
+        linha = limpar_linha_pdf(raw)
+        if ":" in linha and len(linha) < 160:
+            chave, valor = linha.split(":", 1)
+            if chave.strip() and valor.strip() and len(chave.strip()) <= 45:
+                pares.append((chave.strip(), valor.strip()))
+    if pares:
+        dados = [[Paragraph("<b>Campo</b>", normal_style), Paragraph("<b>Informação</b>", normal_style)]]
+        for chave, valor in pares[:6]:
+            dados.append([Paragraph(escape(chave), normal_style), Paragraph(escape(valor), normal_style)])
+        tabela = Table(dados, colWidths=[5.0 * cm, 11.8 * cm])
+        tabela.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor(cor_principal)),
+            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+            ("BACKGROUND", (0, 1), (0, -1), colors.HexColor(cor_clara)),
+            ("BACKGROUND", (1, 1), (1, -1), colors.HexColor("#f8fafc")),
+            ("GRID", (0, 0), (-1, -1), 0.35, colors.HexColor("#cbd5e1")),
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ("LEFTPADDING", (0, 0), (-1, -1), 7),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 7),
+            ("TOPPADDING", (0, 0), (-1, -1), 5),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+        ]))
+        elementos.append(tabela)
+        elementos.append(Spacer(1, 10))
+
+    for raw in texto_limpo.split("\n"):
+        linha = limpar_linha_pdf(raw)
         if not linha:
-            elementos.append(Spacer(1, 6))
+            elementos.append(Spacer(1, 4))
+            continue
+        if linha in ["-", "•", "--"]:
             continue
         linha_html = escape(linha)
-        if linha.startswith("#"):
-            elementos.append(Paragraph(f"<b>{escape(linha.replace('#','').strip())}</b>", secao_style))
-        elif linha[:2].isdigit() and "." in linha[:4]:
+        if re.match(r"^\d+(\.\d+)?\s*[\.-]\s+", linha) or re.match(r"^\d+\.\s+", linha):
             elementos.append(Paragraph(f"<b>{linha_html}</b>", secao_style))
-        elif linha.startswith("-"):
-            elementos.append(Paragraph(f"• {escape(linha[1:].strip())}", normal_style))
+        elif linha.upper() == linha and len(linha) > 12:
+            elementos.append(Paragraph(f"<b>{linha_html}</b>", secao_style))
+        elif linha.startswith("-") or linha.startswith("•"):
+            item = linha.lstrip("-• ").strip()
+            if item:
+                elementos.append(Paragraph("• " + escape(item), bullet_style))
+        elif ":" in linha and len(linha) < 130 and any(k in linha.lower() for k in ["código", "ano", "turma", "turno", "perfil", "estudante"]):
+            elementos.append(Paragraph(linha_html, destaque_style))
         else:
             elementos.append(Paragraph(linha_html, normal_style))
 
-    elementos.append(Spacer(1, 18))
-    elementos.append(Paragraph(f"Gerado em {agora_local().strftime('%d/%m/%Y %H:%M')} pelo INCLUISRM.", rodape_style))
+    elementos.append(Spacer(1, 14))
+    rodape = Table(
+        [[Paragraph(f"Gerado em {agora_local().strftime('%d/%m/%Y %H:%M')} pelo INCLUISRM • Documento pedagógico de apoio ao AEE", rodape_style)]],
+        colWidths=[16.8 * cm],
+    )
+    rodape.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#f1f5f9")),
+        ("BOX", (0, 0), (-1, -1), 0.3, colors.HexColor("#cbd5e1")),
+        ("TOPPADDING", (0, 0), (-1, -1), 6),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+    ]))
+    elementos.append(rodape)
     doc.build(elementos)
     return nome_arquivo
-
 
 # ======================================================
 # IA + BASE DE CONHECIMENTO + MODELOS 3D
