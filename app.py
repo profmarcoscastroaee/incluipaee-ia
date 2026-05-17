@@ -4,6 +4,7 @@
 
 import os
 import re
+import json
 import sqlite3
 import calendar
 from datetime import datetime, date, time, timezone, timedelta
@@ -97,8 +98,8 @@ RELATORIOS_VISUAIS_DOCENTE_DIR.mkdir(parents=True, exist_ok=True)
 
 APP_NAME = "INCLUISRM"
 APP_SUBTITLE = "Sistema Inteligente de Articulação Pedagógica Inclusiva"
-APP_VERSION = "V48"
-APP_VERSION_LABEL = "Relatórios Visuais Docente • PDF Limpo + Infográfico • Histórico"
+APP_VERSION = "V50"
+APP_VERSION_LABEL = "Infográfico Docente com IA • JSON estruturado • Histórico"
 # Fuso fixo UTC-3 usado por Recife/Pernambuco.
 # Usar timezone/timedelta evita erro em ambientes Render sem base tzdata completa.
 FUSO_LOCAL = timezone(timedelta(hours=-3), name="America/Recife")
@@ -3738,6 +3739,209 @@ Finalizar com uma mensagem pedagógica, acolhedora e profissional.
 
 
 # ======================================================
+# INFOGRÁFICO DOCENTE COM IA (JSON ESTRUTURADO)
+# ======================================================
+def normalizar_lista_infografico(valor, limite=6, tamanho_item=95):
+    """Garante lista curta para caber no painel visual sem cortar texto."""
+    if valor is None:
+        itens = []
+    elif isinstance(valor, list):
+        itens = valor
+    else:
+        texto = limpar_marcadores_relatorio(str(valor))
+        texto = texto.replace("\r", "\n")
+        itens = []
+        for linha in texto.splitlines():
+            partes = re.split(r"\s+-\s+|\s*;\s*", linha)
+            for parte in partes:
+                parte = parte.strip().lstrip("•-–—0123456789. ").strip()
+                if len(parte) > 3:
+                    itens.append(parte)
+        if not itens:
+            itens = [p.strip(" .;:-") for p in re.split(r"(?<=[.;])\s+", texto) if len(p.strip()) > 6]
+
+    saida = []
+    vistos = set()
+    for item in itens:
+        item = re.sub(r"\s+", " ", limpar_marcadores_relatorio(str(item))).strip(" .;:-")
+        if not item:
+            continue
+        if len(item) > tamanho_item:
+            item = item[:tamanho_item].rsplit(" ", 1)[0] + "..."
+        chave = item.lower()
+        if chave not in vistos:
+            vistos.add(chave)
+            saida.append(item)
+        if len(saida) >= limite:
+            break
+    return saida
+
+
+def extrair_itens_secao_docente(texto, numero_secao, max_itens=6, tamanho_item=95):
+    """Extrai itens de uma seção numerada do relatório docente."""
+    texto = str(texto or "")
+    padrao = rf"(?is)(?:^|\n)\s*{numero_secao}\.\s*.*?(?=\n\s*\d+\.\s|\Z)"
+    achado = re.search(padrao, texto)
+    if not achado:
+        return []
+    trecho = achado.group(0)
+    trecho = re.sub(rf"(?is)^\s*{numero_secao}\.\s*[^\n]*", "", trecho).strip()
+    return normalizar_lista_infografico(trecho, limite=max_itens, tamanho_item=tamanho_item)
+
+
+def extrair_json_da_resposta(texto):
+    """Extrai JSON mesmo quando a IA devolve texto com ```json ...```."""
+    texto = str(texto or "").strip()
+    texto = re.sub(r"^```(?:json)?", "", texto.strip(), flags=re.I).strip()
+    texto = re.sub(r"```$", "", texto.strip()).strip()
+
+    try:
+        return json.loads(texto)
+    except Exception:
+        pass
+
+    inicio = texto.find("{")
+    fim = texto.rfind("}")
+    if inicio >= 0 and fim > inicio:
+        return json.loads(texto[inicio:fim + 1])
+    raise ValueError("A resposta da IA não contém JSON válido.")
+
+
+def normalizar_dados_infografico_docente(dados, relatorio_docente_txt="", estudante=None):
+    """Normaliza o JSON do infográfico e aplica fallback seguro."""
+    dados = dados if isinstance(dados, dict) else {}
+    perfil = estudante[4] if estudante and len(estudante) > 4 else "Não informado"
+
+    fallback = {
+        "quem_e_estudante": extrair_itens_secao_docente(relatorio_docente_txt, 2, 6, 90) or [
+            "Estudante com formas próprias de participação e aprendizagem.",
+            "Observe como compreende, responde, comunica e participa.",
+            "Valorize sinais de interesse, tentativa e engajamento."
+        ],
+        "condicao_em_linguagem_pedagogica": [
+            f"Condição informada: {perfil}.",
+            "Use essa informação para planejar apoio, acessibilidade e participação, sem reduzir o estudante ao laudo."
+        ],
+        "como_aprende_melhor": extrair_itens_secao_docente(relatorio_docente_txt, 5, 6, 80) or [
+            "Comandos curtos e objetivos.",
+            "Apoio visual e exemplos concretos.",
+            "Atividades organizadas em etapas.",
+            "Rotina previsível e mediação gradual."
+        ],
+        "o_que_dificulta": extrair_itens_secao_docente(relatorio_docente_txt, 4, 6, 80) or [
+            "Excesso de informações simultâneas.",
+            "Tarefas longas sem divisão em etapas.",
+            "Mudanças bruscas de rotina.",
+            "Ambientes com muitos estímulos."
+        ],
+        "potencialidades": extrair_itens_secao_docente(relatorio_docente_txt, 3, 8, 70) or [
+            "Habilidades e interesses já observados.",
+            "Resposta positiva à mediação.",
+            "Participação quando há apoio adequado."
+        ],
+        "barreiras_pedagogicas": extrair_itens_secao_docente(relatorio_docente_txt, 4, 6, 75),
+        "o_que_funciona_em_sala": extrair_itens_secao_docente(relatorio_docente_txt, 5, 8, 70),
+        "atencao_docente": extrair_itens_secao_docente(relatorio_docente_txt, 8, 6, 80),
+        "avaliacao_flexivel": extrair_itens_secao_docente(relatorio_docente_txt, 7, 6, 80),
+        "articulacao_aee": extrair_itens_secao_docente(relatorio_docente_txt, 8, 5, 85),
+        "recursos_sugeridos": [
+            "Apoio visual estruturado",
+            "Materiais concretos",
+            "Checklist de etapas",
+            "CAA quando necessário",
+            "Tecnologia com finalidade pedagógica"
+        ],
+        "foco_pedagogico": "Promover participação, comunicação, autonomia e aprendizagem possível, valorizando potencialidades e reduzindo barreiras."
+    }
+
+    campos_lista = [
+        "quem_e_estudante", "condicao_em_linguagem_pedagogica", "como_aprende_melhor",
+        "o_que_dificulta", "potencialidades", "barreiras_pedagogicas",
+        "o_que_funciona_em_sala", "atencao_docente", "avaliacao_flexivel",
+        "articulacao_aee", "recursos_sugeridos"
+    ]
+
+    normalizado = {}
+    for campo in campos_lista:
+        limite = 8 if campo in ["potencialidades", "o_que_funciona_em_sala"] else 6
+        itens = normalizar_lista_infografico(dados.get(campo), limite=limite, tamanho_item=85)
+        if not itens:
+            itens = normalizar_lista_infografico(fallback.get(campo), limite=limite, tamanho_item=85)
+        normalizado[campo] = itens
+
+    foco = str(dados.get("foco_pedagogico") or "").strip()
+    if not foco:
+        foco = fallback["foco_pedagogico"]
+    normalizado["foco_pedagogico"] = re.sub(r"\s+", " ", foco).strip()[:220]
+    return normalizado
+
+
+def gerar_conteudo_infografico_docente_ia(relatorio_docente_txt, estudante, ano_letivo, componente):
+    """IA transforma o relatório textual em JSON curto e pronto para o painel infográfico."""
+    client = obter_cliente_openai()
+
+    if client is None:
+        return normalizar_dados_infografico_docente({}, relatorio_docente_txt, estudante)
+
+    codigo = estudante[1] if estudante and len(estudante) > 1 else "Não informado"
+    ano_serie = estudante[2] if estudante and len(estudante) > 2 else "Não informado"
+    turma = estudante[3] if estudante and len(estudante) > 3 else "Não informado"
+    perfil = estudante[4] if estudante and len(estudante) > 4 else "Não informado"
+
+    prompt = f"""
+Você é especialista em AEE, educação inclusiva, DUA e design de informação pedagógica.
+
+TAREFA:
+Leia o RELATÓRIO PEDAGÓGICO DE APOIO AO DOCENTE e transforme o conteúdo em JSON curto para um PAINEL INFOGRÁFICO DOCENTE.
+
+REGRAS:
+- Responda SOMENTE com JSON válido.
+- Não use markdown.
+- Não invente informações.
+- Não use linguagem clínica ou medicalizante.
+- Não exponha dados familiares ou sensíveis.
+- Use frases curtas, objetivas e práticas para professor da sala regular.
+- O foco deve ser: quem é o estudante, como aprende, potencialidades, barreiras, estratégias e avaliação.
+- Cada item deve ter no máximo 90 caracteres.
+- Priorize potencialidades e formas de participação antes das barreiras.
+
+IDENTIFICAÇÃO PEDAGÓGICA:
+Código: {codigo}
+Ano/Série: {ano_serie}
+Turma: {turma}
+Ano letivo: {ano_letivo}
+Componente/área: {componente}
+Condição informada no cadastro: {perfil}
+
+JSON obrigatório, exatamente com estas chaves:
+{{
+  "quem_e_estudante": ["item 1", "item 2", "item 3", "item 4", "item 5"],
+  "condicao_em_linguagem_pedagogica": ["item 1", "item 2"],
+  "como_aprende_melhor": ["item 1", "item 2", "item 3", "item 4", "item 5", "item 6"],
+  "o_que_dificulta": ["item 1", "item 2", "item 3", "item 4", "item 5", "item 6"],
+  "potencialidades": ["item 1", "item 2", "item 3", "item 4", "item 5", "item 6"],
+  "barreiras_pedagogicas": ["item 1", "item 2", "item 3", "item 4", "item 5"],
+  "o_que_funciona_em_sala": ["item 1", "item 2", "item 3", "item 4", "item 5", "item 6"],
+  "atencao_docente": ["item 1", "item 2", "item 3", "item 4", "item 5"],
+  "avaliacao_flexivel": ["item 1", "item 2", "item 3", "item 4", "item 5"],
+  "articulacao_aee": ["item 1", "item 2", "item 3", "item 4"],
+  "recursos_sugeridos": ["item 1", "item 2", "item 3", "item 4", "item 5", "item 6"],
+  "foco_pedagogico": "frase central curta"
+}}
+
+RELATÓRIO PEDAGÓGICO:
+{relatorio_docente_txt}
+"""
+    try:
+        resposta = client.responses.create(model="gpt-4.1-mini", input=prompt)
+        dados = extrair_json_da_resposta(resposta.output_text or "")
+        return normalizar_dados_infografico_docente(dados, relatorio_docente_txt, estudante)
+    except Exception as e:
+        st.warning(f"Não foi possível estruturar o infográfico com IA. Usando síntese automática local. Erro: {e}")
+        return normalizar_dados_infografico_docente({}, relatorio_docente_txt, estudante)
+
+
+# ======================================================
 # PAINEL VISUAL DE APOIO AO DOCENTE
 # ======================================================
 def extrair_secao_relatorio_docente(texto, numero_secao, limite=700):
@@ -4493,6 +4697,244 @@ def gerar_pdf_infografico_docente(
     bullets(aee,1.5*cm,y+3.15*cm,W-3.0*cm,"#0891b2",7.0,2,y+0.35*cm)
     draw_text("Fontes utilizadas pelo sistema: " + str(fontes_geradas or "Avaliação pedagógica, estudo de caso e entrevista familiar usados apenas como contexto pedagógico."),1.2*cm,1.1*cm,W-2.4*cm,tamanho=6.4,entre=7,max_linhas=2,cor="#64748b")
     draw_text("Finalidade exclusivamente pedagógica. Não substitui avaliação docente, estudo de caso ou planejamento do AEE.",1.2*cm,0.55*cm,W-2.4*cm,tamanho=6.4,entre=7,max_linhas=1,cor="#64748b")
+    c.save()
+    return str(caminho_pdf)
+
+
+def gerar_pdf_infografico_docente_dashboard(estudante, dados, ano_letivo, componente, nome_base=None):
+    """Gera o Painel Inteligente de Apoio ao Docente a partir do JSON estruturado pela IA.
+
+    Diferente do PDF anterior, este painel não tenta recortar o relatório inteiro.
+    Ele usa campos curtos do JSON, garantindo layout estável e leitura rápida.
+    """
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.units import cm
+    from reportlab.pdfgen import canvas
+    from reportlab.pdfbase.pdfmetrics import stringWidth
+
+    codigo = estudante[1] if estudante and len(estudante) > 1 else "Não informado"
+    ano_serie = estudante[2] if estudante and len(estudante) > 2 else "Não informado"
+    turma = estudante[3] if estudante and len(estudante) > 3 else "Não informado"
+
+    dados = normalizar_dados_infografico_docente(dados, "", estudante)
+
+    if not nome_base:
+        nome_base = f"Painel_Inteligente_Apoio_Docente_{codigo}_{ano_letivo}"
+    nome_arquivo = f"{nome_base}.pdf".replace("/", "-").replace("\\", "-")
+    caminho_pdf = caminho_relatorio_visual_docente(nome_arquivo)
+
+    c = canvas.Canvas(str(caminho_pdf), pagesize=A4)
+    W, H = A4
+
+    def cor(hex_value):
+        return colors.HexColor(hex_value)
+
+    def limpar(txt):
+        txt = limpar_marcadores_relatorio(str(txt or ""))
+        txt = txt.replace("•", " ").replace("–", "-").replace("—", "-")
+        return re.sub(r"\s+", " ", txt).strip()
+
+    def wrap(txt, font, size, width):
+        palavras = limpar(txt).split()
+        linhas, atual = [], ""
+        for palavra in palavras:
+            teste = (atual + " " + palavra).strip()
+            if stringWidth(teste, font, size) <= width:
+                atual = teste
+            else:
+                if atual:
+                    linhas.append(atual)
+                atual = palavra
+        if atual:
+            linhas.append(atual)
+        return linhas
+
+    def draw_text(txt, x, y, width, font="Helvetica", size=6.6, leading=7.6, color="#0f172a", max_lines=3):
+        linhas = wrap(txt, font, size, width)
+        if max_lines and len(linhas) > max_lines:
+            linhas = linhas[:max_lines]
+            linhas[-1] = linhas[-1].rstrip(".,;:") + "..."
+        c.setFont(font, size)
+        c.setFillColor(cor(color))
+        for linha in linhas:
+            c.drawString(x, y, linha)
+            y -= leading
+        return y
+
+    def painel(x, y, w, h, title, border, fill, title_color="#ffffff"):
+        c.setFillColor(cor(fill))
+        c.setStrokeColor(cor(border))
+        c.roundRect(x, y, w, h, 7, stroke=1, fill=1)
+        c.setFillColor(cor(border))
+        c.roundRect(x, y + h - 0.48*cm, w, 0.48*cm, 7, stroke=0, fill=1)
+        c.setFillColor(cor(title_color))
+        c.setFont("Helvetica-Bold", 7.3)
+        c.drawCentredString(x + w/2, y + h - 0.31*cm, title.upper()[:48])
+
+    def bullet_list(lista, x, y, width, dot="#2563eb", font_size=6.2, leading=7.5, max_item_lines=2, bottom=None):
+        lista = normalizar_lista_infografico(lista, limite=10, tamanho_item=90)
+        for item in lista:
+            if bottom and y < bottom:
+                break
+            c.setFillColor(cor(dot))
+            c.circle(x + 2.2, y + 2.3, 1.9, stroke=0, fill=1)
+            y = draw_text(item, x + 8, y, width - 10, size=font_size, leading=leading, max_lines=max_item_lines)
+            y -= 1.6
+        return y
+
+    def meta_card(x, y, w, label, value):
+        c.setFillColor(cor("#f8fafc"))
+        c.setStrokeColor(cor("#bfdbfe"))
+        c.roundRect(x, y, w, 0.70*cm, 5, stroke=1, fill=1)
+        c.setFont("Helvetica-Bold", 6)
+        c.setFillColor(cor("#1e3a8a"))
+        c.drawString(x + 0.10*cm, y + 0.44*cm, label)
+        draw_text(value, x + 0.10*cm, y + 0.20*cm, w - 0.20*cm, size=6.1, leading=6.5, max_lines=1)
+
+    def mini_grid(items, x, y, w, h, cols=3, border="#f59e0b"):
+        items = normalizar_lista_infografico(items, limite=6, tamanho_item=62)
+        gap = 0.08*cm
+        cell_w = (w - (cols-1)*gap) / cols
+        rows = 2
+        cell_h = (h - gap) / rows
+        for i, item in enumerate(items[:cols*rows]):
+            row = i // cols
+            col_idx = i % cols
+            cx = x + col_idx*(cell_w+gap)
+            cy = y + h - (row+1)*cell_h - row*gap
+            c.setFillColor(cor("#ffffff"))
+            c.setStrokeColor(cor("#fde68a"))
+            c.roundRect(cx, cy, cell_w, cell_h, 4, stroke=1, fill=1)
+            draw_text(item, cx+0.08*cm, cy+cell_h-0.22*cm, cell_w-0.16*cm, size=5.55, leading=6.15, max_lines=4)
+
+    # Página 1 - dashboard principal
+    c.setFillColor(cor("#ffffff"))
+    c.rect(0, 0, W, H, stroke=0, fill=1)
+
+    # Cabeçalho
+    c.setFillColor(cor("#0b3b75"))
+    c.setFont("Helvetica-Bold", 13)
+    c.drawString(1.05*cm, H - 1.05*cm, "INCLUISRM")
+    c.setFont("Helvetica", 6.3)
+    c.drawString(1.05*cm, H - 1.36*cm, "Sistema de Gestão do Atendimento Educacional Especializado")
+    c.setFont("Helvetica-Bold", 15.5)
+    c.drawCentredString(W/2, H - 1.05*cm, "PAINEL INTELIGENTE DE APOIO AO DOCENTE")
+    c.setFont("Helvetica", 7.4)
+    c.drawCentredString(W/2, H - 1.47*cm, "Guia rápido para aprendizagem, participação e acessibilidade do estudante")
+
+    c.setFillColor(cor("#0b3b75"))
+    c.roundRect(W-4.5*cm, H-1.85*cm, 3.45*cm, 0.90*cm, 6, stroke=0, fill=1)
+    c.setFont("Helvetica-Bold", 6.4)
+    c.setFillColor(cor("#ffffff"))
+    c.drawString(W-4.25*cm, H-1.24*cm, "Data: " + agora_local().strftime("%d/%m/%Y"))
+    c.drawString(W-4.25*cm, H-1.58*cm, "Ano letivo: " + str(ano_letivo))
+
+    # Identificação
+    x0 = 1.05*cm
+    y_meta = H - 2.92*cm
+    gap = 0.12*cm
+    meta_w = (W - 2.10*cm - 4*gap) / 5
+    for idx, (label, value) in enumerate([
+        ("Código", codigo), ("Ano/Série", ano_serie), ("Turma", turma),
+        ("Componente/área", componente), ("Destinatário", "________________")
+    ]):
+        meta_card(x0 + idx*(meta_w+gap), y_meta, meta_w, label, value)
+
+    # Frase-guia
+    c.setFillColor(cor("#eff6ff"))
+    c.setStrokeColor(cor("#93c5fd"))
+    c.roundRect(1.05*cm, H-3.70*cm, W-2.10*cm, 0.50*cm, 6, stroke=1, fill=1)
+    c.setFont("Helvetica-Bold", 7.5)
+    c.setFillColor(cor("#1e3a8a"))
+    c.drawCentredString(W/2, H-3.52*cm, "Antes de adaptar, observe como o estudante compreende, responde, comunica e participa.")
+
+    # Cards superiores
+    left = 1.05*cm
+    gutter = 0.25*cm
+    col_w = (W - 2.10*cm - gutter) / 2
+    top_y = H - 7.15*cm
+    card_h = 3.10*cm
+
+    painel(left, top_y, col_w, card_h, "1. Quem é este estudante?", "#0b74b8", "#f0f9ff")
+    bullet_list(dados["quem_e_estudante"], left+0.20*cm, top_y+card_h-0.78*cm, col_w-0.40*cm, dot="#0b74b8", font_size=6.25, leading=7.2, bottom=top_y+0.25*cm)
+
+    painel(left+col_w+gutter, top_y, col_w, card_h, "2. Mapa de aprendizagem", "#55a630", "#f0fdf4")
+    mid_x = left+col_w+gutter+col_w/2
+    c.setFont("Helvetica-Bold", 6.2)
+    c.setFillColor(cor("#15803d"))
+    c.drawCentredString(left+col_w+gutter+col_w*0.25, top_y+card_h-0.72*cm, "COMO APRENDE MELHOR")
+    c.setFillColor(cor("#dc2626"))
+    c.drawCentredString(left+col_w+gutter+col_w*0.75, top_y+card_h-0.72*cm, "O QUE DIFICULTA")
+    bullet_list(dados["como_aprende_melhor"][:5], left+col_w+gutter+0.18*cm, top_y+card_h-1.02*cm, col_w/2-0.28*cm, dot="#55a630", font_size=5.8, leading=6.6, max_item_lines=2, bottom=top_y+0.22*cm)
+    bullet_list(dados["o_que_dificulta"][:5], mid_x+0.12*cm, top_y+card_h-1.02*cm, col_w/2-0.28*cm, dot="#dc2626", font_size=5.8, leading=6.6, max_item_lines=2, bottom=top_y+0.22*cm)
+    c.setStrokeColor(cor("#d1d5db")); c.line(mid_x, top_y+0.22*cm, mid_x, top_y+card_h-0.60*cm)
+
+    # Potencialidades e barreiras
+    y2 = top_y - 3.40*cm
+    painel(left, y2, col_w, 3.05*cm, "3. Potencialidades a valorizar", "#f59e0b", "#fffbeb")
+    mini_grid(dados["potencialidades"], left+0.16*cm, y2+0.22*cm, col_w-0.32*cm, 2.10*cm, cols=3, border="#f59e0b")
+
+    painel(left+col_w+gutter, y2, col_w, 3.05*cm, "4. Barreiras pedagógicas", "#7c3aed", "#faf5ff")
+    bullet_list(dados["barreiras_pedagogicas"], left+col_w+gutter+0.20*cm, y2+2.35*cm, col_w-0.40*cm, dot="#7c3aed", font_size=6.2, leading=7.0, bottom=y2+0.20*cm)
+
+    # Três blocos médios
+    y3 = y2 - 3.15*cm
+    small_gap = 0.18*cm
+    small_w = (W - 2.10*cm - 2*small_gap) / 3
+    painel(left, y3, small_w, 2.75*cm, "5. O que funciona melhor", "#0f9f8f", "#ecfeff")
+    bullet_list(dados["o_que_funciona_em_sala"][:5], left+0.17*cm, y3+2.05*cm, small_w-0.34*cm, dot="#0f9f8f", font_size=5.8, leading=6.6, max_item_lines=2, bottom=y3+0.18*cm)
+
+    painel(left+small_w+small_gap, y3, small_w, 2.75*cm, "6. Atenção docente", "#f97316", "#fff7ed")
+    bullet_list(dados["atencao_docente"][:5], left+small_w+small_gap+0.17*cm, y3+2.05*cm, small_w-0.34*cm, dot="#f97316", font_size=5.8, leading=6.6, max_item_lines=2, bottom=y3+0.18*cm)
+
+    painel(left+2*(small_w+small_gap), y3, small_w, 2.75*cm, "7. Avaliação flexível", "#2563eb", "#eff6ff")
+    bullet_list(dados["avaliacao_flexivel"][:5], left+2*(small_w+small_gap)+0.17*cm, y3+2.05*cm, small_w-0.34*cm, dot="#2563eb", font_size=5.8, leading=6.6, max_item_lines=2, bottom=y3+0.18*cm)
+
+    # Blocos finais
+    y4 = y3 - 2.85*cm
+    bottom_h = 2.35*cm
+    painel(left, y4, col_w, bottom_h, "8. Articulação com o AEE", "#7c3aed", "#faf5ff")
+    bullet_list(dados["articulacao_aee"][:4], left+0.20*cm, y4+bottom_h-0.75*cm, col_w-0.40*cm, dot="#7c3aed", font_size=6.0, leading=6.9, max_item_lines=2, bottom=y4+0.20*cm)
+
+    painel(left+col_w+gutter, y4, col_w, bottom_h, "9. Foco pedagógico principal", "#f59e0b", "#fffbeb")
+    draw_text(dados["foco_pedagogico"], left+col_w+gutter+0.30*cm, y4+bottom_h-0.85*cm, col_w-0.60*cm, font="Helvetica-Bold", size=7.1, leading=8.2, max_lines=6, color="#111827")
+
+    # Rodapé
+    c.setFillColor(cor("#eff6ff"))
+    c.setStrokeColor(cor("#bfdbfe"))
+    c.roundRect(1.05*cm, 0.45*cm, W-2.10*cm, 0.48*cm, 8, stroke=1, fill=1)
+    c.setFont("Helvetica-Bold", 7.2)
+    c.setFillColor(cor("#0b3b75"))
+    c.drawCentredString(W/2, 0.62*cm, "Lembre-se: cada estudante é único. Observe, adapte, registre e celebre cada conquista.")
+
+    # Página 2 - complemento consultável
+    c.showPage()
+    c.setFillColor(cor("#ffffff"))
+    c.rect(0, 0, W, H, stroke=0, fill=1)
+    c.setFillColor(cor("#0b3b75"))
+    c.setFont("Helvetica-Bold", 15)
+    c.drawString(1.25*cm, H-1.3*cm, "COMPLEMENTO DO PAINEL INFOGRÁFICO")
+    c.setFont("Helvetica", 7.6)
+    c.setFillColor(cor("#475569"))
+    c.drawString(1.25*cm, H-1.7*cm, "Dados estruturados pela IA para orientar consulta futura e planejamento docente.")
+
+    def bloco_completo(y, titulo, lista, border, fill):
+        painel(1.25*cm, y, W-2.50*cm, 3.70*cm, titulo, border, fill)
+        bullet_list(lista, 1.55*cm, y+2.95*cm, W-3.10*cm, dot=border, font_size=7.0, leading=8.4, max_item_lines=2, bottom=y+0.25*cm)
+
+    y = H - 5.9*cm
+    bloco_completo(y, "Recursos sugeridos", dados["recursos_sugeridos"], "#f59e0b", "#fffbeb")
+    y -= 4.15*cm
+    bloco_completo(y, "Como aprende melhor", dados["como_aprende_melhor"], "#55a630", "#f0fdf4")
+    y -= 4.15*cm
+    bloco_completo(y, "O que dificulta", dados["o_que_dificulta"], "#dc2626", "#fff1f2")
+    y -= 4.15*cm
+    bloco_completo(y, "Avaliação e articulação", dados["avaliacao_flexivel"][:3] + dados["articulacao_aee"][:3], "#2563eb", "#eff6ff")
+
+    c.setFont("Helvetica", 6.4)
+    c.setFillColor(cor("#64748b"))
+    c.drawString(1.25*cm, 0.70*cm, "Gerado pelo INCLUISRM com IA a partir do relatório pedagógico docente. Finalidade exclusivamente pedagógica.")
     c.save()
     return str(caminho_pdf)
 
@@ -10537,22 +10979,39 @@ Este relatório possui finalidade exclusivamente pedagógica e objetiva apoiar p
 
                     with col_pdf_info:
                         if st.button("🧩 Gerar painel infográfico docente", key="btn_gerar_pdf_infografico_docente"):
-                            arquivo_pdf_infografico = gerar_pdf_infografico_docente(
-                                **dados_pdf_visual,
-                                nome_base=f"Painel_Infografico_Apoio_Docente_{estudante[1]}_{ano_relatorio}",
-                            )
+                            with st.spinner("A IA está lendo o relatório e estruturando o painel em JSON..."):
+                                dados_infografico = gerar_conteudo_infografico_docente_ia(
+                                    relatorio_docente_txt=conteudo_editado,
+                                    estudante=estudante,
+                                    ano_letivo=ano_relatorio,
+                                    componente=componente_destino,
+                                )
+
+                                arquivo_pdf_infografico = gerar_pdf_infografico_docente_dashboard(
+                                    estudante=estudante,
+                                    dados=dados_infografico,
+                                    ano_letivo=ano_relatorio,
+                                    componente=componente_destino,
+                                    nome_base=f"Painel_Inteligente_Apoio_Docente_{estudante[1]}_{ano_relatorio}",
+                                )
+
                             salvar_relatorio_visual_docente(
                                 estudante_id=estudante_id,
                                 ano_letivo=ano_relatorio,
                                 componente_destino=componente_destino,
                                 tipo_relatorio="Painel infográfico docente",
-                                titulo="Painel Infográfico de Apoio ao Docente",
+                                titulo="Painel Inteligente de Apoio ao Docente",
                                 caminho_arquivo=arquivo_pdf_infografico,
                                 fontes_utilizadas=fontes_geradas,
-                                observacoes="Modelo visual em formato de painel para consulta rápida do professor.",
+                                observacoes="Gerado com IA a partir do relatório pedagógico docente e estruturado em JSON para layout visual.",
                             )
                             st.session_state[chave_pdf_info] = arquivo_pdf_infografico
-                            st.success("Painel infográfico gerado e salvo no histórico.")
+                            st.session_state[f"json_infografico_{estudante[1]}_{ano_relatorio}"] = dados_infografico
+                            st.success("Painel infográfico docente gerado com IA e salvo no histórico.")
+
+                        if f"json_infografico_{estudante[1]}_{ano_relatorio}" in st.session_state:
+                            with st.expander("Ver JSON estruturado pela IA", expanded=False):
+                                st.json(st.session_state[f"json_infografico_{estudante[1]}_{ano_relatorio}"])
 
                         if chave_pdf_info in st.session_state and Path(st.session_state[chave_pdf_info]).exists():
                             with open(st.session_state[chave_pdf_info], "rb") as f:
