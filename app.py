@@ -1,4 +1,4 @@
-# INCLUISRM V55 - Painel Inteligente de Apoio ao Docente
+# INCLUISRM V56 - Painel Inteligente de Apoio ao Docente
 # Atualização: gera infográfico docente com IA a partir do relatório pedagógico,
 # fonte mínima 11, cards maiores, layout dashboard educacional e histórico de relatórios.
 
@@ -3428,6 +3428,56 @@ def salvar_relatorio_docente(
 @st.cache_data(ttl=30, show_spinner=False)
 def listar_relatorios_docente(estudante_id):
     return listar_por_estudante("relatorios_docente", CAMPOS_RELATORIO_DOCENTE, estudante_id)
+
+
+def buscar_relatorios_docente_para_ia(estudante_id, limite=5):
+    """Busca relatórios docentes salvos diretamente no banco, sem depender do cache.
+
+    Esta função é usada pelo módulo Plano AEE - IA para garantir que relatórios
+    recém-gerados no módulo Escuta Docente sejam considerados como memória
+    pedagógica do estudante.
+    """
+    try:
+        limite = max(1, min(10, int(limite or 5)))
+    except Exception:
+        limite = 5
+
+    conn = conectar()
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        SELECT id, data_geracao, ano_letivo, componente_destino, professor_destino,
+               titulo, conteudo, fontes_utilizadas, observacoes
+        FROM relatorios_docente
+        WHERE estudante_id = ?
+        ORDER BY id DESC
+        LIMIT ?
+        """,
+        (estudante_id, limite),
+    )
+    dados = cursor.fetchall()
+    conn.close()
+    return dados
+
+
+def contar_relatorios_docente_para_ia(estudante_id):
+    """Conta relatórios docentes diretamente no banco, sem cache.
+
+    Usada nos cards "Dados usados pela IA" para evitar aparecer "Opcional"
+    quando já existem relatórios salvos para o estudante.
+    """
+    conn = conectar()
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT COUNT(*) FROM relatorios_docente WHERE estudante_id = ?",
+        (estudante_id,),
+    )
+    total = cursor.fetchone()
+    conn.close()
+    try:
+        return int(total[0] or 0)
+    except Exception:
+        return 0
 
 
 def excluir_relatorio_docente(relatorio_id):
@@ -7308,7 +7358,9 @@ def montar_contexto_plano_aee_ia(estudante, avaliacao=None, entrevista=None, est
     """
     historico_txt = listar_atendimentos_texto(estudante[0])
     escutas_docentes = listar_escutas_docentes(estudante[0])[:10]
-    relatorios_docentes = listar_relatorios_docente(estudante[0])[:5]
+    # Busca direta, sem cache, para que relatórios docentes recém-salvos
+    # também entrem no contexto da IA do Plano AEE.
+    relatorios_docentes = buscar_relatorios_docente_para_ia(estudante[0], limite=5)
 
     estudante_txt = f"""
 Código interno: {estudante[1]}
@@ -11330,7 +11382,11 @@ elif menu == "Plano AEE - IA":
             pendencias.append("Estudo de caso GRE")
 
         escutas_docentes_ia = listar_escutas_docentes(estudante_id)
-        relatorios_docente_ia = listar_relatorios_docente(estudante_id)
+
+        # Relatórios docentes precisam ser buscados diretamente no banco,
+        # sem cache, pois podem ter sido gerados agora no módulo Escuta Docente.
+        relatorios_docente_ia = buscar_relatorios_docente_para_ia(estudante_id, limite=5)
+        total_relatorios_docente_ia = contar_relatorios_docente_para_ia(estudante_id)
 
         with st.container(border=True):
             st.markdown("### ✅ Dados usados pela IA")
@@ -11339,7 +11395,7 @@ elif menu == "Plano AEE - IA":
             c2.metric("Avaliação pedagógica", "OK" if avaliacao_ia else "Pendente")
             c3.metric("Estudo de caso GRE", "OK" if estudo_ia else "Pendente")
             c4.metric("Escuta docente", f"{len(escutas_docentes_ia)} registro(s)" if escutas_docentes_ia else "Pendente")
-            c5.metric("Relatórios docentes", f"{len(relatorios_docente_ia)} salvo(s)" if relatorios_docente_ia else "Opcional")
+            c5.metric("Relatórios docentes", f"{total_relatorios_docente_ia} salvo(s)" if total_relatorios_docente_ia else "Opcional")
             c6.metric("Plano AEE manual", "OK" if plano_manual_ia else "Opcional")
 
             fontes_ativas = []
