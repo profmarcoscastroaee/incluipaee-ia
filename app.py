@@ -1,5 +1,5 @@
 
-# INCLUISRM V47 - Perfil docente, modo maker inclusivo e projetos norteadores no AEE
+# INCLUISRM V58 - Perfil docente, modo maker inclusivo e projetos norteadores no AEE
 # Atualização: integra perfil pedagógico/tecnológico do professor AEE e docente regular, modo maker inclusivo e projetos interdisciplinares sem caracterizar reforço escolar.
 
 import os
@@ -98,8 +98,8 @@ RELATORIOS_VISUAIS_DOCENTE_DIR.mkdir(parents=True, exist_ok=True)
 
 APP_NAME = "INCLUISRM"
 APP_SUBTITLE = "Sistema Inteligente de Articulação Pedagógica Inclusiva"
-APP_VERSION = "V52"
-APP_VERSION_LABEL = "Plano Mensal IA • Datas futuras • Sem dias anteriores"
+APP_VERSION = "V56"
+APP_VERSION_LABEL = "Relatório Docente • Evidências documentadas • Sem inferências"
 # Fuso fixo UTC-3 usado por Recife/Pernambuco.
 # Usar timezone/timedelta evita erro em ambientes Render sem base tzdata completa.
 FUSO_LOCAL = timezone(timedelta(hours=-3), name="America/Recife")
@@ -3717,8 +3717,8 @@ REGRAS OBRIGATÓRIAS:
 - Não usar linguagem médica ou clínica.
 - Não expor dados familiares.
 - Não citar CPF, endereço, telefone, nomes de responsáveis ou dados sensíveis.
-- Não inventar informações.
-- Trabalhar somente com os dados fornecidos.
+- NÃO INVENTAR INFORMAÇÕES.
+- Trabalhar somente com os dados fornecidos nos registros do sistema.
 - Usar linguagem pedagógica, objetiva, acolhedora e institucional.
 - O documento deve orientar o professor da sala regular, sem rotular o estudante.
 - Focar em participação, aprendizagem, barreiras, potencialidades, estratégias e avaliação inclusiva.
@@ -3729,6 +3729,31 @@ REGRAS OBRIGATÓRIAS:
 - Não sugerir robótica, impressão 3D, programação ou tecnologias complexas quando o docente indicar baixa familiaridade tecnológica ou não ativar modo maker.
 - Quando houver interesse em projetos interdisciplinares, propor caminhos pedagógicos acessíveis e progressivos, deixando claro que o AEE não é reforço escolar.
 - Quando os dados forem insuficientes, escrever que a informação não foi localizada nos registros.
+
+REGRA DE FIDELIDADE PEDAGÓGICA AOS REGISTROS:
+- Não inferir, ampliar ou concluir informações que não estejam claramente registradas.
+- Não transformar hipótese pedagógica em característica do estudante.
+- Não transformar sugestão de estratégia em evidência observada.
+- Não transformar condição/CID/laudo em comportamento individual.
+- Não usar a Base de Conhecimento IA para descrever o estudante. A base pode apoiar apenas sugestões pedagógicas gerais.
+- Não afirmar leitura, escrita, fala, oralidade, autonomia, comunicação, comportamento, coordenação, interesse ou dificuldade sem evidência explícita nos registros.
+- Não transformar ausência de informação em afirmação negativa. Exemplo: não escrever "não escreve", "não fala", "não lê" ou "não realiza" se isso não estiver claramente registrado.
+- Não transformar uso de apontamentos, gestos, imagens, respostas visuais ou CAA em escrita.
+- Não transformar necessidade de mediação em incapacidade.
+- Não resumir informações alterando o sentido original.
+- Se não houver evidência direta, escrever: "Não há informação suficiente nos registros analisados."
+- Estratégias e recursos podem ser sugeridos, mas devem aparecer com linguagem sugestiva: "Sugere-se...", "Pode favorecer...", "Recomenda-se observar...", "Pode se beneficiar de...".
+- Separar mentalmente duas categorias:
+  1) EVIDÊNCIAS OBSERVADAS NOS REGISTROS: fatos documentados.
+  2) SUGESTÕES PEDAGÓGICAS: possibilidades flexíveis para o professor.
+- A condição/CID pode orientar atenção pedagógica, mas não pode ser usada como evidência individual nem como diagnóstico produzido pelo sistema.
+- Sempre considerar que cada estudante aprende, comunica e participa de forma própria.
+
+EXEMPLOS DE ERRO QUE DEVEM SER EVITADOS:
+- Se o registro NÃO disser que o estudante escreve, não escrever "utiliza linguagem escrita", "boa escrita" ou "produção textual".
+- Se o registro NÃO disser que o estudante não escreve, não escrever "não utiliza linguagem escrita" ou "não realiza produção escrita".
+- Se o registro indicar comunicação por gestos, imagens ou apontamentos, preservar essa informação sem converter para escrita ou fala.
+- Se houver apenas sugestão de usar CAA, não afirmar que o estudante usa CAA.
 
 DADOS DISPONÍVEIS NO SISTEMA:
 {contexto}
@@ -3742,22 +3767,29 @@ Produza o relatório com as seções abaixo:
 Explique que o relatório apoia o planejamento pedagógico inclusivo do docente.
 
 2. SÍNTESE PEDAGÓGICA FUNCIONAL
-Síntese objetiva de como o estudante aprende, participa e responde às mediações.
+Síntese objetiva somente com informações documentadas sobre aprendizagem, participação e mediações.
+Não inferir leitura, escrita, fala, autonomia ou dificuldade sem registro explícito.
+Quando faltar informação, registrar: "Não há informação suficiente nos registros analisados."
 
 3. POTENCIALIDADES OBSERVADAS
-Listar potencialidades pedagógicas observadas nos registros.
+Listar somente potencialidades pedagógicas observadas nos registros.
+Não transformar sugestões em habilidades do estudante.
 
 4. BARREIRAS PEDAGÓGICAS E DESAFIOS EM SALA
-Listar barreiras educacionais sem linguagem medicalizante.
+Listar somente barreiras educacionais registradas, sem linguagem medicalizante.
+Não afirmar incapacidade. Não usar CID como evidência.
 
 5. ESTRATÉGIAS QUE TENDEM A FAVORECER A PARTICIPAÇÃO
 Recomendações práticas para o docente da área.
+Todas devem ser apresentadas como sugestões pedagógicas, não como características do estudante.
 
 6. RECOMENDAÇÕES PARA ADAPTAÇÃO DAS ATIVIDADES
 Orientações de adaptação curricular, acessibilidade pedagógica e mediação.
+Usar linguagem sugestiva: "Sugere-se", "Pode favorecer", "Recomenda-se observar".
 
 7. RECOMENDAÇÕES AVALIATIVAS
 Orientar formas de avaliação inclusiva considerando participação, evolução individual, comunicação, engajamento e diferentes formas de expressão.
+Não afirmar que o estudante escreve, lê, fala ou não escreve sem evidência direta.
 
 8. PONTOS DE ATENÇÃO PARA ARTICULAÇÃO COM O AEE
 Indicar como o professor pode dialogar com o AEE, sem expor dados sensíveis.
@@ -3841,6 +3873,30 @@ def extrair_json_da_resposta(texto):
     raise ValueError("A resposta da IA não contém JSON válido.")
 
 
+
+def item_parece_sugestao_ou_inferencia(item):
+    """Evita que campos observacionais recebam sugestões ou inferências como se fossem evidências."""
+    texto = str(item or "").strip().lower()
+    prefixos_sugestivos = (
+        "sugestão:", "sugere-se", "sugerir", "pode favorecer", "pode se beneficiar",
+        "recomenda-se", "considerar", "avaliar", "oferecer", "utilizar", "usar ",
+        "permitir", "organizar", "adaptar", "estimular", "incentivar", "evitar ",
+    )
+    return texto.startswith(prefixos_sugestivos)
+
+
+def filtrar_itens_observacionais(itens, fallback):
+    """Mantém em campos de evidência apenas itens que não pareçam sugestão pedagógica."""
+    filtrados = []
+    for item in itens or []:
+        item = str(item or "").strip()
+        if not item:
+            continue
+        if item_parece_sugestao_ou_inferencia(item):
+            continue
+        filtrados.append(item)
+    return filtrados or fallback
+
 def normalizar_dados_infografico_docente(dados, relatorio_docente_txt="", estudante=None):
     """Normaliza o JSON do infográfico com regra ética:
     - campos observacionais só usam o que está documentado;
@@ -3853,9 +3909,11 @@ def normalizar_dados_infografico_docente(dados, relatorio_docente_txt="", estuda
     NAO_INFO = "Não informado nos registros analisados."
 
     # Campos observacionais: não podem ser inventados nem deduzidos pelo CID/condição.
+    # Importante: "como_aprende_melhor" NÃO deve usar a seção 5, pois a seção 5 traz sugestões.
+    # O fallback observacional deve vir da síntese funcional e das potencialidades/barreiras registradas.
     fallback_observado = {
         "quem_e_estudante": extrair_itens_secao_docente(relatorio_docente_txt, 2, 6, 90) or [NAO_INFO],
-        "como_aprende_melhor": extrair_itens_secao_docente(relatorio_docente_txt, 5, 6, 80) or [NAO_INFO],
+        "como_aprende_melhor": extrair_itens_secao_docente(relatorio_docente_txt, 2, 6, 80) or [NAO_INFO],
         "o_que_dificulta": extrair_itens_secao_docente(relatorio_docente_txt, 4, 6, 80) or [NAO_INFO],
         "potencialidades": extrair_itens_secao_docente(relatorio_docente_txt, 3, 8, 70) or [NAO_INFO],
         "barreiras_pedagogicas": extrair_itens_secao_docente(relatorio_docente_txt, 4, 6, 75) or [NAO_INFO],
@@ -3914,8 +3972,10 @@ def normalizar_dados_infografico_docente(dados, relatorio_docente_txt="", estuda
     for campo in campos_observados:
         limite = 8 if campo == "potencialidades" else 6
         itens = normalizar_lista_infografico(dados.get(campo), limite=limite, tamanho_item=85)
+        itens = filtrar_itens_observacionais(itens, [])
         if not itens:
             itens = normalizar_lista_infografico(fallback_observado.get(campo), limite=limite, tamanho_item=85)
+            itens = filtrar_itens_observacionais(itens, [NAO_INFO])
         normalizado[campo] = itens or [NAO_INFO]
 
     normalizado["condicao_em_linguagem_pedagogica"] = normalizar_lista_infografico(
@@ -3983,8 +4043,15 @@ REGRAS DE EVIDÊNCIA:
 - Não invente informações.
 - Não crie habilidades, interesses, comportamentos ou dificuldades sem registro.
 - Não deduza características individuais apenas pela condição, CID ou laudo.
+- Não transformar sugestão pedagógica em evidência observada.
+- Não transformar ausência de informação em afirmação negativa.
+- Não afirmar que o estudante escreve, lê, fala, não escreve, não lê ou não fala sem evidência explícita no relatório.
+- Não transformar uso de gestos, apontamentos, imagens, respostas visuais ou CAA em escrita.
+- Não transformar necessidade de mediação em incapacidade.
+- Não resumir informações alterando o sentido pedagógico original.
 - Se uma informação não estiver nos registros, escreva: "Não informado nos registros analisados."
 - Dados observados do estudante devem vir dos documentos, não da hipótese da IA.
+- Estratégias, recursos, avaliação e atenção docente devem ser marcados como "Sugestão:" quando não forem evidências registradas.
 
 USO DA CONDIÇÃO/CID:
 A condição informada no cadastro pode ser usada APENAS como referência contextual.
@@ -4007,7 +4074,10 @@ LINGUAGEM:
 NUNCA escreva:
 - "O estudante tem dificuldade de..." se isso não estiver documentado.
 - "O estudante não consegue..." sem evidência nos registros.
+- "O estudante não utiliza..." se isso não estiver documentado.
+- "O estudante escreve..." ou "utiliza linguagem escrita..." se isso não estiver documentado.
 - "Por ser TEA/CID..., ele apresenta...".
+- "Boa escrita", "fluência", "oralidade", "autonomia" ou "não escreve" sem evidência direta.
 
 PODE escrever:
 - "Nos registros, observa-se..." quando houver evidência.
