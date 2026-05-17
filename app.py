@@ -58,6 +58,7 @@ PASTA_CIENTIFICA = BASE_CONHECIMENTO_DIR / "cientifica"
 PASTA_PEDAGOGICA = BASE_CONHECIMENTO_DIR / "pedagogica"
 CHROMA_DIR = Path("chroma_db_incluisrm")
 DOCUMENTOS_AVALIACOES_DIR = Path("documentos_avaliacoes")
+RELATORIOS_VISUAIS_DOCENTE_DIR = Path("relatorios_visuais_docente")
 
 PASTA_BNCC = BASE_CONHECIMENTO_DIR / "bncc"
 PASTA_BNCC_COMPUTACAO = BASE_CONHECIMENTO_DIR / "bncc_computacao"
@@ -92,11 +93,12 @@ for _pasta_base in PASTAS_BASE_IA.values():
     _pasta_base.mkdir(parents=True, exist_ok=True)
 CHROMA_DIR.mkdir(parents=True, exist_ok=True)
 DOCUMENTOS_AVALIACOES_DIR.mkdir(parents=True, exist_ok=True)
+RELATORIOS_VISUAIS_DOCENTE_DIR.mkdir(parents=True, exist_ok=True)
 
 APP_NAME = "INCLUISRM"
 APP_SUBTITLE = "Sistema Inteligente de Articulação Pedagógica Inclusiva"
-APP_VERSION = "V47"
-APP_VERSION_LABEL = "Relatório Visual Docente em PDF • Potencialidades • IA contextualizada"
+APP_VERSION = "V48"
+APP_VERSION_LABEL = "Relatórios Visuais Docente • PDF Limpo + Infográfico • Histórico"
 # Fuso fixo UTC-3 usado por Recife/Pernambuco.
 # Usar timezone/timedelta evita erro em ambientes Render sem base tzdata completa.
 FUSO_LOCAL = timezone(timedelta(hours=-3), name="America/Recife")
@@ -754,6 +756,38 @@ def criar_tabelas():
         """
     )
 
+
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS relatorios_visuais_docente (
+            id SERIAL PRIMARY KEY,
+            estudante_id INTEGER NOT NULL,
+            data_geracao TEXT,
+            ano_letivo TEXT,
+            componente_destino TEXT,
+            tipo_relatorio TEXT,
+            titulo TEXT,
+            nome_arquivo TEXT,
+            caminho_arquivo TEXT,
+            fontes_utilizadas TEXT,
+            observacoes TEXT,
+            FOREIGN KEY(estudante_id) REFERENCES estudantes(id)
+        )
+        """
+    )
+
+    for coluna, definicao in [
+        ("ano_letivo", "TEXT"),
+        ("componente_destino", "TEXT"),
+        ("tipo_relatorio", "TEXT"),
+        ("titulo", "TEXT"),
+        ("nome_arquivo", "TEXT"),
+        ("caminho_arquivo", "TEXT"),
+        ("fontes_utilizadas", "TEXT"),
+        ("observacoes", "TEXT"),
+    ]:
+        adicionar_coluna_se_nao_existe(cursor, "relatorios_visuais_docente", coluna, definicao)
+
     cursor.execute(
         """
         CREATE TABLE IF NOT EXISTS estudos_caso (
@@ -1328,6 +1362,18 @@ CAMPOS_RELATORIO_DOCENTE = [
     "professor_destino",
     "titulo",
     "conteudo",
+    "fontes_utilizadas",
+    "observacoes",
+]
+
+CAMPOS_RELATORIO_VISUAL_DOCENTE = [
+    "data_geracao",
+    "ano_letivo",
+    "componente_destino",
+    "tipo_relatorio",
+    "titulo",
+    "nome_arquivo",
+    "caminho_arquivo",
     "fontes_utilizadas",
     "observacoes",
 ]
@@ -3383,6 +3429,71 @@ def excluir_relatorio_docente(relatorio_id):
     excluir_registro("relatorios_docente", relatorio_id)
 
 
+
+def salvar_relatorio_visual_docente(
+    estudante_id,
+    ano_letivo,
+    componente_destino,
+    tipo_relatorio,
+    titulo,
+    caminho_arquivo,
+    fontes_utilizadas="",
+    observacoes="",
+):
+    """Salva no histórico o PDF visual gerado para consulta futura."""
+    caminho = str(caminho_arquivo or "")
+    nome_arquivo = Path(caminho).name if caminho else ""
+    inserir_registro(
+        "relatorios_visuais_docente",
+        [
+            "estudante_id",
+            "data_geracao",
+            "ano_letivo",
+            "componente_destino",
+            "tipo_relatorio",
+            "titulo",
+            "nome_arquivo",
+            "caminho_arquivo",
+            "fontes_utilizadas",
+            "observacoes",
+        ],
+        [
+            estudante_id,
+            hoje_str(),
+            ano_letivo,
+            componente_destino,
+            tipo_relatorio,
+            titulo,
+            nome_arquivo,
+            caminho,
+            fontes_utilizadas,
+            observacoes,
+        ],
+    )
+
+
+@st.cache_data(ttl=30, show_spinner=False)
+def listar_relatorios_visuais_docente(estudante_id):
+    return listar_por_estudante("relatorios_visuais_docente", CAMPOS_RELATORIO_VISUAL_DOCENTE, estudante_id)
+
+
+def excluir_relatorio_visual_docente(relatorio_visual_id, caminho_arquivo=""):
+    """Exclui o registro do histórico e tenta remover o PDF salvo no servidor."""
+    try:
+        if caminho_arquivo and Path(caminho_arquivo).exists():
+            Path(caminho_arquivo).unlink()
+    except Exception:
+        pass
+    excluir_registro("relatorios_visuais_docente", relatorio_visual_id)
+
+
+def caminho_relatorio_visual_docente(nome_arquivo):
+    """Retorna caminho seguro para salvar PDFs visuais docentes."""
+    RELATORIOS_VISUAIS_DOCENTE_DIR.mkdir(parents=True, exist_ok=True)
+    nome_seguro = re.sub(r"[^A-Za-z0-9_\-.]", "_", str(nome_arquivo or "relatorio_visual.pdf"))
+    return RELATORIOS_VISUAIS_DOCENTE_DIR / nome_seguro
+
+
 def texto_relatorio_docente(estudante, relatorio):
     dados = dict(zip(["id"] + CAMPOS_RELATORIO_DOCENTE, relatorio))
 
@@ -3974,9 +4085,10 @@ def gerar_pdf_relatorio_visual_docente(
         nome_base = f"Relatorio_Visual_Apoio_Docente_{codigo}_{ano_letivo}"
 
     nome_arquivo = f"{nome_base}.pdf".replace("/", "-").replace("\\", "-")
+    caminho_pdf = caminho_relatorio_visual_docente(nome_arquivo)
 
     doc = SimpleDocTemplate(
-        nome_arquivo,
+        str(caminho_pdf),
         pagesize=A4,
         rightMargin=1.25 * cm,
         leftMargin=1.25 * cm,
@@ -4173,19 +4285,19 @@ def gerar_pdf_relatorio_visual_docente(
     elementos.append(Spacer(1, 10))
 
     elementos.append(Paragraph("Painel de percepção docente", secao))
-    elementos.append(card("👤 Quem é este estudante no contexto escolar", quem_estudante, "#dbeafe", "#2563eb"))
+    elementos.append(card("Quem é este estudante no contexto escolar", quem_estudante, "#dbeafe", "#2563eb"))
     elementos.append(Spacer(1, 6))
-    elementos.append(card("📘 O que a condição informada pode significar", significado_condicao, "#ede9fe", "#7c3aed"))
+    elementos.append(card("O que a condição informada pode significar", significado_condicao, "#ede9fe", "#7c3aed"))
     elementos.append(Spacer(1, 6))
-    elementos.append(card("🧠 Como aprende melhor", como_aprende, "#cffafe", "#0891b2"))
+    elementos.append(card("Como aprende melhor", como_aprende, "#cffafe", "#0891b2"))
     elementos.append(Spacer(1, 6))
-    elementos.append(card("🌱 Habilidades, potencialidades e interesses", potencialidades_interesses, "#dcfce7", "#16a34a"))
+    elementos.append(card("Habilidades, potencialidades e interesses", potencialidades_interesses, "#dcfce7", "#16a34a"))
     elementos.append(Spacer(1, 6))
-    elementos.append(card("⚠️ Barreiras que podem aparecer", barreiras_observadas, "#ffedd5", "#ea580c"))
+    elementos.append(card("Barreiras que podem aparecer", barreiras_observadas, "#ffedd5", "#ea580c"))
     elementos.append(Spacer(1, 6))
-    elementos.append(card("🎯 Estratégias rápidas para a aula", estrategias_rapidas, "#fef9c3", "#ca8a04"))
+    elementos.append(card("Estratégias rápidas para a aula", estrategias_rapidas, "#fef9c3", "#ca8a04"))
     elementos.append(Spacer(1, 6))
-    elementos.append(card("❤️ O que merece atenção", pontos_atencao, "#fee2e2", "#dc2626"))
+    elementos.append(card("O que merece atenção", pontos_atencao, "#fee2e2", "#dc2626"))
     elementos.append(PageBreak())
 
     # Página 2 - orientações práticas
@@ -4200,13 +4312,13 @@ def gerar_pdf_relatorio_visual_docente(
     sec_est = extrair_secao_relatorio_docente(conteudo_relatorio, 5) or estrategias_rapidas
     sec_adapt = extrair_secao_relatorio_docente(conteudo_relatorio, 6)
 
-    elementos.append(bloco_lista("🌱 Potencialidades a valorizar", sec_pot, "#f0fdf4", "#16a34a"))
+    elementos.append(bloco_lista("Potencialidades a valorizar", sec_pot, "#f0fdf4", "#16a34a"))
     elementos.append(Spacer(1, 8))
-    elementos.append(bloco_lista("⚠️ Barreiras que podem dificultar a participação", sec_bar, "#fff7ed", "#ea580c"))
+    elementos.append(bloco_lista("Barreiras que podem dificultar a participação", sec_bar, "#fff7ed", "#ea580c"))
     elementos.append(Spacer(1, 8))
-    elementos.append(bloco_lista("🎯 Estratégias que favorecem participação", sec_est, "#eff6ff", "#2563eb"))
+    elementos.append(bloco_lista("Estratégias que favorecem participação", sec_est, "#eff6ff", "#2563eb"))
     elementos.append(Spacer(1, 8))
-    elementos.append(bloco_lista("🛠️ Adaptação das atividades", sec_adapt, "#f8fafc", "#64748b"))
+    elementos.append(bloco_lista("Adaptação das atividades", sec_adapt, "#f8fafc", "#64748b"))
     elementos.append(PageBreak())
 
     # Página 3 - avaliação, articulação e fechamento
@@ -4220,9 +4332,9 @@ def gerar_pdf_relatorio_visual_docente(
     sec_aee = extrair_secao_relatorio_docente(conteudo_relatorio, 8)
     sec_fechamento = extrair_secao_relatorio_docente(conteudo_relatorio, 9)
 
-    elementos.append(bloco_lista("📊 Recomendações avaliativas", sec_aval, "#f5f3ff", "#7c3aed"))
+    elementos.append(bloco_lista("Recomendações avaliativas", sec_aval, "#f5f3ff", "#7c3aed"))
     elementos.append(Spacer(1, 8))
-    elementos.append(bloco_lista("🤝 Articulação com o AEE", sec_aee, "#ecfeff", "#0891b2"))
+    elementos.append(bloco_lista("Articulação com o AEE", sec_aee, "#ecfeff", "#0891b2"))
     elementos.append(Spacer(1, 10))
 
     fechamento_box = Table([[Paragraph(
@@ -4260,7 +4372,330 @@ def gerar_pdf_relatorio_visual_docente(
     ))
 
     doc.build(elementos, onFirstPage=header_footer, onLaterPages=header_footer)
-    return nome_arquivo
+    return str(caminho_pdf)
+
+
+def gerar_pdf_infografico_docente(
+    estudante,
+    ano_letivo,
+    componente_destino,
+    quem_estudante,
+    significado_condicao,
+    como_aprende,
+    barreiras_observadas,
+    potencialidades_interesses,
+    pontos_atencao,
+    estrategias_rapidas,
+    conteudo_relatorio,
+    fontes_geradas="",
+    nome_base=None,
+):
+    """Gera um painel infográfico docente em PDF.
+
+    Modelo mais visual e sintético, inspirado em cards de apoio ao professor.
+    Não usa emojis/símbolos especiais para evitar quadradinhos no PDF.
+    """
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.units import cm
+    from reportlab.pdfgen import canvas
+    from reportlab.pdfbase.pdfmetrics import stringWidth
+
+    codigo = estudante[1] if estudante and len(estudante) > 1 else "Não informado"
+    ano_serie = estudante[2] if estudante and len(estudante) > 2 else "Não informado"
+    turma = estudante[3] if estudante and len(estudante) > 3 else "Não informado"
+    perfil = estudante[4] if estudante and len(estudante) > 4 else "Não informado"
+
+    if not nome_base:
+        nome_base = f"Painel_Infografico_Docente_{codigo}_{ano_letivo}"
+    nome_arquivo = f"{nome_base}.pdf".replace("/", "-").replace("\\", "-")
+    caminho_pdf = caminho_relatorio_visual_docente(nome_arquivo)
+
+    c = canvas.Canvas(str(caminho_pdf), pagesize=A4)
+    W, H = A4
+
+    def hexcor(v):
+        return colors.HexColor(v)
+
+    def limpar_txt(t):
+        t = limpar_marcadores_relatorio(str(t or ""))
+        t = re.sub(r"\s+", " ", t).strip()
+        return t
+
+    def lista_itens(texto, fallback, max_itens=6, max_chars=95):
+        bruto = str(texto or "")
+        itens = []
+        for linha in bruto.splitlines():
+            linha = limpar_marcadores_relatorio(linha).strip().lstrip("•-–—0123456789. ").strip()
+            if linha and len(linha) > 2:
+                itens.append(linha)
+        if not itens:
+            texto_limpo = limpar_txt(bruto)
+            partes = re.split(r"(?<=[.;])\s+", texto_limpo)
+            itens = [p.strip(" .;") for p in partes if len(p.strip()) > 8]
+        if not itens:
+            itens = fallback
+        saida = []
+        for item in itens[:max_itens]:
+            item = limpar_txt(item)
+            if len(item) > max_chars:
+                item = item[:max_chars].rsplit(" ", 1)[0] + "..."
+            saida.append(item)
+        return saida
+
+    def wrap_text(text, font, size, width):
+        words = limpar_txt(text).split()
+        lines, cur = [], ""
+        for w in words:
+            test = (cur + " " + w).strip()
+            if stringWidth(test, font, size) <= width:
+                cur = test
+            else:
+                if cur:
+                    lines.append(cur)
+                cur = w
+        if cur:
+            lines.append(cur)
+        return lines
+
+    def draw_wrapped(text, x, y, width, font="Helvetica", size=7.2, leading=9, color="#111827", max_lines=None):
+        c.setFont(font, size)
+        c.setFillColor(hexcor(color))
+        lines = wrap_text(text, font, size, width)
+        if max_lines and len(lines) > max_lines:
+            lines = lines[:max_lines]
+            if lines:
+                lines[-1] = lines[-1][:max(0, len(lines[-1])-3)] + "..."
+        for line in lines:
+            c.drawString(x, y, line)
+            y -= leading
+        return y
+
+    def box(x, y, w, h, title, border="#2563eb", fill="#eff6ff", title_fill=None, title_color="#ffffff"):
+        c.setFillColor(hexcor(fill))
+        c.setStrokeColor(hexcor(border))
+        c.roundRect(x, y, w, h, 6, stroke=1, fill=1)
+        if title:
+            tf = title_fill or border
+            c.setFillColor(hexcor(tf))
+            c.roundRect(x, y + h - 18, w, 18, 6, stroke=0, fill=1)
+            c.setFillColor(hexcor(title_color))
+            c.setFont("Helvetica-Bold", 8.5)
+            c.drawCentredString(x + w/2, y + h - 12.5, title.upper())
+
+    def draw_bullets(items, x, y, width, color="#16a34a", size=7.1, leading=11, max_lines_item=2):
+        for item in items:
+            c.setFillColor(hexcor(color))
+            c.circle(x + 3, y + 2.5, 2.6, stroke=0, fill=1)
+            y2 = draw_wrapped(item, x + 9, y, width - 10, size=size, leading=leading, max_lines=max_lines_item)
+            y = y2 - 2
+        return y
+
+    def draw_meta_card(x, y, w, label, valor):
+        c.setFillColor(hexcor("#f8fafc"))
+        c.setStrokeColor(hexcor("#bfdbfe"))
+        c.roundRect(x, y, w, 28, 5, stroke=1, fill=1)
+        c.setFillColor(hexcor("#0f172a"))
+        c.setFont("Helvetica-Bold", 6.8)
+        c.drawString(x + 7, y + 17, label)
+        c.setFont("Helvetica", 7.4)
+        c.drawString(x + 7, y + 7, str(valor or "Não informado")[:38])
+
+    # Dados resumidos
+    sec_pot = extrair_secao_relatorio_docente(conteudo_relatorio, 3) or potencialidades_interesses
+    sec_bar = extrair_secao_relatorio_docente(conteudo_relatorio, 4) or barreiras_observadas
+    sec_est = extrair_secao_relatorio_docente(conteudo_relatorio, 5) or estrategias_rapidas
+    sec_adapt = extrair_secao_relatorio_docente(conteudo_relatorio, 6)
+    sec_aval = extrair_secao_relatorio_docente(conteudo_relatorio, 7)
+    sec_aee = extrair_secao_relatorio_docente(conteudo_relatorio, 8)
+
+    pot = lista_itens(sec_pot, [
+        "Valorizar habilidades já observadas e interesses do estudante.",
+        "Aproveitar formas de comunicação já existentes.",
+        "Priorizar atividades práticas, visuais e significativas.",
+        "Registrar pequenas conquistas de participação e autonomia.",
+    ], 6, 72)
+    bar = lista_itens(sec_bar, [
+        "Comandos longos ou simultâneos podem reduzir compreensão.",
+        "Ambientes com muitos estímulos podem dificultar atenção.",
+        "Produção escrita extensa pode limitar participação.",
+        "Mudanças bruscas podem gerar insegurança.",
+    ], 6, 70)
+    est = lista_itens(sec_est, [
+        "Usar comandos curtos e objetivos.",
+        "Organizar a rotina com apoio visual.",
+        "Dividir atividades em etapas pequenas.",
+        "Oferecer tempo ampliado e mediação gradual.",
+        "Valorizar participação e tentativas de resposta.",
+    ], 7, 68)
+    adapt = lista_itens(sec_adapt, [
+        "Reduzir volume sem perder o objetivo pedagógico.",
+        "Permitir respostas orais, visuais, gestuais ou por CAA.",
+        "Usar materiais concretos e exemplos práticos.",
+    ], 5, 65)
+    aval = lista_itens(sec_aval, [
+        "Avaliar participação, engajamento e evolução individual.",
+        "Evitar que escrita seja o único critério avaliativo.",
+        "Registrar estratégias que funcionaram.",
+    ], 5, 75)
+    aee = lista_itens(sec_aee, [
+        "Compartilhar observações com o professor do AEE.",
+        "Solicitar apoio para recursos visuais e materiais adaptados.",
+        "Alinhar estratégias sem transformar AEE em reforço escolar.",
+    ], 5, 75)
+
+    # Cabeçalho
+    c.setFillColor(hexcor("#ffffff"))
+    c.rect(0, 0, W, H, stroke=0, fill=1)
+    c.setFillColor(hexcor("#0b3b75"))
+    c.setFont("Helvetica-Bold", 13)
+    c.drawString(1.2*cm, H - 1.25*cm, "INCLUISRM")
+    c.setFont("Helvetica", 6.6)
+    c.drawString(1.2*cm, H - 1.55*cm, "Sistema de Gestão do Atendimento Educacional Especializado")
+    c.setFont("Helvetica-Bold", 16)
+    c.drawCentredString(W/2, H - 1.18*cm, "RELATÓRIO PEDAGÓGICO VISUAL")
+    c.drawCentredString(W/2, H - 1.75*cm, "APOIO AO DOCENTE")
+    c.setFont("Helvetica-Oblique", 7.2)
+    c.drawCentredString(W/2, H - 2.12*cm, "Instrumento de apoio para práticas pedagógicas inclusivas")
+
+    c.setFillColor(hexcor("#0b3b75"))
+    c.roundRect(W - 5.2*cm, H - 2.15*cm, 4.5*cm, 1.25*cm, 7, stroke=0, fill=1)
+    c.setFillColor(hexcor("#ffffff"))
+    c.setFont("Helvetica-Bold", 7)
+    c.drawString(W - 4.95*cm, H - 1.32*cm, "Data de geração: " + agora_local().strftime("%d/%m/%Y"))
+    c.drawString(W - 4.95*cm, H - 1.78*cm, "Ano letivo: " + str(ano_letivo))
+
+    y_meta = H - 3.55*cm
+    x0 = 1.2*cm
+    gap = 0.18*cm
+    wcard = (W - 2.4*cm - 4*gap)/5
+    draw_meta_card(x0, y_meta, wcard, "Código interno", codigo)
+    draw_meta_card(x0 + (wcard+gap), y_meta, wcard, "Ano/Série", ano_serie)
+    draw_meta_card(x0 + 2*(wcard+gap), y_meta, wcard, "Turma", turma)
+    draw_meta_card(x0 + 3*(wcard+gap), y_meta, wcard, "Componente/área", componente_destino)
+    draw_meta_card(x0 + 4*(wcard+gap), y_meta, wcard, "Destinatário", "________________")
+
+    # Linha guia
+    c.setFillColor(hexcor("#eff6ff"))
+    c.setStrokeColor(hexcor("#93c5fd"))
+    c.roundRect(1.2*cm, y_meta - 0.65*cm, W - 2.4*cm, 0.42*cm, 5, stroke=1, fill=1)
+    c.setFillColor(hexcor("#0b3b75"))
+    c.setFont("Helvetica-Bold", 7.2)
+    c.drawCentredString(W/2, y_meta - 0.49*cm, "Antes de adaptar a atividade, observe como o estudante compreende, responde, comunica e participa.")
+
+    # Blocos principais
+    left = 1.2*cm
+    right = W/2 + 0.25*cm
+    bw = (W - 2.7*cm)/2
+    top = y_meta - 3.25*cm
+    bh = 4.0*cm
+
+    box(left, top, bw, bh, "Perfil pedagógico funcional", "#0b74b8", "#f0f9ff")
+    yy = top + bh - 0.65*cm
+    draw_wrapped("Quem é este estudante", left+0.25*cm, yy, bw-0.5*cm, font="Helvetica-Bold", size=7.8, color="#0f172a")
+    yy -= 0.35*cm
+    yy = draw_wrapped(quem_estudante, left+0.25*cm, yy, bw-0.5*cm, size=6.8, leading=8.2, max_lines=5)
+    yy -= 0.12*cm
+    draw_wrapped("Condição informada: " + str(perfil), left+0.25*cm, yy, bw-0.5*cm, font="Helvetica-Bold", size=6.8, color="#1e3a8a", max_lines=2)
+
+    box(right, top, bw, bh, "Potencialidades observadas", "#55a630", "#f0fdf4")
+    draw_bullets(pot[:5], right+0.25*cm, top+bh-0.75*cm, bw-0.55*cm, color="#55a630", size=6.8, leading=8.6, max_lines_item=2)
+
+    top2 = top - bh - 0.35*cm
+    box(left, top2, bw, bh, "Barreiras pedagógicas", "#dc2626", "#fff1f2")
+    draw_bullets(bar[:5], left+0.25*cm, top2+bh-0.75*cm, bw-0.55*cm, color="#dc2626", size=6.8, leading=8.6, max_lines_item=2)
+
+    box(right, top2, bw, bh, "O que funciona melhor", "#059669", "#ecfdf5")
+    draw_bullets(est[:6], right+0.25*cm, top2+bh-0.75*cm, bw-0.55*cm, color="#16a34a", size=6.8, leading=8.2, max_lines_item=2)
+
+    # Mapa pedagógico rápido
+    ymap = top2 - 1.75*cm
+    box(1.2*cm, ymap, W-2.4*cm, 1.35*cm, "Mapa pedagógico rápido", "#0b3b75", "#f8fafc")
+    c.setFillColor(hexcor("#0b3b75"))
+    c.setFont("Helvetica-Bold", 8)
+    c.drawString(1.55*cm, ymap+0.55*cm, "COMPREENSÃO")
+    c.drawCentredString(W/2, ymap+0.55*cm, "PARTICIPAÇÃO")
+    c.drawRightString(W-1.55*cm, ymap+0.55*cm, "AUTONOMIA")
+    c.setFont("Helvetica", 6.8)
+    c.setFillColor(hexcor("#334155"))
+    c.drawString(1.55*cm, ymap+0.23*cm, "Comandos curtos -> mediação visual -> explicação passo a passo")
+    c.drawCentredString(W/2, ymap+0.23*cm, "Atividades práticas -> pequenos grupos -> respostas possíveis")
+    c.drawRightString(W-1.55*cm, ymap+0.23*cm, "Rotina previsível -> checklist -> organização gradual")
+
+    # Três colunas inferiores
+    y3 = ymap - 4.05*cm
+    colw = (W - 2.8*cm)/3
+    box(1.2*cm, y3, colw, 3.65*cm, "Recursos pedagógicos sugeridos", "#f59e0b", "#fffbeb")
+    recursos = ["CAA / comunicação alternativa", "Recursos visuais estruturados", "Materiais concretos", "Atividades impressas organizadas", "Tecnologia: tablet ou computador", "Mediação com checklist"]
+    draw_bullets(recursos, 1.45*cm, y3+3.0*cm, colw-0.45*cm, color="#f59e0b", size=6.4, leading=8.0, max_lines_item=1)
+
+    box(1.2*cm+colw+0.2*cm, y3, colw, 3.65*cm, "Necessidade de apoio pedagógico", "#2563eb", "#eff6ff")
+    apoio_items = [
+        "Comunicação: apoio médio/alto",
+        "Organização: apoio frequente",
+        "Atenção: apoio visual e previsibilidade",
+        "Avaliação: múltiplas formas de resposta",
+        "Participação: mediação gradual",
+    ]
+    draw_bullets(apoio_items, 1.45*cm+colw+0.2*cm, y3+3.0*cm, colw-0.45*cm, color="#2563eb", size=6.4, leading=8.0, max_lines_item=1)
+
+    box(1.2*cm+2*(colw+0.2*cm), y3, colw, 3.65*cm, "Orientações rápidas ao docente", "#65a30d", "#f7fee7")
+    orient = lista_itens(pontos_atencao, [
+        "Valorizar participação, não apenas produção escrita.",
+        "Evitar excesso de informações simultâneas.",
+        "Organizar atividades em etapas menores.",
+        "Usar linguagem objetiva e previsível.",
+        "Reforçar positivamente avanços e tentativas.",
+    ], 5, 55)
+    draw_bullets(orient, 1.45*cm+2*(colw+0.2*cm), y3+3.0*cm, colw-0.45*cm, color="#65a30d", size=6.4, leading=8.0, max_lines_item=2)
+
+    # Rodapé com articulação e foco
+    y4 = 1.15*cm
+    box(1.2*cm, y4, (W-2.7*cm)/2, 2.0*cm, "Articulação com o AEE", "#7c3aed", "#faf5ff")
+    draw_bullets(aee[:4], 1.45*cm, y4+1.35*cm, (W-2.7*cm)/2-0.5*cm, color="#7c3aed", size=6.2, leading=7.2, max_lines_item=1)
+
+    box(W/2+0.25*cm, y4, (W-2.7*cm)/2, 2.0*cm, "Foco pedagógico principal", "#f59e0b", "#fffbeb")
+    foco = "Promover participação, comunicação, autonomia e permanência, valorizando potencialidades e reduzindo barreiras no processo de aprendizagem."
+    draw_wrapped(foco, W/2+0.5*cm, y4+1.28*cm, (W-2.7*cm)/2-0.5*cm, font="Helvetica-Bold", size=7.2, leading=9.0, color="#111827", max_lines=5)
+
+    c.setFillColor(hexcor("#eff6ff"))
+    c.setStrokeColor(hexcor("#bfdbfe"))
+    c.roundRect(1.2*cm, 0.35*cm, W-2.4*cm, 0.45*cm, 8, stroke=1, fill=1)
+    c.setFillColor(hexcor("#0b3b75"))
+    c.setFont("Helvetica-Bold", 7.2)
+    c.drawCentredString(W/2, 0.50*cm, "Lembre-se: cada estudante é único. Adapte, observe, registre e celebre cada conquista.")
+
+    c.showPage()
+
+    # Página 2: recomendações e avaliação, caso precise de versão consultável
+    c.setFillColor(hexcor("#ffffff"))
+    c.rect(0, 0, W, H, stroke=0, fill=1)
+    c.setFont("Helvetica-Bold", 15)
+    c.setFillColor(hexcor("#0b3b75"))
+    c.drawString(1.2*cm, H-1.4*cm, "COMPLEMENTO PEDAGÓGICO DO INFOGRÁFICO")
+    c.setFont("Helvetica", 8)
+    c.setFillColor(hexcor("#475569"))
+    c.drawString(1.2*cm, H-1.8*cm, "Avaliação, adaptação e acompanhamento docente em articulação com o AEE.")
+
+    y = H-2.7*cm
+    hbox = 4.0*cm
+    box(1.2*cm, y-hbox, W-2.4*cm, hbox, "Adaptação das atividades", "#64748b", "#f8fafc")
+    draw_bullets(adapt, 1.5*cm, y-0.8*cm, W-3.0*cm, color="#64748b", size=7.2, leading=10, max_lines_item=2)
+
+    y -= hbox + 0.45*cm
+    box(1.2*cm, y-hbox, W-2.4*cm, hbox, "Recomendações avaliativas", "#7c3aed", "#f5f3ff")
+    draw_bullets(aval, 1.5*cm, y-0.8*cm, W-3.0*cm, color="#7c3aed", size=7.2, leading=10, max_lines_item=2)
+
+    y -= hbox + 0.45*cm
+    box(1.2*cm, y-hbox, W-2.4*cm, hbox, "Articulação com o AEE", "#0891b2", "#ecfeff")
+    draw_bullets(aee, 1.5*cm, y-0.8*cm, W-3.0*cm, color="#0891b2", size=7.2, leading=10, max_lines_item=2)
+
+    c.setFont("Helvetica", 6.5)
+    c.setFillColor(hexcor("#64748b"))
+    c.drawString(1.2*cm, 0.85*cm, "Fontes utilizadas pelo sistema: " + limpar_txt(fontes_geradas)[:155])
+    c.drawString(1.2*cm, 0.55*cm, "Finalidade exclusivamente pedagógica. Não substitui avaliação docente, estudo de caso ou planejamento do AEE.")
+    c.save()
+    return str(caminho_pdf)
 
 
 # ======================================================
@@ -10204,85 +10639,131 @@ Este relatório possui finalidade exclusivamente pedagógica e objetiva apoiar p
                         col_card_1, col_card_2 = st.columns(2)
                         with col_card_1:
                             painel_quem = st.text_area(
-                                "👤 Quem é este estudante no contexto escolar",
+                                "Quem é este estudante no contexto escolar",
                                 value=dados_painel["quem_estudante"],
                                 height=140,
                                 key="painel_quem_estudante",
                             )
                             painel_condicao = st.text_area(
-                                "📘 O que a condição informada pode significar",
+                                "O que a condição informada pode significar",
                                 value=dados_painel["significado_condicao"],
                                 height=140,
                                 key="painel_significado_condicao",
                             )
                             painel_barreiras = st.text_area(
-                                "⚠️ Barreiras que podem aparecer",
+                                "Barreiras que podem aparecer",
                                 value=dados_painel["barreiras_observadas"],
                                 height=140,
                                 key="painel_barreiras_observadas",
                             )
                             painel_pontos = st.text_area(
-                                "❤️ O que merece atenção",
+                                "O que merece atenção",
                                 value=dados_painel["pontos_atencao"],
                                 height=140,
                                 key="painel_pontos_atencao",
                             )
                         with col_card_2:
                             painel_aprende = st.text_area(
-                                "🧠 Como aprende melhor",
+                                "Como aprende melhor",
                                 value=dados_painel["como_aprende"],
                                 height=140,
                                 key="painel_como_aprende",
                             )
                             painel_potencialidades = st.text_area(
-                                "🌱 Habilidades, potencialidades e interesses",
+                                "Habilidades, potencialidades e interesses",
                                 value=dados_painel["potencialidades_interesses"],
                                 height=140,
                                 key="painel_potencialidades_interesses",
                             )
                             painel_estrategias = st.text_area(
-                                "🎯 Estratégias rápidas para a aula",
+                                "Estratégias rápidas para a aula",
                                 value=dados_painel["estrategias_rapidas"],
                                 height=140,
                                 key="painel_estrategias_rapidas",
                             )
 
                     st.info(
-                        "Este modelo gera o relatório visual diretamente em PDF para professores, "
-                        "com foco em quem é o estudante, o significado pedagógico da condição informada, "
-                        "habilidades, potencialidades e estratégias práticas."
+                        "Você pode gerar dois modelos diferentes. Ambos serão salvos automaticamente "
+                        "no histórico de relatórios visuais do estudante para consulta futura."
                     )
 
-                    chave_pdf_visual_docente = f"pdf_visual_docente_{estudante[1]}_{ano_relatorio}"
+                    dados_pdf_visual = dict(
+                        estudante=estudante,
+                        ano_letivo=ano_relatorio,
+                        componente_destino=componente_destino,
+                        quem_estudante=st.session_state.get("painel_quem_estudante", dados_painel["quem_estudante"]),
+                        significado_condicao=st.session_state.get("painel_significado_condicao", dados_painel["significado_condicao"]),
+                        como_aprende=st.session_state.get("painel_como_aprende", dados_painel["como_aprende"]),
+                        barreiras_observadas=st.session_state.get("painel_barreiras_observadas", dados_painel["barreiras_observadas"]),
+                        potencialidades_interesses=st.session_state.get("painel_potencialidades_interesses", dados_painel["potencialidades_interesses"]),
+                        pontos_atencao=st.session_state.get("painel_pontos_atencao", dados_painel["pontos_atencao"]),
+                        estrategias_rapidas=st.session_state.get("painel_estrategias_rapidas", dados_painel["estrategias_rapidas"]),
+                        conteudo_relatorio=conteudo_editado,
+                        fontes_geradas=fontes_geradas,
+                    )
 
-                    if st.button("📕 Gerar Relatório Visual Docente em PDF", key="btn_gerar_pdf_visual_docente"):
-                        arquivo_pdf_visual = gerar_pdf_relatorio_visual_docente(
-                            estudante=estudante,
-                            ano_letivo=ano_relatorio,
-                            componente_destino=componente_destino,
-                            quem_estudante=st.session_state.get("painel_quem_estudante", dados_painel["quem_estudante"]),
-                            significado_condicao=st.session_state.get("painel_significado_condicao", dados_painel["significado_condicao"]),
-                            como_aprende=st.session_state.get("painel_como_aprende", dados_painel["como_aprende"]),
-                            barreiras_observadas=st.session_state.get("painel_barreiras_observadas", dados_painel["barreiras_observadas"]),
-                            potencialidades_interesses=st.session_state.get("painel_potencialidades_interesses", dados_painel["potencialidades_interesses"]),
-                            pontos_atencao=st.session_state.get("painel_pontos_atencao", dados_painel["pontos_atencao"]),
-                            estrategias_rapidas=st.session_state.get("painel_estrategias_rapidas", dados_painel["estrategias_rapidas"]),
-                            conteudo_relatorio=conteudo_editado,
-                            fontes_geradas=fontes_geradas,
-                            nome_base=f"Relatorio_Visual_Apoio_Docente_{estudante[1]}_{ano_relatorio}",
-                        )
-                        st.session_state[chave_pdf_visual_docente] = arquivo_pdf_visual
-                        st.success("Relatório visual em PDF gerado. Agora você pode baixar o arquivo para entregar ao professor.")
+                    chave_pdf_limpo = f"pdf_visual_limpo_{estudante[1]}_{ano_relatorio}"
+                    chave_pdf_info = f"pdf_visual_infografico_{estudante[1]}_{ano_relatorio}"
 
-                    if chave_pdf_visual_docente in st.session_state:
-                        with open(st.session_state[chave_pdf_visual_docente], "rb") as f:
-                            st.download_button(
-                                "⬇️ Baixar Relatório Visual Docente em PDF",
-                                data=f,
-                                file_name=f"Relatorio_Visual_Apoio_Docente_{estudante[1]}_{ano_relatorio}.pdf",
-                                mime="application/pdf",
-                                key="download_pdf_visual_docente",
+                    col_pdf_limpo, col_pdf_info = st.columns(2)
+
+                    with col_pdf_limpo:
+                        if st.button("📄 Gerar PDF pedagógico limpo", key="btn_gerar_pdf_visual_docente_limpo"):
+                            arquivo_pdf_visual = gerar_pdf_relatorio_visual_docente(
+                                **dados_pdf_visual,
+                                nome_base=f"Relatorio_Visual_Limpo_Apoio_Docente_{estudante[1]}_{ano_relatorio}",
                             )
+                            salvar_relatorio_visual_docente(
+                                estudante_id=estudante_id,
+                                ano_letivo=ano_relatorio,
+                                componente_destino=componente_destino,
+                                tipo_relatorio="PDF pedagógico limpo",
+                                titulo="Relatório Visual de Apoio ao Docente - PDF pedagógico limpo",
+                                caminho_arquivo=arquivo_pdf_visual,
+                                fontes_utilizadas=fontes_geradas,
+                                observacoes="Gerado a partir do relatório pedagógico de apoio ao docente revisado.",
+                            )
+                            st.session_state[chave_pdf_limpo] = arquivo_pdf_visual
+                            st.success("PDF pedagógico limpo gerado e salvo no histórico.")
+
+                        if chave_pdf_limpo in st.session_state and Path(st.session_state[chave_pdf_limpo]).exists():
+                            with open(st.session_state[chave_pdf_limpo], "rb") as f:
+                                st.download_button(
+                                    "⬇️ Baixar PDF pedagógico limpo",
+                                    data=f,
+                                    file_name=Path(st.session_state[chave_pdf_limpo]).name,
+                                    mime="application/pdf",
+                                    key="download_pdf_visual_docente_limpo",
+                                )
+
+                    with col_pdf_info:
+                        if st.button("🧩 Gerar painel infográfico docente", key="btn_gerar_pdf_infografico_docente"):
+                            arquivo_pdf_infografico = gerar_pdf_infografico_docente(
+                                **dados_pdf_visual,
+                                nome_base=f"Painel_Infografico_Apoio_Docente_{estudante[1]}_{ano_relatorio}",
+                            )
+                            salvar_relatorio_visual_docente(
+                                estudante_id=estudante_id,
+                                ano_letivo=ano_relatorio,
+                                componente_destino=componente_destino,
+                                tipo_relatorio="Painel infográfico docente",
+                                titulo="Painel Infográfico de Apoio ao Docente",
+                                caminho_arquivo=arquivo_pdf_infografico,
+                                fontes_utilizadas=fontes_geradas,
+                                observacoes="Modelo visual em formato de painel para consulta rápida do professor.",
+                            )
+                            st.session_state[chave_pdf_info] = arquivo_pdf_infografico
+                            st.success("Painel infográfico gerado e salvo no histórico.")
+
+                        if chave_pdf_info in st.session_state and Path(st.session_state[chave_pdf_info]).exists():
+                            with open(st.session_state[chave_pdf_info], "rb") as f:
+                                st.download_button(
+                                    "⬇️ Baixar painel infográfico docente",
+                                    data=f,
+                                    file_name=Path(st.session_state[chave_pdf_info]).name,
+                                    mime="application/pdf",
+                                    key="download_pdf_infografico_docente",
+                                )
 
                     if st.button("Salvar relatório no histórico", key="btn_salvar_relatorio_docente"):
                         salvar_relatorio_docente(
@@ -10327,6 +10808,49 @@ Este relatório possui finalidade exclusivamente pedagógica e objetiva apoiar p
                                 st.rerun()
                 else:
                     st.info("Nenhum relatório pedagógico de apoio ao docente salvo para este estudante.")
+
+            with st.container(border=True):
+                st.markdown("### Relatórios visuais docentes salvos")
+                st.caption("Histórico dos PDFs visuais gerados para este estudante: modelo pedagógico limpo e painel infográfico.")
+                relatorios_visuais = listar_relatorios_visuais_docente(estudante_id)
+
+                if relatorios_visuais:
+                    for rel_visual in relatorios_visuais:
+                        dados_visual = dict(zip(["id"] + CAMPOS_RELATORIO_VISUAL_DOCENTE, rel_visual))
+                        rel_visual_id = dados_visual.get("id")
+                        data_visual = dados_visual.get("data_geracao") or "Data não informada"
+                        tipo_visual = dados_visual.get("tipo_relatorio") or "Relatório visual"
+                        caminho_visual = dados_visual.get("caminho_arquivo") or ""
+                        titulo_visual = dados_visual.get("titulo") or tipo_visual
+
+                        with st.expander(f"{data_visual} | {tipo_visual}"):
+                            st.write(f"**Título:** {titulo_visual}")
+                            st.write(f"**Ano letivo:** {dados_visual.get('ano_letivo') or 'Não informado'}")
+                            st.write(f"**Componente/área:** {dados_visual.get('componente_destino') or 'Não informado'}")
+                            if dados_visual.get("observacoes"):
+                                st.write(f"**Observações:** {dados_visual.get('observacoes')}")
+
+                            if caminho_visual and Path(caminho_visual).exists():
+                                with open(caminho_visual, "rb") as f:
+                                    st.download_button(
+                                        "⬇️ Baixar PDF salvo",
+                                        data=f,
+                                        file_name=Path(caminho_visual).name,
+                                        mime="application/pdf",
+                                        key=f"download_relatorio_visual_salvo_{rel_visual_id}",
+                                    )
+                            else:
+                                st.warning(
+                                    "O registro existe no histórico, mas o arquivo PDF não foi encontrado no servidor. "
+                                    "Se estiver usando Render, verifique se há disco persistente configurado para a pasta relatorios_visuais_docente."
+                                )
+
+                            if st.button("Excluir relatório visual salvo", key=f"excluir_relatorio_visual_{rel_visual_id}"):
+                                excluir_relatorio_visual_docente(rel_visual_id, caminho_visual)
+                                st.success("Relatório visual excluído.")
+                                st.rerun()
+                else:
+                    st.info("Nenhum relatório visual docente salvo para este estudante.")
 
 
 elif menu == "Estudo de Caso":
