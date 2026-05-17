@@ -95,8 +95,8 @@ DOCUMENTOS_AVALIACOES_DIR.mkdir(parents=True, exist_ok=True)
 
 APP_NAME = "INCLUISRM"
 APP_SUBTITLE = "Sistema Inteligente de Articulação Pedagógica Inclusiva"
-APP_VERSION = "V39"
-APP_VERSION_LABEL = "Perfil Docente • Recursos Escola + Professor • GRE Narrativo • IA contextualizada"
+APP_VERSION = "V46"
+APP_VERSION_LABEL = "Painel Visual de Apoio ao Docente • Cards ampliados • IA contextualizada"
 # Fuso fixo UTC-3 usado por Recife/Pernambuco.
 # Usar timezone/timedelta evita erro em ambientes Render sem base tzdata completa.
 FUSO_LOCAL = timezone(timedelta(hours=-3), name="America/Recife")
@@ -3625,6 +3625,304 @@ Finalizar com uma mensagem pedagógica, acolhedora e profissional.
     except Exception as e:
         return f"Não foi possível gerar o relatório com IA agora. Erro: {e}", fontes
 
+
+# ======================================================
+# PAINEL VISUAL DE APOIO AO DOCENTE
+# ======================================================
+def extrair_secao_relatorio_docente(texto, numero_secao, limite=700):
+    """Extrai uma seção numerada do relatório docente gerado pela IA.
+    Caso a seção não exista, retorna texto vazio.
+    """
+    texto = str(texto or "")
+    padrao = rf"(?is)(?:^|\n)\s*{numero_secao}\.\s*.*?(?=\n\s*\d+\.\s|\Z)"
+    achado = re.search(padrao, texto)
+    if not achado:
+        return ""
+    trecho = achado.group(0)
+    trecho = re.sub(rf"(?is)^\s*{numero_secao}\.\s*[^\n]*", "", trecho).strip()
+    trecho = limpar_marcadores_relatorio(trecho)
+    trecho = re.sub(r"\s+", " ", trecho).strip()
+    if len(trecho) > limite:
+        trecho = trecho[:limite].rsplit(" ", 1)[0] + "..."
+    return trecho
+
+
+def texto_padrao_painel_docente(valor, padrao):
+    valor = str(valor or "").strip()
+    return valor if valor else padrao
+
+
+def gerar_dados_painel_visual_docente(estudante, conteudo_relatorio):
+    """Monta os seis cards do painel visual usando o relatório textual e o cadastro do estudante.
+    O foco é pedagógico: apoio rápido ao professor, sem linguagem clínica.
+    """
+    perfil_cadastrado = estudante[4] if estudante and len(estudante) > 4 else "Não informado"
+
+    perfil_pedagogico = texto_padrao_painel_docente(
+        f"Perfil educacional cadastrado: {perfil_cadastrado}. Use esta informação apenas como referência pedagógica, articulada às observações do AEE e da sala regular.",
+        "Perfil pedagógico ainda não descrito nos registros. Usar o painel como apoio inicial e complementar com observações do professor."
+    )
+
+    como_aprende = texto_padrao_painel_docente(
+        extrair_secao_relatorio_docente(conteudo_relatorio, 2),
+        "Observar como o estudante compreende instruções, participa das atividades, responde à mediação e quais recursos favorecem sua aprendizagem."
+    )
+
+    potencialidades = texto_padrao_painel_docente(
+        extrair_secao_relatorio_docente(conteudo_relatorio, 3),
+        "Registrar interesses, habilidades, formas de participação e recursos que favorecem engajamento, autonomia e aprendizagem."
+    )
+
+    barreiras = texto_padrao_painel_docente(
+        extrair_secao_relatorio_docente(conteudo_relatorio, 4),
+        "Observar barreiras pedagógicas, comunicacionais, sensoriais, curriculares ou atitudinais que possam dificultar a participação."
+    )
+
+    estrategias = texto_padrao_painel_docente(
+        extrair_secao_relatorio_docente(conteudo_relatorio, 5) or extrair_secao_relatorio_docente(conteudo_relatorio, 6),
+        "Utilizar instruções objetivas, apoio visual, divisão das tarefas em etapas, mediação gradual e flexibilização das formas de participação."
+    )
+
+    pontos_atencao = texto_padrao_painel_docente(
+        extrair_secao_relatorio_docente(conteudo_relatorio, 8),
+        "Manter diálogo com o AEE, registrar respostas às estratégias utilizadas e evitar exposição de informações sensíveis ou familiares."
+    )
+
+    return {
+        "perfil_pedagogico": perfil_pedagogico,
+        "como_aprende": como_aprende,
+        "barreiras_observadas": barreiras,
+        "potencialidades_interesses": potencialidades,
+        "pontos_atencao": pontos_atencao,
+        "estrategias_rapidas": estrategias,
+    }
+
+
+def gerar_relatorio_visual_docente_html(
+    estudante,
+    ano_letivo,
+    componente_destino,
+    perfil_pedagogico,
+    como_aprende,
+    barreiras_observadas,
+    potencialidades_interesses,
+    pontos_atencao,
+    estrategias_rapidas,
+    conteudo_relatorio,
+    fontes_geradas="",
+):
+    """Gera HTML visual do Painel de Apoio ao Docente.
+    Pode ser exibido no Streamlit e baixado como arquivo HTML.
+    """
+    codigo = estudante[1] if estudante and len(estudante) > 1 else "Não informado"
+    ano_serie = estudante[2] if estudante and len(estudante) > 2 else "Não informado"
+    turma = estudante[3] if estudante and len(estudante) > 3 else "Não informado"
+
+    perfil_pedagogico = escape(str(perfil_pedagogico or ""))
+    como_aprende = escape(str(como_aprende or ""))
+    barreiras_observadas = escape(str(barreiras_observadas or ""))
+    potencialidades_interesses = escape(str(potencialidades_interesses or ""))
+    pontos_atencao = escape(str(pontos_atencao or ""))
+    estrategias_rapidas = escape(str(estrategias_rapidas or ""))
+    conteudo_html = escape(str(conteudo_relatorio or "")).replace("\n", "<br>")
+    fontes_html = escape(str(fontes_geradas or "Não informado"))
+
+    html_relatorio = f"""
+<style>
+.visual-docente-wrapper {{
+    background: linear-gradient(180deg, #f8fafc 0%, #eef6ff 100%);
+    border-radius: 30px;
+    padding: 28px;
+    border: 1px solid #dbeafe;
+}}
+.visual-docente-header {{
+    background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%);
+    color: #ffffff;
+    border-radius: 28px;
+    padding: 36px 40px;
+    margin-bottom: 30px;
+    box-shadow: 0 14px 36px rgba(15,23,42,0.20);
+}}
+.visual-docente-header h1 {{
+    font-size: 42px;
+    line-height: 1.15;
+    margin: 0 0 14px 0;
+    font-weight: 950;
+    color: #ffffff;
+}}
+.visual-docente-header p {{
+    font-size: 21px;
+    line-height: 1.65;
+    color: #e0f2fe;
+    margin: 0;
+}}
+.visual-docente-meta {{
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-top: 22px;
+}}
+.visual-docente-chip {{
+    background: rgba(255,255,255,0.14);
+    color: #ffffff;
+    border: 1px solid rgba(255,255,255,0.24);
+    border-radius: 999px;
+    padding: 9px 15px;
+    font-size: 17px;
+    font-weight: 800;
+}}
+.card-neuro {{
+    background: #ffffff;
+    border-radius: 28px;
+    padding: 42px;
+    margin-top: 20px;
+    margin-bottom: 32px;
+    border: 1px solid #dbeafe;
+    box-shadow: 0 12px 35px rgba(15,23,42,0.08);
+}}
+.card-neuro h2 {{
+    font-size: 40px;
+    font-weight: 950;
+    color: #0f172a;
+    margin-bottom: 14px;
+    line-height: 1.2;
+}}
+.card-neuro .descricao-painel {{
+    font-size: 22px;
+    line-height: 1.8;
+    color: #475569;
+    margin-bottom: 28px;
+    font-weight: 500;
+}}
+.grid-visual {{
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+    gap: 24px;
+    margin-top: 30px;
+}}
+.mini-card {{
+    border-radius: 24px;
+    padding: 32px;
+    box-shadow: 0 8px 24px rgba(15,23,42,0.06);
+    border-left: 10px solid #2563eb;
+}}
+.mini-card h3 {{
+    font-size: 30px;
+    font-weight: 950;
+    margin-bottom: 18px;
+    color: #0f172a;
+    line-height: 1.3;
+}}
+.mini-card p {{
+    font-size: 22px;
+    line-height: 1.9;
+    color: #334155;
+    font-weight: 500;
+    margin: 0;
+}}
+.azul {{ background: #dbeafe; border-left-color: #2563eb; }}
+.roxo {{ background: #ede9fe; border-left-color: #7c3aed; }}
+.laranja {{ background: #ffedd5; border-left-color: #ea580c; }}
+.verde {{ background: #dcfce7; border-left-color: #16a34a; }}
+.vermelho {{ background: #fee2e2; border-left-color: #dc2626; }}
+.ciano {{ background: #cffafe; border-left-color: #0891b2; }}
+.relatorio-texto {{
+    background: #ffffff;
+    border-radius: 24px;
+    padding: 38px;
+    margin-top: 30px;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 10px 28px rgba(15,23,42,0.06);
+    font-size: 22px;
+    line-height: 1.9;
+    color: #334155;
+}}
+.relatorio-texto h2, .relatorio-texto h3 {{
+    font-size: 30px;
+    font-weight: 950;
+    color: #0f172a;
+    margin-top: 18px;
+    margin-bottom: 16px;
+}}
+.fontes-painel {{
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 18px;
+    padding: 22px;
+    margin-top: 22px;
+    color: #475569;
+    font-size: 17px;
+    line-height: 1.6;
+}}
+@media print {{
+    .visual-docente-wrapper {{ padding: 0; background: #ffffff; border: none; }}
+    .mini-card {{ break-inside: avoid; }}
+    .card-neuro {{ break-inside: avoid; }}
+}}
+</style>
+
+<div class="visual-docente-wrapper">
+    <div class="visual-docente-header">
+        <h1>🧩 Painel Visual de Apoio ao Docente</h1>
+        <p>Resumo pedagógico rápido para apoiar o professor da sala regular no planejamento inclusivo, na adaptação das atividades e na articulação com o AEE.</p>
+        <div class="visual-docente-meta">
+            <span class="visual-docente-chip">Código: {escape(str(codigo or 'Não informado'))}</span>
+            <span class="visual-docente-chip">Ano/Série: {escape(str(ano_serie or 'Não informado'))}</span>
+            <span class="visual-docente-chip">Turma: {escape(str(turma or 'Não informado'))}</span>
+            <span class="visual-docente-chip">Ano letivo: {escape(str(ano_letivo or 'Não informado'))}</span>
+            <span class="visual-docente-chip">Área: {escape(str(componente_destino or 'Geral'))}</span>
+        </div>
+    </div>
+
+    <div class="card-neuro">
+        <h2>🧭 Apoio pedagógico rápido</h2>
+        <p class="descricao-painel">Este painel não substitui o relatório completo. Ele funciona como um guia visual de consulta rápida para o professor, destacando informações pedagógicas essenciais para favorecer participação, aprendizagem e acessibilidade.</p>
+
+        <div class="grid-visual">
+            <div class="mini-card azul">
+                <h3>📘 Perfil pedagógico</h3>
+                <p>{perfil_pedagogico}</p>
+            </div>
+
+            <div class="mini-card roxo">
+                <h3>🧠 Como o estudante aprende</h3>
+                <p>{como_aprende}</p>
+            </div>
+
+            <div class="mini-card laranja">
+                <h3>⚠️ Barreiras observadas</h3>
+                <p>{barreiras_observadas}</p>
+            </div>
+
+            <div class="mini-card verde">
+                <h3>🌱 Potencialidades e interesses</h3>
+                <p>{potencialidades_interesses}</p>
+            </div>
+
+            <div class="mini-card vermelho">
+                <h3>❤️ O que merece atenção</h3>
+                <p>{pontos_atencao}</p>
+            </div>
+
+            <div class="mini-card ciano">
+                <h3>🎯 Estratégias rápidas</h3>
+                <p>{estrategias_rapidas}</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="relatorio-texto">
+        <h2>📄 Relatório completo de apoio ao docente</h2>
+        {conteudo_html}
+    </div>
+
+    <div class="fontes-painel">
+        <strong>Fontes utilizadas pelo sistema:</strong><br>
+        {fontes_html}
+    </div>
+</div>
+"""
+    return html_relatorio
 
 
 # ======================================================
@@ -9553,6 +9851,79 @@ Este relatório possui finalidade exclusivamente pedagógica e objetiva apoiar p
                         texto_final,
                         f"Relatorio_Apoio_Docente_{estudante[1]}_{ano_relatorio}",
                         tipo_pdf="relatorio_docente",
+                    )
+
+                    st.markdown("### 🧩 Painel Visual de Apoio ao Docente")
+                    st.caption(
+                        "Versão visual de consulta rápida para o professor. "
+                        "Ela resume o relatório em cards pedagógicos com fonte ampliada."
+                    )
+
+                    dados_painel = gerar_dados_painel_visual_docente(estudante, conteudo_editado)
+
+                    with st.expander("Editar cards do painel visual antes de gerar", expanded=False):
+                        col_card_1, col_card_2 = st.columns(2)
+                        with col_card_1:
+                            painel_perfil = st.text_area(
+                                "📘 Perfil pedagógico",
+                                value=dados_painel["perfil_pedagogico"],
+                                height=130,
+                                key="painel_perfil_pedagogico",
+                            )
+                            painel_barreiras = st.text_area(
+                                "⚠️ Barreiras observadas",
+                                value=dados_painel["barreiras_observadas"],
+                                height=130,
+                                key="painel_barreiras_observadas",
+                            )
+                            painel_pontos = st.text_area(
+                                "❤️ O que merece atenção",
+                                value=dados_painel["pontos_atencao"],
+                                height=130,
+                                key="painel_pontos_atencao",
+                            )
+                        with col_card_2:
+                            painel_aprende = st.text_area(
+                                "🧠 Como o estudante aprende",
+                                value=dados_painel["como_aprende"],
+                                height=130,
+                                key="painel_como_aprende",
+                            )
+                            painel_potencialidades = st.text_area(
+                                "🌱 Potencialidades e interesses",
+                                value=dados_painel["potencialidades_interesses"],
+                                height=130,
+                                key="painel_potencialidades_interesses",
+                            )
+                            painel_estrategias = st.text_area(
+                                "🎯 Estratégias rápidas",
+                                value=dados_painel["estrategias_rapidas"],
+                                height=130,
+                                key="painel_estrategias_rapidas",
+                            )
+
+                    html_visual = gerar_relatorio_visual_docente_html(
+                        estudante=estudante,
+                        ano_letivo=ano_relatorio,
+                        componente_destino=componente_destino,
+                        perfil_pedagogico=st.session_state.get("painel_perfil_pedagogico", dados_painel["perfil_pedagogico"]),
+                        como_aprende=st.session_state.get("painel_como_aprende", dados_painel["como_aprende"]),
+                        barreiras_observadas=st.session_state.get("painel_barreiras_observadas", dados_painel["barreiras_observadas"]),
+                        potencialidades_interesses=st.session_state.get("painel_potencialidades_interesses", dados_painel["potencialidades_interesses"]),
+                        pontos_atencao=st.session_state.get("painel_pontos_atencao", dados_painel["pontos_atencao"]),
+                        estrategias_rapidas=st.session_state.get("painel_estrategias_rapidas", dados_painel["estrategias_rapidas"]),
+                        conteudo_relatorio=conteudo_editado,
+                        fontes_geradas=fontes_geradas,
+                    )
+
+                    st.markdown(html_visual, unsafe_allow_html=True)
+
+                    st.download_button(
+                        "⬇️ Baixar Painel Visual em HTML",
+                        data=html_visual.encode("utf-8"),
+                        file_name=f"Painel_Visual_Apoio_Docente_{estudante[1]}_{ano_relatorio}.html",
+                        mime="text/html",
+                        key="download_painel_visual_docente_html",
                     )
 
                     if st.button("Salvar relatório no histórico", key="btn_salvar_relatorio_docente"):
