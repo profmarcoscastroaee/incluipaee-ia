@@ -1,5 +1,5 @@
 
-# INCLUISRM V53 - Perfil docente, modo maker inclusivo e projetos norteadores no AEE
+# INCLUISRM V54 - Perfil docente, modo maker inclusivo e projetos norteadores no AEE
 # Atualização: integra perfil pedagógico/tecnológico do professor AEE e docente regular, modo maker inclusivo e projetos interdisciplinares sem caracterizar reforço escolar.
 
 import os
@@ -98,7 +98,7 @@ RELATORIOS_VISUAIS_DOCENTE_DIR.mkdir(parents=True, exist_ok=True)
 
 APP_NAME = "INCLUISRM"
 APP_SUBTITLE = "Sistema Inteligente de Articulação Pedagógica Inclusiva"
-APP_VERSION = "V53"
+APP_VERSION = "V54"
 APP_VERSION_LABEL = "Infográfico Docente • Layout compacto em painel • Evidências + Sugestões"
 # Fuso fixo UTC-3 usado por Recife/Pernambuco.
 # Usar timezone/timedelta evita erro em ambientes Render sem base tzdata completa.
@@ -5017,19 +5017,28 @@ def gerar_pdf_infografico_docente_dashboard(estudante, dados, ano_letivo, compon
               y4+bottom_h-0.72*cm, col_w-0.50*cm, font="Helvetica-Bold",
               size=6.1, leading=7.2, max_lines=5, color="#111827")
 
-    # Complemento começa ainda na página 1
-    y_comp_titulo = y4 - 0.80*cm
+    # Complemento começa ainda na página 1, logo abaixo dos cards principais.
+    # V54: antes os blocos ficavam presos em coordenadas fixas muito baixas,
+    # criando um grande espaço em branco entre o título e o primeiro bloco.
+    y_comp_titulo = y4 - 0.64*cm
     c.setFillColor(cor("#0b3b75"))
-    c.setFont("Helvetica-Bold", 13)
+    c.setFont("Helvetica-Bold", 12.2)
     c.drawString(1.05*cm, y_comp_titulo, "COMPLEMENTO DO PAINEL INFOGRÁFICO")
-    c.setFont("Helvetica", 6.2)
+    c.setFont("Helvetica", 6.0)
     c.setFillColor(cor("#475569"))
-    c.drawString(1.05*cm, y_comp_titulo-0.28*cm, "Dados estruturados pela IA para orientar consulta futura e planejamento docente.")
+    c.drawString(1.05*cm, y_comp_titulo-0.25*cm, "Dados estruturados pela IA para orientar consulta futura e planejamento docente.")
 
-    bloco_complemento(1.05*cm, 3.28*cm, W-2.10*cm, 2.40*cm,
-                      "Recursos sugeridos", dados["recursos_sugeridos"], "#f59e0b", "#fffbeb", font_size=5.9)
-    bloco_complemento(1.05*cm, 0.78*cm, W-2.10*cm, 2.25*cm,
-                      "Como aprende melhor", dados["como_aprende_melhor"], "#55a630", "#f0fdf4", font_size=5.9)
+    altura_recursos = 2.35*cm
+    altura_aprende = 2.25*cm
+    espaco_entre_blocos = 0.22*cm
+
+    y_recursos = y_comp_titulo - 0.48*cm - altura_recursos
+    y_aprende = y_recursos - espaco_entre_blocos - altura_aprende
+
+    bloco_complemento(1.05*cm, y_recursos, W-2.10*cm, altura_recursos,
+                      "Recursos sugeridos", dados["recursos_sugeridos"], "#f59e0b", "#fffbeb", font_size=5.75)
+    bloco_complemento(1.05*cm, y_aprende, W-2.10*cm, altura_aprende,
+                      "Como aprende melhor", dados["como_aprende_melhor"], "#55a630", "#f0fdf4", font_size=5.75)
 
     # ======================================================
     # PÁGINA 2 - CONTINUIDADE DO COMPLEMENTO
