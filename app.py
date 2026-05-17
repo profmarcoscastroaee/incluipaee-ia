@@ -1,5 +1,5 @@
 
-# INCLUISRM V52 - Perfil docente, modo maker inclusivo e projetos norteadores no AEE
+# INCLUISRM V53 - Perfil docente, modo maker inclusivo e projetos norteadores no AEE
 # Atualização: integra perfil pedagógico/tecnológico do professor AEE e docente regular, modo maker inclusivo e projetos interdisciplinares sem caracterizar reforço escolar.
 
 import os
@@ -98,8 +98,8 @@ RELATORIOS_VISUAIS_DOCENTE_DIR.mkdir(parents=True, exist_ok=True)
 
 APP_NAME = "INCLUISRM"
 APP_SUBTITLE = "Sistema Inteligente de Articulação Pedagógica Inclusiva"
-APP_VERSION = "V52"
-APP_VERSION_LABEL = "Plano Mensal IA • Datas futuras • Sem dias anteriores"
+APP_VERSION = "V53"
+APP_VERSION_LABEL = "Infográfico Docente • Layout compacto em painel • Evidências + Sugestões"
 # Fuso fixo UTC-3 usado por Recife/Pernambuco.
 # Usar timezone/timedelta evita erro em ambientes Render sem base tzdata completa.
 FUSO_LOCAL = timezone(timedelta(hours=-3), name="America/Recife")
@@ -1175,15 +1175,12 @@ MAPA_DIAS_SEMANA = {
     "Sexta-feira": 4,
 }
 
-def gerar_datas_atendimentos_mes(ano, mes_nome, dias_atendimento, considerar_data_atual=True):
+def gerar_datas_atendimentos_mes(ano, mes_nome, dias_atendimento):
     """Calcula automaticamente as datas reais de atendimento do mês.
 
-    Regra V52:
-    - mês atual: considera apenas hoje e datas futuras;
-    - mês futuro: considera o mês completo;
-    - mês passado: retorna lista vazia quando considerar_data_atual=True.
-
-    Isso evita que o Plano Mensal IA crie propostas pedagógicas para dias que já passaram.
+    Usa o mês, ano e os dias de atendimento cadastrados/selecionados para gerar
+    a quantidade correta de encontros. Ex.: segunda e sexta em um mês podem gerar
+    8, 9 ou 10 atendimentos, conforme o calendário.
     """
     try:
         ano_int = int(ano)
@@ -1196,44 +1193,13 @@ def gerar_datas_atendimentos_mes(ano, mes_nome, dias_atendimento, considerar_dat
     if not dias_codigo:
         return []
 
-    hoje = agora_local().date()
-    primeiro_dia_mes = date(ano_int, mes_num, 1)
     total_dias = calendar.monthrange(ano_int, mes_num)[1]
-    ultimo_dia_mes = date(ano_int, mes_num, total_dias)
-
-    if considerar_data_atual and ultimo_dia_mes < hoje:
-        return []
-
     datas = []
     for dia in range(1, total_dias + 1):
         data_atual = date(ano_int, mes_num, dia)
-
-        if considerar_data_atual and primeiro_dia_mes <= hoje <= ultimo_dia_mes:
-            if data_atual < hoje:
-                continue
-
         if data_atual.weekday() in dias_codigo:
             datas.append(data_atual)
     return datas
-
-
-def explicar_regra_datas_plano_mensal(ano, mes_nome):
-    """Mensagem curta para a interface do Plano Mensal IA."""
-    try:
-        ano_int = int(ano)
-    except Exception:
-        ano_int = agora_local().year
-    mes_num = MAPA_MESES.get(str(mes_nome), agora_local().month)
-    hoje = agora_local().date()
-    total_dias = calendar.monthrange(ano_int, mes_num)[1]
-    primeiro = date(ano_int, mes_num, 1)
-    ultimo = date(ano_int, mes_num, total_dias)
-
-    if ultimo < hoje:
-        return "Mês anterior à data atual: não serão geradas propostas futuras para dias já passados."
-    if primeiro <= hoje <= ultimo:
-        return "Mês atual: o plano será gerado apenas a partir de hoje, sem incluir datas anteriores."
-    return "Mês futuro: o plano será gerado considerando todos os atendimentos previstos do mês."
 
 def datas_atendimentos_para_texto(datas):
     if not datas:
@@ -4813,10 +4779,12 @@ def gerar_pdf_infografico_docente(
 
 
 def gerar_pdf_infografico_docente_dashboard(estudante, dados, ano_letivo, componente, nome_base=None):
-    """Gera o Painel Inteligente de Apoio ao Docente a partir do JSON estruturado pela IA.
+    """Gera o Painel Inteligente de Apoio ao Docente com layout compacto.
 
-    Diferente do PDF anterior, este painel não tenta recortar o relatório inteiro.
-    Ele usa campos curtos do JSON, garantindo layout estável e leitura rápida.
+    V53: organiza a primeira página como painel/dashboard completo e inicia o complemento
+    ainda na primeira página, seguindo o modelo visual desejado pelo usuário.
+    A segunda página recebe apenas a continuidade do complemento, evitando a sensação
+    de relatório quebrado ou repetitivo.
     """
     from reportlab.lib import colors
     from reportlab.lib.pagesizes import A4
@@ -4824,11 +4792,11 @@ def gerar_pdf_infografico_docente_dashboard(estudante, dados, ano_letivo, compon
     from reportlab.pdfgen import canvas
     from reportlab.pdfbase.pdfmetrics import stringWidth
 
+    dados = normalizar_dados_infografico_docente(dados, "", estudante)
+
     codigo = estudante[1] if estudante and len(estudante) > 1 else "Não informado"
     ano_serie = estudante[2] if estudante and len(estudante) > 2 else "Não informado"
     turma = estudante[3] if estudante and len(estudante) > 3 else "Não informado"
-
-    dados = normalizar_dados_infografico_docente(dados, "", estudante)
 
     if not nome_base:
         nome_base = f"Painel_Inteligente_Apoio_Docente_{codigo}_{ano_letivo}"
@@ -4841,71 +4809,78 @@ def gerar_pdf_infografico_docente_dashboard(estudante, dados, ano_letivo, compon
     def cor(hex_value):
         return colors.HexColor(hex_value)
 
-    def limpar(txt):
-        txt = limpar_marcadores_relatorio(str(txt or ""))
-        txt = txt.replace("•", " ").replace("–", "-").replace("—", "-")
-        return re.sub(r"\s+", " ", txt).strip()
+    def limpar_texto(texto):
+        texto = limpar_marcadores_relatorio(str(texto or ""))
+        texto = texto.replace("•", " ").replace("–", "-").replace("—", "-")
+        texto = re.sub(r"\s+", " ", texto).strip()
+        return texto or "Não informado nos registros analisados."
 
-    def wrap(txt, font, size, width):
-        palavras = limpar(txt).split()
-        linhas, atual = [], ""
-        for palavra in palavras:
-            teste = (atual + " " + palavra).strip()
-            if stringWidth(teste, font, size) <= width:
-                atual = teste
+    def wrap(text, font, size, width):
+        words = limpar_texto(text).split()
+        lines, cur = [], ""
+        for word in words:
+            test = (cur + " " + word).strip()
+            if stringWidth(test, font, size) <= width:
+                cur = test
             else:
-                if atual:
-                    linhas.append(atual)
-                atual = palavra
-        if atual:
-            linhas.append(atual)
-        return linhas
+                if cur:
+                    lines.append(cur)
+                cur = word
+        if cur:
+            lines.append(cur)
+        return lines
 
-    def draw_text(txt, x, y, width, font="Helvetica", size=6.6, leading=7.6, color="#0f172a", max_lines=3):
-        linhas = wrap(txt, font, size, width)
-        if max_lines and len(linhas) > max_lines:
-            linhas = linhas[:max_lines]
-            linhas[-1] = linhas[-1].rstrip(".,;:") + "..."
+    def draw_text(text, x, y, width, font="Helvetica", size=5.7, leading=6.4,
+                  max_lines=3, color="#0f172a"):
         c.setFont(font, size)
         c.setFillColor(cor(color))
-        for linha in linhas:
-            c.drawString(x, y, linha)
+        lines = wrap(text, font, size, width)
+        if max_lines and len(lines) > max_lines:
+            lines = lines[:max_lines]
+            lines[-1] = lines[-1].rstrip(".,;:") + "..."
+        for line in lines:
+            c.drawString(x, y, line)
             y -= leading
         return y
 
-    def painel(x, y, w, h, title, border, fill, title_color="#ffffff"):
+    def painel(x, y, w, h, title, border, fill, title_size=6.9):
         c.setFillColor(cor(fill))
         c.setStrokeColor(cor(border))
-        c.roundRect(x, y, w, h, 7, stroke=1, fill=1)
+        c.setLineWidth(0.55)
+        c.roundRect(x, y, w, h, 5.5, stroke=1, fill=1)
         c.setFillColor(cor(border))
-        c.roundRect(x, y + h - 0.48*cm, w, 0.48*cm, 7, stroke=0, fill=1)
-        c.setFillColor(cor(title_color))
-        c.setFont("Helvetica-Bold", 7.3)
-        c.drawCentredString(x + w/2, y + h - 0.31*cm, title.upper()[:48])
+        c.roundRect(x, y+h-0.42*cm, w, 0.42*cm, 5.5, stroke=0, fill=1)
+        c.setFillColor(cor("#ffffff"))
+        c.setFont("Helvetica-Bold", title_size)
+        c.drawCentredString(x+w/2, y+h-0.27*cm, title.upper()[:55])
 
-    def bullet_list(lista, x, y, width, dot="#2563eb", font_size=6.2, leading=7.5, max_item_lines=2, bottom=None):
-        lista = normalizar_lista_infografico(lista, limite=10, tamanho_item=90)
-        for item in lista:
+    def bullet_list(items, x, y, width, dot="#2563eb", font_size=5.45, leading=6.15,
+                    max_item_lines=2, bottom=None, max_items=None):
+        if max_items:
+            items = items[:max_items]
+        for item in items:
             if bottom and y < bottom:
                 break
             c.setFillColor(cor(dot))
-            c.circle(x + 2.2, y + 2.3, 1.9, stroke=0, fill=1)
-            y = draw_text(item, x + 8, y, width - 10, size=font_size, leading=leading, max_lines=max_item_lines)
-            y -= 1.6
+            c.circle(x + 2.0, y + 2.05, 1.55, stroke=0, fill=1)
+            y = draw_text(item, x + 6.5, y, width - 8, size=font_size,
+                          leading=leading, max_lines=max_item_lines)
+            y -= 0.7
         return y
 
     def meta_card(x, y, w, label, value):
         c.setFillColor(cor("#f8fafc"))
         c.setStrokeColor(cor("#bfdbfe"))
-        c.roundRect(x, y, w, 0.70*cm, 5, stroke=1, fill=1)
-        c.setFont("Helvetica-Bold", 6)
+        c.setLineWidth(0.45)
+        c.roundRect(x, y, w, 0.52*cm, 4, stroke=1, fill=1)
+        c.setFont("Helvetica-Bold", 4.9)
         c.setFillColor(cor("#1e3a8a"))
-        c.drawString(x + 0.10*cm, y + 0.44*cm, label)
-        draw_text(value, x + 0.10*cm, y + 0.20*cm, w - 0.20*cm, size=6.1, leading=6.5, max_lines=1)
+        c.drawString(x + 0.07*cm, y + 0.32*cm, label)
+        draw_text(value, x + 0.07*cm, y + 0.14*cm, w - 0.14*cm, size=4.9, leading=5.1, max_lines=1)
 
-    def mini_grid(items, x, y, w, h, cols=3, border="#f59e0b"):
-        items = normalizar_lista_infografico(items, limite=6, tamanho_item=62)
-        gap = 0.08*cm
+    def mini_grid(items, x, y, w, h, cols=3):
+        items = normalizar_lista_infografico(items, limite=6, tamanho_item=58)
+        gap = 0.06*cm
         cell_w = (w - (cols-1)*gap) / cols
         rows = 2
         cell_h = (h - gap) / rows
@@ -4916,35 +4891,44 @@ def gerar_pdf_infografico_docente_dashboard(estudante, dados, ano_letivo, compon
             cy = y + h - (row+1)*cell_h - row*gap
             c.setFillColor(cor("#ffffff"))
             c.setStrokeColor(cor("#fde68a"))
-            c.roundRect(cx, cy, cell_w, cell_h, 4, stroke=1, fill=1)
-            draw_text(item, cx+0.08*cm, cy+cell_h-0.22*cm, cell_w-0.16*cm, size=5.55, leading=6.15, max_lines=4)
+            c.setLineWidth(0.35)
+            c.roundRect(cx, cy, cell_w, cell_h, 3.5, stroke=1, fill=1)
+            draw_text(item, cx+0.06*cm, cy+cell_h-0.16*cm, cell_w-0.12*cm,
+                      size=4.65, leading=5.10, max_lines=4)
 
-    # Página 1 - dashboard principal
+    def bloco_complemento(x, y, w, h, titulo, lista, border, fill, font_size=6.0):
+        painel(x, y, w, h, titulo, border, fill, title_size=6.3)
+        bullet_list(lista, x+0.24*cm, y+h-0.62*cm, w-0.48*cm, dot=border,
+                    font_size=font_size, leading=7.0, max_item_lines=2, bottom=y+0.18*cm)
+
+    # ======================================================
+    # PÁGINA 1 - DASHBOARD + INÍCIO DO COMPLEMENTO
+    # ======================================================
     c.setFillColor(cor("#ffffff"))
     c.rect(0, 0, W, H, stroke=0, fill=1)
 
-    # Cabeçalho
+    # Cabeçalho compacto
     c.setFillColor(cor("#0b3b75"))
-    c.setFont("Helvetica-Bold", 13)
-    c.drawString(1.05*cm, H - 1.05*cm, "INCLUISRM")
-    c.setFont("Helvetica", 6.3)
-    c.drawString(1.05*cm, H - 1.36*cm, "Sistema de Gestão do Atendimento Educacional Especializado")
-    c.setFont("Helvetica-Bold", 15.5)
-    c.drawCentredString(W/2, H - 1.05*cm, "PAINEL INTELIGENTE DE APOIO AO DOCENTE")
-    c.setFont("Helvetica", 7.4)
-    c.drawCentredString(W/2, H - 1.47*cm, "Guia rápido para aprendizagem, participação e acessibilidade do estudante")
+    c.setFont("Helvetica-Bold", 10.8)
+    c.drawString(1.05*cm, H - 0.86*cm, "INCLUISRM")
+    c.setFont("Helvetica", 4.8)
+    c.drawString(1.05*cm, H - 1.10*cm, "Sistema de Gestão do Atendimento Educacional Especializado")
+    c.setFont("Helvetica-Bold", 13.2)
+    c.drawCentredString(W/2, H - 0.84*cm, "PAINEL INTELIGENTE DE APOIO AO DOCENTE")
+    c.setFont("Helvetica", 5.8)
+    c.drawCentredString(W/2, H - 1.14*cm, "Guia rápido para aprendizagem, participação e acessibilidade do estudante")
 
     c.setFillColor(cor("#0b3b75"))
-    c.roundRect(W-4.5*cm, H-1.85*cm, 3.45*cm, 0.90*cm, 6, stroke=0, fill=1)
-    c.setFont("Helvetica-Bold", 6.4)
+    c.roundRect(W-4.55*cm, H-1.26*cm, 3.55*cm, 0.72*cm, 5, stroke=0, fill=1)
+    c.setFont("Helvetica-Bold", 5.15)
     c.setFillColor(cor("#ffffff"))
-    c.drawString(W-4.25*cm, H-1.24*cm, "Data: " + agora_local().strftime("%d/%m/%Y"))
-    c.drawString(W-4.25*cm, H-1.58*cm, "Ano letivo: " + str(ano_letivo))
+    c.drawString(W-4.35*cm, H-0.82*cm, "Data: " + agora_local().strftime("%d/%m/%Y"))
+    c.drawString(W-4.35*cm, H-1.07*cm, "Ano letivo: " + str(ano_letivo))
 
-    # Identificação
+    # Identificação compacta
     x0 = 1.05*cm
-    y_meta = H - 2.92*cm
-    gap = 0.12*cm
+    y_meta = H - 2.05*cm
+    gap = 0.10*cm
     meta_w = (W - 2.10*cm - 4*gap) / 5
     for idx, (label, value) in enumerate([
         ("Código", codigo), ("Ano/Série", ano_serie), ("Turma", turma),
@@ -4955,97 +4939,118 @@ def gerar_pdf_infografico_docente_dashboard(estudante, dados, ano_letivo, compon
     # Frase-guia
     c.setFillColor(cor("#eff6ff"))
     c.setStrokeColor(cor("#93c5fd"))
-    c.roundRect(1.05*cm, H-3.70*cm, W-2.10*cm, 0.50*cm, 6, stroke=1, fill=1)
-    c.setFont("Helvetica-Bold", 7.5)
+    c.setLineWidth(0.5)
+    c.roundRect(1.05*cm, H-2.62*cm, W-2.10*cm, 0.38*cm, 5, stroke=1, fill=1)
+    c.setFont("Helvetica-Bold", 5.95)
     c.setFillColor(cor("#1e3a8a"))
-    c.drawCentredString(W/2, H-3.52*cm, "Antes de adaptar, observe como o estudante compreende, responde, comunica e participa.")
+    c.drawCentredString(W/2, H-2.49*cm, "Antes de adaptar, observe como o estudante compreende, responde, comunica e participa.")
 
-    # Cards superiores
+    # Cards principais em layout compacto
     left = 1.05*cm
-    gutter = 0.25*cm
+    gutter = 0.24*cm
     col_w = (W - 2.10*cm - gutter) / 2
-    top_y = H - 7.15*cm
-    card_h = 3.10*cm
+    top_y = H - 5.90*cm
+    card_h = 2.92*cm
 
     painel(left, top_y, col_w, card_h, "1. Quem é este estudante?", "#0b74b8", "#f0f9ff")
-    bullet_list(dados["quem_e_estudante"], left+0.20*cm, top_y+card_h-0.78*cm, col_w-0.40*cm, dot="#0b74b8", font_size=6.25, leading=7.2, bottom=top_y+0.25*cm)
+    bullet_list(dados["quem_e_estudante"], left+0.18*cm, top_y+card_h-0.68*cm,
+                col_w-0.36*cm, dot="#0b74b8", font_size=5.55, leading=6.45,
+                max_item_lines=2, bottom=top_y+0.16*cm)
 
     painel(left+col_w+gutter, top_y, col_w, card_h, "2. Mapa de aprendizagem", "#55a630", "#f0fdf4")
     mid_x = left+col_w+gutter+col_w/2
-    c.setFont("Helvetica-Bold", 6.2)
+    c.setFont("Helvetica-Bold", 5.15)
     c.setFillColor(cor("#15803d"))
-    c.drawCentredString(left+col_w+gutter+col_w*0.25, top_y+card_h-0.72*cm, "COMO APRENDE MELHOR")
+    c.drawCentredString(left+col_w+gutter+col_w*0.25, top_y+card_h-0.62*cm, "COMO APRENDE MELHOR")
     c.setFillColor(cor("#dc2626"))
-    c.drawCentredString(left+col_w+gutter+col_w*0.75, top_y+card_h-0.72*cm, "O QUE DIFICULTA")
-    bullet_list(dados["como_aprende_melhor"][:5], left+col_w+gutter+0.18*cm, top_y+card_h-1.02*cm, col_w/2-0.28*cm, dot="#55a630", font_size=5.8, leading=6.6, max_item_lines=2, bottom=top_y+0.22*cm)
-    bullet_list(dados["o_que_dificulta"][:5], mid_x+0.12*cm, top_y+card_h-1.02*cm, col_w/2-0.28*cm, dot="#dc2626", font_size=5.8, leading=6.6, max_item_lines=2, bottom=top_y+0.22*cm)
-    c.setStrokeColor(cor("#d1d5db")); c.line(mid_x, top_y+0.22*cm, mid_x, top_y+card_h-0.60*cm)
+    c.drawCentredString(left+col_w+gutter+col_w*0.75, top_y+card_h-0.62*cm, "O QUE DIFICULTA")
+    bullet_list(dados["como_aprende_melhor"][:4], left+col_w+gutter+0.16*cm,
+                top_y+card_h-0.90*cm, col_w/2-0.28*cm, dot="#55a630",
+                font_size=5.0, leading=5.80, max_item_lines=2, bottom=top_y+0.15*cm)
+    bullet_list(dados["o_que_dificulta"][:4], mid_x+0.12*cm,
+                top_y+card_h-0.90*cm, col_w/2-0.28*cm, dot="#dc2626",
+                font_size=5.0, leading=5.80, max_item_lines=2, bottom=top_y+0.15*cm)
+    c.setStrokeColor(cor("#d1d5db")); c.setLineWidth(0.4)
+    c.line(mid_x, top_y+0.18*cm, mid_x, top_y+card_h-0.55*cm)
 
-    # Potencialidades e barreiras
-    y2 = top_y - 3.40*cm
-    painel(left, y2, col_w, 3.05*cm, "3. Potencialidades a valorizar", "#f59e0b", "#fffbeb")
-    mini_grid(dados["potencialidades"], left+0.16*cm, y2+0.22*cm, col_w-0.32*cm, 2.10*cm, cols=3, border="#f59e0b")
+    # Segunda linha: potencialidades e barreiras
+    y2 = top_y - 3.10*cm
+    painel(left, y2, col_w, 2.62*cm, "3. Potencialidades a valorizar", "#f59e0b", "#fffbeb")
+    mini_grid(dados["potencialidades"], left+0.14*cm, y2+0.18*cm, col_w-0.28*cm, 1.78*cm, cols=3)
 
-    painel(left+col_w+gutter, y2, col_w, 3.05*cm, "4. Barreiras pedagógicas", "#7c3aed", "#faf5ff")
-    bullet_list(dados["barreiras_pedagogicas"], left+col_w+gutter+0.20*cm, y2+2.35*cm, col_w-0.40*cm, dot="#7c3aed", font_size=6.2, leading=7.0, bottom=y2+0.20*cm)
+    painel(left+col_w+gutter, y2, col_w, 2.62*cm, "4. Barreiras pedagógicas", "#7c3aed", "#faf5ff")
+    bullet_list(dados["barreiras_pedagogicas"], left+col_w+gutter+0.18*cm, y2+1.95*cm,
+                col_w-0.36*cm, dot="#7c3aed", font_size=5.45, leading=6.2,
+                max_item_lines=2, bottom=y2+0.16*cm)
 
-    # Três blocos médios
-    y3 = y2 - 3.15*cm
+    # Terceira linha: 3 colunas
+    y3 = y2 - 2.82*cm
     small_gap = 0.18*cm
     small_w = (W - 2.10*cm - 2*small_gap) / 3
-    painel(left, y3, small_w, 2.75*cm, "5. O que funciona melhor", "#0f9f8f", "#ecfeff")
-    bullet_list(dados["o_que_funciona_em_sala"][:5], left+0.17*cm, y3+2.05*cm, small_w-0.34*cm, dot="#0f9f8f", font_size=5.8, leading=6.6, max_item_lines=2, bottom=y3+0.18*cm)
+    small_h = 2.45*cm
 
-    painel(left+small_w+small_gap, y3, small_w, 2.75*cm, "6. Atenção docente", "#f97316", "#fff7ed")
-    bullet_list(dados["atencao_docente"][:5], left+small_w+small_gap+0.17*cm, y3+2.05*cm, small_w-0.34*cm, dot="#f97316", font_size=5.8, leading=6.6, max_item_lines=2, bottom=y3+0.18*cm)
+    painel(left, y3, small_w, small_h, "5. O que funciona melhor", "#0f9f8f", "#ecfeff")
+    bullet_list(dados["o_que_funciona_em_sala"][:4], left+0.16*cm, y3+1.83*cm,
+                small_w-0.32*cm, dot="#0f9f8f", font_size=5.1, leading=5.9,
+                max_item_lines=2, bottom=y3+0.14*cm)
 
-    painel(left+2*(small_w+small_gap), y3, small_w, 2.75*cm, "7. Avaliação flexível", "#2563eb", "#eff6ff")
-    bullet_list(dados["avaliacao_flexivel"][:5], left+2*(small_w+small_gap)+0.17*cm, y3+2.05*cm, small_w-0.34*cm, dot="#2563eb", font_size=5.8, leading=6.6, max_item_lines=2, bottom=y3+0.18*cm)
+    painel(left+small_w+small_gap, y3, small_w, small_h, "6. Atenção docente", "#f97316", "#fff7ed")
+    bullet_list(dados["atencao_docente"][:4], left+small_w+small_gap+0.16*cm,
+                y3+1.83*cm, small_w-0.32*cm, dot="#f97316", font_size=5.1,
+                leading=5.9, max_item_lines=2, bottom=y3+0.14*cm)
 
-    # Blocos finais
-    y4 = y3 - 2.85*cm
-    bottom_h = 2.35*cm
+    painel(left+2*(small_w+small_gap), y3, small_w, small_h, "7. Avaliação flexível", "#2563eb", "#eff6ff")
+    bullet_list(dados["avaliacao_flexivel"][:4], left+2*(small_w+small_gap)+0.16*cm,
+                y3+1.83*cm, small_w-0.32*cm, dot="#2563eb", font_size=5.1,
+                leading=5.9, max_item_lines=2, bottom=y3+0.14*cm)
+
+    # Quarta linha: articulação e foco
+    y4 = y3 - 2.62*cm
+    bottom_h = 1.95*cm
     painel(left, y4, col_w, bottom_h, "8. Articulação com o AEE", "#7c3aed", "#faf5ff")
-    bullet_list(dados["articulacao_aee"][:4], left+0.20*cm, y4+bottom_h-0.75*cm, col_w-0.40*cm, dot="#7c3aed", font_size=6.0, leading=6.9, max_item_lines=2, bottom=y4+0.20*cm)
+    bullet_list(dados["articulacao_aee"][:4], left+0.18*cm, y4+bottom_h-0.64*cm,
+                col_w-0.36*cm, dot="#7c3aed", font_size=5.1, leading=5.9,
+                max_item_lines=1, bottom=y4+0.14*cm)
 
     painel(left+col_w+gutter, y4, col_w, bottom_h, "9. Foco pedagógico principal", "#f59e0b", "#fffbeb")
-    draw_text(dados["foco_pedagogico"], left+col_w+gutter+0.30*cm, y4+bottom_h-0.85*cm, col_w-0.60*cm, font="Helvetica-Bold", size=7.1, leading=8.2, max_lines=6, color="#111827")
+    draw_text(dados["foco_pedagogico"], left+col_w+gutter+0.25*cm,
+              y4+bottom_h-0.72*cm, col_w-0.50*cm, font="Helvetica-Bold",
+              size=6.1, leading=7.2, max_lines=5, color="#111827")
 
-    # Rodapé
-    c.setFillColor(cor("#eff6ff"))
-    c.setStrokeColor(cor("#bfdbfe"))
-    c.roundRect(1.05*cm, 0.45*cm, W-2.10*cm, 0.48*cm, 8, stroke=1, fill=1)
-    c.setFont("Helvetica-Bold", 7.2)
+    # Complemento começa ainda na página 1
+    y_comp_titulo = y4 - 0.80*cm
     c.setFillColor(cor("#0b3b75"))
-    c.drawCentredString(W/2, 0.62*cm, "Lembre-se: cada estudante é único. Observe, adapte, registre e celebre cada conquista.")
+    c.setFont("Helvetica-Bold", 13)
+    c.drawString(1.05*cm, y_comp_titulo, "COMPLEMENTO DO PAINEL INFOGRÁFICO")
+    c.setFont("Helvetica", 6.2)
+    c.setFillColor(cor("#475569"))
+    c.drawString(1.05*cm, y_comp_titulo-0.28*cm, "Dados estruturados pela IA para orientar consulta futura e planejamento docente.")
 
-    # Página 2 - complemento consultável
+    bloco_complemento(1.05*cm, 3.28*cm, W-2.10*cm, 2.40*cm,
+                      "Recursos sugeridos", dados["recursos_sugeridos"], "#f59e0b", "#fffbeb", font_size=5.9)
+    bloco_complemento(1.05*cm, 0.78*cm, W-2.10*cm, 2.25*cm,
+                      "Como aprende melhor", dados["como_aprende_melhor"], "#55a630", "#f0fdf4", font_size=5.9)
+
+    # ======================================================
+    # PÁGINA 2 - CONTINUIDADE DO COMPLEMENTO
+    # ======================================================
     c.showPage()
     c.setFillColor(cor("#ffffff"))
     c.rect(0, 0, W, H, stroke=0, fill=1)
-    c.setFillColor(cor("#0b3b75"))
-    c.setFont("Helvetica-Bold", 15)
-    c.drawString(1.25*cm, H-1.3*cm, "COMPLEMENTO DO PAINEL INFOGRÁFICO")
-    c.setFont("Helvetica", 7.6)
-    c.setFillColor(cor("#475569"))
-    c.drawString(1.25*cm, H-1.7*cm, "Dados estruturados pela IA para orientar consulta futura e planejamento docente.")
 
-    def bloco_completo(y, titulo, lista, border, fill):
-        painel(1.25*cm, y, W-2.50*cm, 3.70*cm, titulo, border, fill)
-        bullet_list(lista, 1.55*cm, y+2.95*cm, W-3.10*cm, dot=border, font_size=7.0, leading=8.4, max_item_lines=2, bottom=y+0.25*cm)
+    bloco_complemento(1.25*cm, H-6.15*cm, W-2.50*cm, 4.45*cm,
+                      "O que dificulta", dados["o_que_dificulta"], "#dc2626", "#fff1f2", font_size=6.2)
 
-    y = H - 5.9*cm
-    bloco_completo(y, "Recursos sugeridos", dados["recursos_sugeridos"], "#f59e0b", "#fffbeb")
-    y -= 4.15*cm
-    bloco_completo(y, "Como aprende melhor", dados["como_aprende_melhor"], "#55a630", "#f0fdf4")
-    y -= 4.15*cm
-    bloco_completo(y, "O que dificulta", dados["o_que_dificulta"], "#dc2626", "#fff1f2")
-    y -= 4.15*cm
-    bloco_completo(y, "Avaliação e articulação", dados["avaliacao_flexivel"][:3] + dados["articulacao_aee"][:3], "#2563eb", "#eff6ff")
+    bloco_complemento(1.25*cm, H-12.65*cm, W-2.50*cm, 4.65*cm,
+                      "Avaliação e articulação",
+                      dados["avaliacao_flexivel"][:3] + dados["articulacao_aee"][:3],
+                      "#2563eb", "#eff6ff", font_size=6.2)
 
     c.setFont("Helvetica", 6.4)
     c.setFillColor(cor("#64748b"))
-    c.drawString(1.25*cm, 0.70*cm, "Gerado pelo INCLUISRM com IA a partir do relatório pedagógico docente. Finalidade exclusivamente pedagógica.")
+    c.drawString(1.25*cm, 0.75*cm, "Gerado pelo INCLUISRM com IA a partir dos registros pedagógicos. Finalidade exclusivamente pedagógica.")
+    c.drawString(1.25*cm, 0.48*cm, "As sugestões não representam diagnóstico, laudo ou definição fixa sobre o estudante.")
+
     c.save()
     return str(caminho_pdf)
 
@@ -7972,8 +7977,6 @@ Dias/datas previstas de atendimento:
 {datas_txt}
 
 Total previsto de atendimentos no mês: {total_atendimentos}
-Data atual do sistema: {agora_local().strftime('%d/%m/%Y')}
-Observação: este plano não inclui propostas para datas anteriores à data atual.
 
 Objetivo do mês:
 Organizar uma rotina inicial/progressiva de atendimento voltada à comunicação funcional, autonomia, atenção compartilhada, interação e participação nas atividades da SRM.
@@ -8035,14 +8038,6 @@ DATAS REAIS DE ATENDIMENTO CALCULADAS PELO SISTEMA:
 {datas_txt}
 
 TOTAL REAL DE ATENDIMENTOS NO MÊS: {total_atendimentos}
-
-REGRA DE DATA ATUAL:
-- A data atual do sistema é {agora_local().strftime('%d/%m/%Y')}.
-- As datas listadas já foram filtradas pelo sistema.
-- NÃO crie propostas pedagógicas para datas anteriores à data atual.
-- Se o mês de referência for o mês atual, planeje somente os atendimentos a partir da data atual.
-- Se o mês de referência for futuro, planeje todos os atendimentos listados.
-- Use somente as datas listadas em "DATAS REAIS DE ATENDIMENTO CALCULADAS PELO SISTEMA".
 
 PROJETO NORTEADOR DO ATENDIMENTO:
 {projeto_norteador_txt}
@@ -11883,7 +11878,7 @@ elif menu == "Plano AEE - IA":
                     help="O sistema calcula automaticamente quantos atendimentos existirão no mês com base nos dias selecionados.",
                 )
 
-            datas_calculadas = gerar_datas_atendimentos_mes(ano_ref, mes_ref, dias_atendimento_ref, considerar_data_atual=True)
+            datas_calculadas = gerar_datas_atendimentos_mes(ano_ref, mes_ref, dias_atendimento_ref)
             qtd_semana = max(1, len(dias_atendimento_ref))
             total_atendimentos_calculado = len(datas_calculadas)
 
@@ -11896,9 +11891,8 @@ elif menu == "Plano AEE - IA":
             with st.expander("📆 Ver datas previstas de atendimento", expanded=True):
                 st.text(datas_atendimentos_para_texto(datas_calculadas))
 
-            st.caption(explicar_regra_datas_plano_mensal(ano_ref, mes_ref))
             st.caption(
-                "O roteiro gerado usa as datas reais disponíveis a partir da data atual. Após cada encontro, registre o atendimento no módulo Atendimentos para alimentar a evolução da IA."
+                "O roteiro gerado usa as datas reais do mês. Após cada encontro, registre o atendimento no módulo Atendimentos para alimentar a evolução da IA."
             )
 
             with st.container(border=True):
@@ -11944,13 +11938,7 @@ elif menu == "Plano AEE - IA":
                     )
 
             if st.button("📅 Gerar Plano Mensal AEE - IA", key=f"gerar_plano_mensal_v19_{estudante_id}"):
-                if not datas_calculadas:
-                    st.warning(
-                        "Não há atendimentos futuros para este mês considerando a data atual. "
-                        "Verifique o mês, o ano e os dias de atendimento selecionados."
-                    )
-                    st.stop()
-                with st.spinner("Gerando plano mensal por semanas e atendimentos futuros..."):
+                with st.spinner("Gerando plano mensal por semanas e atendimentos..."):
                     plano_base = gerar_plano_mensal_aee_ia(
                         estudante,
                         mes_ref,
