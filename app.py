@@ -1,5 +1,5 @@
 
-# INCLUISRM V47 - Perfil docente, modo maker inclusivo e projetos norteadores no AEE
+# INCLUISRM V49 - Perfil docente, modo maker inclusivo e projetos norteadores no AEE
 # Atualização: integra perfil pedagógico/tecnológico do professor AEE e docente regular, modo maker inclusivo e projetos interdisciplinares sem caracterizar reforço escolar.
 
 import os
@@ -4048,6 +4048,7 @@ def gerar_relatorio_visual_docente_html(
     return html_relatorio
 
 
+
 def gerar_pdf_relatorio_visual_docente(
     estudante,
     ano_letivo,
@@ -4063,315 +4064,245 @@ def gerar_pdf_relatorio_visual_docente(
     fontes_geradas="",
     nome_base=None,
 ):
-    """Gera o Relatório Visual de Apoio ao Docente diretamente em PDF.
+    """Gera o PDF pedagógico limpo em layout corrigido.
 
-    Este modelo substitui o fluxo HTML quando o objetivo é entregar um arquivo
-    pronto para professores. O PDF valoriza a percepção pedagógica do estudante,
-    explica a condição informada sem medicalizar e destaca habilidades,
-    potencialidades e estratégias práticas para sala regular.
+    V49: substitui tabelas longas por desenho controlado em canvas, com cards reais,
+    quebras previsíveis e textos resumidos para evitar sobreposição, corte e aparência
+    de tabela defeituosa.
     """
     from reportlab.lib import colors
-    from reportlab.lib.enums import TA_CENTER, TA_LEFT
     from reportlab.lib.pagesizes import A4
-    from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
     from reportlab.lib.units import cm
-    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak, KeepTogether
+    from reportlab.pdfgen import canvas
+    from reportlab.pdfbase.pdfmetrics import stringWidth
 
     codigo = estudante[1] if estudante and len(estudante) > 1 else "Não informado"
     ano_serie = estudante[2] if estudante and len(estudante) > 2 else "Não informado"
     turma = estudante[3] if estudante and len(estudante) > 3 else "Não informado"
+    perfil = estudante[4] if estudante and len(estudante) > 4 else "Não informado"
 
     if not nome_base:
         nome_base = f"Relatorio_Visual_Apoio_Docente_{codigo}_{ano_letivo}"
-
     nome_arquivo = f"{nome_base}.pdf".replace("/", "-").replace("\\", "-")
     caminho_pdf = caminho_relatorio_visual_docente(nome_arquivo)
 
-    doc = SimpleDocTemplate(
-        str(caminho_pdf),
-        pagesize=A4,
-        rightMargin=1.25 * cm,
-        leftMargin=1.25 * cm,
-        topMargin=1.05 * cm,
-        bottomMargin=1.05 * cm,
-    )
+    c = canvas.Canvas(str(caminho_pdf), pagesize=A4)
+    W, H = A4
 
-    styles = getSampleStyleSheet()
+    def col(hex_value):
+        return colors.HexColor(hex_value)
 
-    titulo = ParagraphStyle(
-        "TituloVisualDocente",
-        parent=styles["Title"],
-        alignment=TA_LEFT,
-        fontSize=22,
-        leading=26,
-        textColor=colors.HexColor("#0f172a"),
-        spaceAfter=8,
-    )
+    def limpar_texto_curto(texto):
+        texto = limpar_marcadores_relatorio(str(texto or ""))
+        texto = texto.replace("•", " ").replace("–", "-").replace("—", "-")
+        texto = re.sub(r"\s+", " ", texto).strip()
+        texto = texto.replace("Demonstra demonstração", "Demonstra")
+        return texto or "Informação não registrada."
 
-    subtitulo = ParagraphStyle(
-        "SubtituloVisualDocente",
-        parent=styles["Normal"],
-        alignment=TA_LEFT,
-        fontSize=10.5,
-        leading=14,
-        textColor=colors.HexColor("#475569"),
-        spaceAfter=8,
-    )
+    def wrap(texto, fonte, tamanho, largura):
+        palavras = limpar_texto_curto(texto).split()
+        linhas, atual = [], ""
+        for palavra in palavras:
+            teste = (atual + " " + palavra).strip()
+            if stringWidth(teste, fonte, tamanho) <= largura:
+                atual = teste
+            else:
+                if atual:
+                    linhas.append(atual)
+                atual = palavra
+        if atual:
+            linhas.append(atual)
+        return linhas
 
-    secao = ParagraphStyle(
-        "SecaoVisualDocente",
-        parent=styles["Heading2"],
-        alignment=TA_LEFT,
-        fontSize=14,
-        leading=17,
-        textColor=colors.HexColor("#0f172a"),
-        spaceBefore=8,
-        spaceAfter=6,
-    )
+    def texto_caixa(texto, x, y, largura, fonte="Helvetica", tamanho=8.2, entrelinha=10, cor="#334155", max_linhas=8):
+        linhas = wrap(texto, fonte, tamanho, largura)
+        if max_linhas and len(linhas) > max_linhas:
+            linhas = linhas[:max_linhas]
+            linhas[-1] = linhas[-1].rstrip(".,;:") + "..."
+        c.setFont(fonte, tamanho)
+        c.setFillColor(col(cor))
+        for linha in linhas:
+            c.drawString(x, y, linha)
+            y -= entrelinha
+        return y
 
-    normal = ParagraphStyle(
-        "NormalVisualDocente",
-        parent=styles["Normal"],
-        fontSize=9.6,
-        leading=13,
-        textColor=colors.HexColor("#334155"),
-        spaceAfter=4,
-    )
+    def itens(texto, fallback=None, max_itens=6, max_chars=120):
+        fallback = fallback or ["Registrar observações pedagógicas relevantes para orientar a prática docente."]
+        bruto = limpar_marcadores_relatorio(str(texto or ""))
+        bruto = bruto.replace("\r", "\n")
+        candidatos = []
+        for linha in bruto.splitlines():
+            linha = linha.strip()
+            if not linha:
+                continue
+            # Se a IA devolveu tudo em uma linha com " - ", separa em itens.
+            partes = re.split(r"\s+-\s+", linha) if " - " in linha else [linha]
+            for parte in partes:
+                parte = parte.strip().lstrip("•-–—0123456789. ").strip()
+                if len(parte) > 5:
+                    candidatos.append(parte)
+        if not candidatos:
+            partes = re.split(r"(?<=[.;])\s+", limpar_texto_curto(bruto))
+            candidatos = [p.strip(" .;:-") for p in partes if len(p.strip()) > 8]
+        if not candidatos:
+            candidatos = fallback
+        saida = []
+        for item in candidatos:
+            item = limpar_texto_curto(item)
+            if len(item) > max_chars:
+                item = item[:max_chars].rsplit(" ", 1)[0] + "..."
+            if item not in saida:
+                saida.append(item)
+            if len(saida) >= max_itens:
+                break
+        return saida
 
-    pequeno = ParagraphStyle(
-        "PequenoVisualDocente",
-        parent=styles["Normal"],
-        fontSize=8,
-        leading=10,
-        textColor=colors.HexColor("#64748b"),
-    )
+    def cabecalho(titulo_pagina="RELATÓRIO VISUAL DE APOIO AO DOCENTE", pagina=1):
+        c.setFillColor(col("#ffffff"))
+        c.rect(0, 0, W, H, stroke=0, fill=1)
+        c.setFillColor(col("#0f172a"))
+        c.setFont("Helvetica-Bold", 15)
+        c.drawString(1.25*cm, H-1.2*cm, titulo_pagina)
+        c.setFont("Helvetica", 7.2)
+        c.setFillColor(col("#64748b"))
+        c.drawRightString(W-1.25*cm, H-0.75*cm, f"INCLUISRM • finalidade pedagógica • Página {pagina}")
+        c.setStrokeColor(col("#e2e8f0"))
+        c.line(1.25*cm, H-1.45*cm, W-1.25*cm, H-1.45*cm)
 
-    chip = ParagraphStyle(
-        "ChipVisualDocente",
-        parent=styles["Normal"],
-        alignment=TA_CENTER,
-        fontSize=8.2,
-        leading=10,
-        textColor=colors.HexColor("#0f172a"),
-    )
+    def meta_bar(y):
+        dados = [
+            ("Código", codigo), ("Ano/Série", ano_serie), ("Turma", turma),
+            ("Ano letivo", ano_letivo), ("Área", componente_destino), ("Data", agora_local().strftime("%d/%m/%Y")),
+        ]
+        x = 1.25*cm
+        gap = 0.12*cm
+        w = (W - 2.5*cm - 5*gap) / 6
+        for label, valor in dados:
+            c.setFillColor(col("#f8fafc"))
+            c.setStrokeColor(col("#cbd5e1"))
+            c.roundRect(x, y, w, 0.86*cm, 5, stroke=1, fill=1)
+            c.setFillColor(col("#475569"))
+            c.setFont("Helvetica-Bold", 6.5)
+            c.drawString(x+0.12*cm, y+0.55*cm, label)
+            c.setFillColor(col("#0f172a"))
+            c.setFont("Helvetica", 6.8)
+            texto_caixa(str(valor), x+0.12*cm, y+0.28*cm, w-0.24*cm, tamanho=6.8, entrelinha=7, max_linhas=1, cor="#0f172a")
+            x += w + gap
 
-    card_titulo = ParagraphStyle(
-        "CardTituloVisualDocente",
-        parent=styles["Normal"],
-        fontSize=10.5,
-        leading=13,
-        textColor=colors.HexColor("#0f172a"),
-        spaceAfter=4,
-    )
+    def card(x, y, w, h, titulo_card, texto, cor_borda, cor_fundo, max_linhas=7):
+        c.setFillColor(col(cor_fundo))
+        c.setStrokeColor(col(cor_borda))
+        c.roundRect(x, y, w, h, 9, stroke=1, fill=1)
+        c.setFillColor(col(cor_borda))
+        c.roundRect(x, y+h-0.62*cm, w, 0.62*cm, 9, stroke=0, fill=1)
+        c.setFillColor(col("#ffffff"))
+        c.setFont("Helvetica-Bold", 8.4)
+        c.drawString(x+0.28*cm, y+h-0.39*cm, titulo_card.upper()[:48])
+        texto_caixa(texto, x+0.28*cm, y+h-0.92*cm, w-0.56*cm, tamanho=7.7, entrelinha=9.4, max_linhas=max_linhas)
 
-    card_texto = ParagraphStyle(
-        "CardTextoVisualDocente",
-        parent=styles["Normal"],
-        fontSize=8.7,
-        leading=11.2,
-        textColor=colors.HexColor("#334155"),
-    )
+    def bloco_lista(x, y, w, h, titulo_bloco, lista, cor_borda, cor_fundo, max_itens=6):
+        c.setFillColor(col(cor_fundo))
+        c.setStrokeColor(col(cor_borda))
+        c.roundRect(x, y, w, h, 8, stroke=1, fill=1)
+        c.setFillColor(col("#0f172a"))
+        c.setFont("Helvetica-Bold", 10)
+        c.drawString(x+0.3*cm, y+h-0.45*cm, titulo_bloco)
+        yy = y+h-0.82*cm
+        c.setFont("Helvetica", 7.8)
+        for item in lista[:max_itens]:
+            c.setFillColor(col(cor_borda))
+            c.circle(x+0.36*cm, yy+2.2, 2.1, stroke=0, fill=1)
+            yy = texto_caixa(item, x+0.55*cm, yy, w-0.85*cm, tamanho=7.55, entrelinha=8.8, max_linhas=2)
+            yy -= 0.08*cm
+            if yy < y + 0.22*cm:
+                break
 
-    frase = ParagraphStyle(
-        "FraseVisualDocente",
-        parent=styles["Normal"],
-        alignment=TA_CENTER,
-        fontSize=10,
-        leading=14,
-        textColor=colors.HexColor("#1e3a8a"),
-        spaceAfter=6,
-    )
-
-    def ptxt(texto, estilo=normal):
-        return Paragraph(escape(str(texto or "Não informado.")).replace("\n", "<br/>"), estilo)
-
-    def card(titulo_card, texto_card, cor_fundo, cor_borda):
-        t = Table(
-            [[
-                Paragraph(f"<b>{escape(titulo_card)}</b>", card_titulo),
-                ptxt(texto_card, card_texto)
-            ]],
-            colWidths=[5.0 * cm, 12.2 * cm],
-        )
-        t.setStyle(TableStyle([
-            ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor(cor_fundo)),
-            ("BOX", (0, 0), (-1, -1), 0.8, colors.HexColor(cor_borda)),
-            ("LINEBEFORE", (0, 0), (0, -1), 5, colors.HexColor(cor_borda)),
-            ("VALIGN", (0, 0), (-1, -1), "TOP"),
-            ("LEFTPADDING", (0, 0), (-1, -1), 9),
-            ("RIGHTPADDING", (0, 0), (-1, -1), 9),
-            ("TOPPADDING", (0, 0), (-1, -1), 8),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
-        ]))
-        return t
-
-    def bloco_lista(titulo_bloco, texto_secao, cor_fundo="#f8fafc", cor_borda="#cbd5e1"):
-        linhas = []
-        texto_limpo = limpar_marcadores_relatorio(texto_secao)
-        for raw in texto_limpo.splitlines():
-            item = raw.strip().lstrip("•- ").strip()
-            if item:
-                linhas.append(item)
-        if not linhas:
-            linhas = ["Registrar observações pedagógicas conforme a resposta do estudante às atividades propostas."]
-
-        conteudo = [Paragraph(f"<b>{escape(titulo_bloco)}</b>", card_titulo)]
-        for item in linhas[:8]:
-            conteudo.append(Paragraph("• " + escape(item), card_texto))
-
-        t = Table([[conteudo]], colWidths=[17.2 * cm])
-        t.setStyle(TableStyle([
-            ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor(cor_fundo)),
-            ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor(cor_borda)),
-            ("VALIGN", (0, 0), (-1, -1), "TOP"),
-            ("LEFTPADDING", (0, 0), (-1, -1), 10),
-            ("RIGHTPADDING", (0, 0), (-1, -1), 10),
-            ("TOPPADDING", (0, 0), (-1, -1), 8),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
-        ]))
-        return t
-
-    def header_footer(canvas, doc_obj):
-        canvas.saveState()
-        canvas.setFont("Helvetica", 7)
-        canvas.setFillColor(colors.HexColor("#64748b"))
-        canvas.drawString(1.25 * cm, 28.7 * cm, "INCLUISRM - Relatório visual de apoio ao docente - finalidade pedagógica")
-        canvas.drawRightString(19.7 * cm, 28.7 * cm, f"Página {doc_obj.page}")
-        canvas.restoreState()
-
-    elementos = []
-
-    # Página 1 - percepção pedagógica do estudante
-    elementos.append(Paragraph("RELATÓRIO VISUAL DE APOIO AO DOCENTE", titulo))
-    elementos.append(Paragraph(
-        "Apoio rápido para que o professor reconheça quem é o estudante, compreenda o significado pedagógico da condição informada e valorize habilidades, potencialidades e formas próprias de aprender.",
-        subtitulo,
-    ))
-
-    meta = [
-        [Paragraph("<b>Código interno</b><br/>" + escape(str(codigo)), chip),
-         Paragraph("<b>Ano/Série</b><br/>" + escape(str(ano_serie)), chip),
-         Paragraph("<b>Turma</b><br/>" + escape(str(turma)), chip)],
-        [Paragraph("<b>Ano letivo</b><br/>" + escape(str(ano_letivo)), chip),
-         Paragraph("<b>Área</b><br/>" + escape(str(componente_destino)), chip),
-         Paragraph("<b>Data</b><br/>" + agora_local().strftime("%d/%m/%Y"), chip)]
-    ]
-    meta_table = Table(meta, colWidths=[5.73 * cm, 5.73 * cm, 5.73 * cm])
-    meta_table.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#f1f5f9")),
-        ("BOX", (0, 0), (-1, -1), 0.45, colors.HexColor("#cbd5e1")),
-        ("GRID", (0, 0), (-1, -1), 0.35, colors.HexColor("#e2e8f0")),
-        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-        ("TOPPADDING", (0, 0), (-1, -1), 6),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-    ]))
-    elementos.append(meta_table)
-    elementos.append(Spacer(1, 10))
-
-    frase_box = Table([[Paragraph(
-        "<b>Ideia central:</b> cada estudante aprende dentro do seu alcance, no seu tempo e de sua própria forma. "
-        "O papel do professor é reconhecer caminhos possíveis de participação, comunicação e aprendizagem antes de olhar apenas para as limitações.",
-        frase
-    )]], colWidths=[17.2 * cm])
-    frase_box.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#eff6ff")),
-        ("BOX", (0, 0), (-1, -1), 0.65, colors.HexColor("#2563eb")),
-        ("LEFTPADDING", (0, 0), (-1, -1), 10),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 10),
-        ("TOPPADDING", (0, 0), (-1, -1), 8),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
-    ]))
-    elementos.append(frase_box)
-    elementos.append(Spacer(1, 10))
-
-    elementos.append(Paragraph("Painel de percepção docente", secao))
-    elementos.append(card("Quem é este estudante no contexto escolar", quem_estudante, "#dbeafe", "#2563eb"))
-    elementos.append(Spacer(1, 6))
-    elementos.append(card("O que a condição informada pode significar", significado_condicao, "#ede9fe", "#7c3aed"))
-    elementos.append(Spacer(1, 6))
-    elementos.append(card("Como aprende melhor", como_aprende, "#cffafe", "#0891b2"))
-    elementos.append(Spacer(1, 6))
-    elementos.append(card("Habilidades, potencialidades e interesses", potencialidades_interesses, "#dcfce7", "#16a34a"))
-    elementos.append(Spacer(1, 6))
-    elementos.append(card("Barreiras que podem aparecer", barreiras_observadas, "#ffedd5", "#ea580c"))
-    elementos.append(Spacer(1, 6))
-    elementos.append(card("Estratégias rápidas para a aula", estrategias_rapidas, "#fef9c3", "#ca8a04"))
-    elementos.append(Spacer(1, 6))
-    elementos.append(card("O que merece atenção", pontos_atencao, "#fee2e2", "#dc2626"))
-    elementos.append(PageBreak())
-
-    # Página 2 - orientações práticas
-    elementos.append(Paragraph("ORIENTAÇÕES PRÁTICAS PARA SALA REGULAR", titulo))
-    elementos.append(Paragraph(
-        "Síntese para transformar a percepção do estudante em decisões pedagógicas: participação, comunicação, acessibilidade, atividade e avaliação.",
-        subtitulo,
-    ))
-
+    # Dados de seções
     sec_pot = extrair_secao_relatorio_docente(conteudo_relatorio, 3) or potencialidades_interesses
     sec_bar = extrair_secao_relatorio_docente(conteudo_relatorio, 4) or barreiras_observadas
     sec_est = extrair_secao_relatorio_docente(conteudo_relatorio, 5) or estrategias_rapidas
     sec_adapt = extrair_secao_relatorio_docente(conteudo_relatorio, 6)
-
-    elementos.append(bloco_lista("Potencialidades a valorizar", sec_pot, "#f0fdf4", "#16a34a"))
-    elementos.append(Spacer(1, 8))
-    elementos.append(bloco_lista("Barreiras que podem dificultar a participação", sec_bar, "#fff7ed", "#ea580c"))
-    elementos.append(Spacer(1, 8))
-    elementos.append(bloco_lista("Estratégias que favorecem participação", sec_est, "#eff6ff", "#2563eb"))
-    elementos.append(Spacer(1, 8))
-    elementos.append(bloco_lista("Adaptação das atividades", sec_adapt, "#f8fafc", "#64748b"))
-    elementos.append(PageBreak())
-
-    # Página 3 - avaliação, articulação e fechamento
-    elementos.append(Paragraph("AVALIAÇÃO, ACOMPANHAMENTO E ARTICULAÇÃO COM O AEE", titulo))
-    elementos.append(Paragraph(
-        "Pontos para registro docente, acompanhamento da evolução e alinhamento com o professor do AEE.",
-        subtitulo,
-    ))
-
     sec_aval = extrair_secao_relatorio_docente(conteudo_relatorio, 7)
     sec_aee = extrair_secao_relatorio_docente(conteudo_relatorio, 8)
     sec_fechamento = extrair_secao_relatorio_docente(conteudo_relatorio, 9)
 
-    elementos.append(bloco_lista("Recomendações avaliativas", sec_aval, "#f5f3ff", "#7c3aed"))
-    elementos.append(Spacer(1, 8))
-    elementos.append(bloco_lista("Articulação com o AEE", sec_aee, "#ecfeff", "#0891b2"))
-    elementos.append(Spacer(1, 10))
+    pot = itens(sec_pot, ["Valorizar interesses e habilidades já observadas.", "Aproveitar formas de comunicação já existentes.", "Priorizar atividades práticas e visuais."], 6, 115)
+    bar = itens(sec_bar, ["Comandos longos podem reduzir compreensão.", "Ambientes com excesso de estímulos podem dificultar atenção."], 6, 110)
+    est = itens(sec_est, ["Usar comandos curtos e objetivos.", "Dividir tarefas em etapas.", "Oferecer tempo ampliado."], 6, 110)
+    adapt = itens(sec_adapt, ["Reduzir volume sem perder o objetivo pedagógico.", "Permitir múltiplas formas de resposta."], 5, 120)
+    aval = itens(sec_aval, ["Avaliar participação, engajamento e evolução individual.", "Evitar que a escrita seja o único critério."], 5, 120)
+    aee = itens(sec_aee, ["Compartilhar observações com o AEE.", "Solicitar apoio para recursos visuais e materiais adaptados."], 5, 120)
 
-    fechamento_box = Table([[Paragraph(
-        "<b>Fechamento pedagógico</b><br/>" + escape(sec_fechamento or "A cooperação entre docentes, AEE e comunidade escolar é essencial para garantir participação e aprendizagem. Valorizar potencialidades, respeitar formas próprias de comunicação e promover adaptações pedagógicas são caminhos para uma inclusão efetiva."),
-        normal
-    )]], colWidths=[17.2 * cm])
-    fechamento_box.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#f8fafc")),
-        ("BOX", (0, 0), (-1, -1), 0.45, colors.HexColor("#cbd5e1")),
-        ("LEFTPADDING", (0, 0), (-1, -1), 10),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 10),
-        ("TOPPADDING", (0, 0), (-1, -1), 8),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
-    ]))
-    elementos.append(fechamento_box)
-    elementos.append(Spacer(1, 14))
+    # Página 1
+    cabecalho("RELATÓRIO VISUAL DE APOIO AO DOCENTE", 1)
+    c.setFont("Helvetica", 8.4)
+    c.setFillColor(col("#475569"))
+    texto_caixa("Apoio rápido para reconhecer quem é o estudante, compreender o significado pedagógico da condição informada e valorizar habilidades, potencialidades e formas próprias de aprender.", 1.25*cm, H-1.88*cm, W-2.5*cm, tamanho=8.4, entrelinha=10, max_linhas=2, cor="#475569")
+    meta_bar(H-3.0*cm)
 
-    assinaturas = Table([
-        [Paragraph("Professor(a) AEE:<br/>___________________________________________", normal)],
-        [Paragraph("Coordenação/Gestão:<br/>_______________________________________", normal)],
-        [Paragraph("Responsável:<br/>______________________________________________", normal)],
-    ], colWidths=[17.2 * cm])
-    assinaturas.setStyle(TableStyle([
-        ("TOPPADDING", (0, 0), (-1, -1), 6),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-    ]))
-    elementos.append(assinaturas)
-    elementos.append(Spacer(1, 8))
+    c.setFillColor(col("#eff6ff"))
+    c.setStrokeColor(col("#93c5fd"))
+    c.roundRect(1.25*cm, H-4.2*cm, W-2.5*cm, 0.88*cm, 8, stroke=1, fill=1)
+    texto_caixa("Antes de adaptar a atividade, observe como o estudante compreende, responde, comunica e participa.", 1.55*cm, H-3.82*cm, W-3.1*cm, fonte="Helvetica-Bold", tamanho=8.6, entrelinha=10, max_linhas=1, cor="#1e3a8a")
 
-    fontes_txt = fontes_geradas or "Avaliação pedagógica, estudo de caso e entrevista familiar usados apenas como contexto pedagógico."
-    elementos.append(Paragraph(
-        "<b>Fontes utilizadas pelo sistema:</b> " + escape(str(fontes_txt)) +
-        "<br/><br/><b>Observação institucional:</b> este relatório visual possui finalidade exclusivamente pedagógica e objetiva apoiar práticas educacionais inclusivas, sem expor dados familiares ou informações sensíveis desnecessárias.",
-        pequeno,
-    ))
+    c.setFont("Helvetica-Bold", 12)
+    c.setFillColor(col("#0f172a"))
+    c.drawString(1.25*cm, H-4.8*cm, "Painel de percepção docente")
 
-    doc.build(elementos, onFirstPage=header_footer, onLaterPages=header_footer)
+    left = 1.25*cm
+    gap = 0.28*cm
+    cw = (W - 2.5*cm - gap) / 2
+    ch = 3.45*cm
+    y1 = H-8.55*cm
+    card(left, y1, cw, ch, "Quem é o estudante", quem_estudante, "#2563eb", "#eff6ff", 8)
+    card(left+cw+gap, y1, cw, ch, "Condição em linguagem pedagógica", significado_condicao, "#7c3aed", "#f5f3ff", 8)
+    y2 = y1 - ch - 0.32*cm
+    card(left, y2, cw, ch, "Como aprende melhor", como_aprende, "#0891b2", "#ecfeff", 8)
+    card(left+cw+gap, y2, cw, ch, "Potencialidades e interesses", potencialidades_interesses, "#16a34a", "#f0fdf4", 8)
+    y3 = y2 - ch - 0.32*cm
+    card(left, y3, cw, ch, "Barreiras observadas", barreiras_observadas, "#ea580c", "#fff7ed", 8)
+    card(left+cw+gap, y3, cw, ch, "Estratégias e atenção", estrategias_rapidas + " " + pontos_atencao, "#dc2626", "#fff1f2", 8)
+
+    c.showPage()
+
+    # Página 2
+    cabecalho("ORIENTAÇÕES PRÁTICAS PARA SALA REGULAR", 2)
+    texto_caixa("Síntese para transformar a percepção do estudante em decisões pedagógicas: participação, comunicação, acessibilidade, atividade e avaliação.", 1.25*cm, H-1.9*cm, W-2.5*cm, tamanho=8.3, entrelinha=10, max_linhas=2, cor="#475569")
+    y = H-7.0*cm
+    bloco_lista(1.25*cm, y, W-2.5*cm, 4.35*cm, "Potencialidades a valorizar", pot, "#16a34a", "#f0fdf4")
+    y -= 4.72*cm
+    bloco_lista(1.25*cm, y, W-2.5*cm, 4.35*cm, "Barreiras que podem dificultar a participação", bar, "#ea580c", "#fff7ed")
+    y -= 4.72*cm
+    bloco_lista(1.25*cm, y, W-2.5*cm, 4.35*cm, "Estratégias que favorecem participação", est, "#2563eb", "#eff6ff")
+    y -= 4.72*cm
+    bloco_lista(1.25*cm, y, W-2.5*cm, 3.65*cm, "Adaptação das atividades", adapt, "#64748b", "#f8fafc", 5)
+    c.showPage()
+
+    # Página 3
+    cabecalho("AVALIAÇÃO, ACOMPANHAMENTO E ARTICULAÇÃO COM O AEE", 3)
+    texto_caixa("Pontos para registro docente, acompanhamento da evolução e alinhamento com o professor do AEE.", 1.25*cm, H-1.9*cm, W-2.5*cm, tamanho=8.3, entrelinha=10, max_linhas=2, cor="#475569")
+    y = H-7.1*cm
+    bloco_lista(1.25*cm, y, W-2.5*cm, 4.55*cm, "Recomendações avaliativas", aval, "#7c3aed", "#f5f3ff")
+    y -= 4.95*cm
+    bloco_lista(1.25*cm, y, W-2.5*cm, 4.55*cm, "Articulação com o AEE", aee, "#0891b2", "#ecfeff")
+
+    y -= 3.0*cm
+    c.setFillColor(col("#f8fafc"))
+    c.setStrokeColor(col("#cbd5e1"))
+    c.roundRect(1.25*cm, y, W-2.5*cm, 2.35*cm, 8, stroke=1, fill=1)
+    c.setFont("Helvetica-Bold", 10)
+    c.setFillColor(col("#0f172a"))
+    c.drawString(1.55*cm, y+1.88*cm, "Fechamento pedagógico")
+    texto_caixa(sec_fechamento or "Valorizar potencialidades, respeitar formas próprias de comunicação e promover adaptações pedagógicas são caminhos para uma inclusão efetiva.", 1.55*cm, y+1.52*cm, W-3.1*cm, tamanho=7.9, entrelinha=9.4, max_linhas=5)
+
+    c.setFont("Helvetica", 8)
+    c.setFillColor(col("#334155"))
+    c.drawString(1.25*cm, 3.0*cm, "Professor(a) AEE: ___________________________________________")
+    c.drawString(1.25*cm, 2.45*cm, "Coordenação/Gestão: _________________________________________")
+    c.drawString(1.25*cm, 1.9*cm, "Responsável: ________________________________________________")
+    texto_caixa("Fontes utilizadas pelo sistema: " + str(fontes_geradas or "Avaliação pedagógica, estudo de caso e entrevista familiar usados apenas como contexto pedagógico."), 1.25*cm, 1.18*cm, W-2.5*cm, tamanho=6.6, entrelinha=7.4, max_linhas=2, cor="#64748b")
+    texto_caixa("Finalidade exclusivamente pedagógica. Não expõe dados familiares ou informações sensíveis desnecessárias.", 1.25*cm, 0.62*cm, W-2.5*cm, tamanho=6.6, entrelinha=7.4, max_linhas=1, cor="#64748b")
+    c.save()
     return str(caminho_pdf)
 
 
@@ -4390,10 +4321,10 @@ def gerar_pdf_infografico_docente(
     fontes_geradas="",
     nome_base=None,
 ):
-    """Gera um painel infográfico docente em PDF.
+    """Gera painel infográfico em PDF com layout corrigido.
 
-    Modelo mais visual e sintético, inspirado em cards de apoio ao professor.
-    Não usa emojis/símbolos especiais para evitar quadradinhos no PDF.
+    V49: mantém a proposta visual, mas evita texto cortado usando resumos, cards com altura
+    fixa, segunda página complementar e sem caracteres especiais problemáticos.
     """
     from reportlab.lib import colors
     from reportlab.lib.pagesizes import A4
@@ -4414,94 +4345,74 @@ def gerar_pdf_infografico_docente(
     c = canvas.Canvas(str(caminho_pdf), pagesize=A4)
     W, H = A4
 
-    def hexcor(v):
-        return colors.HexColor(v)
+    def col(h): return colors.HexColor(h)
 
-    def limpar_txt(t):
-        t = limpar_marcadores_relatorio(str(t or ""))
-        t = re.sub(r"\s+", " ", t).strip()
-        return t
+    def limpar(texto):
+        texto = limpar_marcadores_relatorio(str(texto or ""))
+        texto = texto.replace("•", " ").replace("–", "-").replace("—", "-")
+        texto = re.sub(r"\s+", " ", texto).strip()
+        return texto.replace("Demonstra demonstração", "Demonstra") or "Não informado."
 
-    def lista_itens(texto, fallback, max_itens=6, max_chars=95):
-        bruto = str(texto or "")
-        itens = []
+    def wrap(texto, fonte, tamanho, largura):
+        palavras = limpar(texto).split()
+        linhas, atual = [], ""
+        for palavra in palavras:
+            teste = (atual + " " + palavra).strip()
+            if stringWidth(teste, fonte, tamanho) <= largura:
+                atual = teste
+            else:
+                if atual: linhas.append(atual)
+                atual = palavra
+        if atual: linhas.append(atual)
+        return linhas
+
+    def draw_text(texto, x, y, largura, fonte="Helvetica", tamanho=7, entre=8.3, cor="#334155", max_linhas=5):
+        linhas = wrap(texto, fonte, tamanho, largura)
+        if max_linhas and len(linhas) > max_linhas:
+            linhas = linhas[:max_linhas]
+            linhas[-1] = linhas[-1].rstrip(".,;:") + "..."
+        c.setFont(fonte, tamanho)
+        c.setFillColor(col(cor))
+        for linha in linhas:
+            c.drawString(x, y, linha)
+            y -= entre
+        return y
+
+    def lista(texto, fallback, max_itens=5, max_chars=82):
+        bruto = limpar_marcadores_relatorio(str(texto or ""))
+        candidatos = []
         for linha in bruto.splitlines():
-            linha = limpar_marcadores_relatorio(linha).strip().lstrip("•-–—0123456789. ").strip()
-            if linha and len(linha) > 2:
-                itens.append(linha)
-        if not itens:
-            texto_limpo = limpar_txt(bruto)
-            partes = re.split(r"(?<=[.;])\s+", texto_limpo)
-            itens = [p.strip(" .;") for p in partes if len(p.strip()) > 8]
-        if not itens:
-            itens = fallback
-        saida = []
-        for item in itens[:max_itens]:
-            item = limpar_txt(item)
+            partes = re.split(r"\s+-\s+", linha.strip()) if " - " in linha else [linha]
+            for p in partes:
+                p = p.strip().lstrip("•-–—0123456789. ").strip()
+                if len(p) > 5: candidatos.append(p)
+        if not candidatos:
+            candidatos = [p.strip(" .;:-") for p in re.split(r"(?<=[.;])\s+", limpar(bruto)) if len(p.strip()) > 8]
+        if not candidatos: candidatos = fallback
+        out = []
+        for item in candidatos:
+            item = limpar(item)
             if len(item) > max_chars:
                 item = item[:max_chars].rsplit(" ", 1)[0] + "..."
-            saida.append(item)
-        return saida
+            if item not in out: out.append(item)
+            if len(out) >= max_itens: break
+        return out
 
-    def wrap_text(text, font, size, width):
-        words = limpar_txt(text).split()
-        lines, cur = [], ""
-        for w in words:
-            test = (cur + " " + w).strip()
-            if stringWidth(test, font, size) <= width:
-                cur = test
-            else:
-                if cur:
-                    lines.append(cur)
-                cur = w
-        if cur:
-            lines.append(cur)
-        return lines
+    def box(x, y, w, h, titulo, borda, fundo):
+        c.setFillColor(col(fundo)); c.setStrokeColor(col(borda))
+        c.roundRect(x, y, w, h, 8, stroke=1, fill=1)
+        c.setFillColor(col(borda)); c.roundRect(x, y+h-0.55*cm, w, 0.55*cm, 8, stroke=0, fill=1)
+        c.setFillColor(col("#ffffff")); c.setFont("Helvetica-Bold", 7.5)
+        c.drawCentredString(x+w/2, y+h-0.35*cm, titulo.upper()[:42])
 
-    def draw_wrapped(text, x, y, width, font="Helvetica", size=7.2, leading=9, color="#111827", max_lines=None):
-        c.setFont(font, size)
-        c.setFillColor(hexcor(color))
-        lines = wrap_text(text, font, size, width)
-        if max_lines and len(lines) > max_lines:
-            lines = lines[:max_lines]
-            if lines:
-                lines[-1] = lines[-1][:max(0, len(lines[-1])-3)] + "..."
-        for line in lines:
-            c.drawString(x, y, line)
-            y -= leading
+    def bullets(lista_it, x, y, largura, cor_bol="#2563eb", tamanho=6.35, max_linhas=2, limite_y=None):
+        for item in lista_it:
+            if limite_y and y < limite_y: break
+            c.setFillColor(col(cor_bol)); c.circle(x+2.5, y+2.5, 2.0, stroke=0, fill=1)
+            y = draw_text(item, x+8, y, largura-10, tamanho=tamanho, entre=7.1, max_linhas=max_linhas)
+            y -= 2
         return y
 
-    def box(x, y, w, h, title, border="#2563eb", fill="#eff6ff", title_fill=None, title_color="#ffffff"):
-        c.setFillColor(hexcor(fill))
-        c.setStrokeColor(hexcor(border))
-        c.roundRect(x, y, w, h, 6, stroke=1, fill=1)
-        if title:
-            tf = title_fill or border
-            c.setFillColor(hexcor(tf))
-            c.roundRect(x, y + h - 18, w, 18, 6, stroke=0, fill=1)
-            c.setFillColor(hexcor(title_color))
-            c.setFont("Helvetica-Bold", 8.5)
-            c.drawCentredString(x + w/2, y + h - 12.5, title.upper())
-
-    def draw_bullets(items, x, y, width, color="#16a34a", size=7.1, leading=11, max_lines_item=2):
-        for item in items:
-            c.setFillColor(hexcor(color))
-            c.circle(x + 3, y + 2.5, 2.6, stroke=0, fill=1)
-            y2 = draw_wrapped(item, x + 9, y, width - 10, size=size, leading=leading, max_lines=max_lines_item)
-            y = y2 - 2
-        return y
-
-    def draw_meta_card(x, y, w, label, valor):
-        c.setFillColor(hexcor("#f8fafc"))
-        c.setStrokeColor(hexcor("#bfdbfe"))
-        c.roundRect(x, y, w, 28, 5, stroke=1, fill=1)
-        c.setFillColor(hexcor("#0f172a"))
-        c.setFont("Helvetica-Bold", 6.8)
-        c.drawString(x + 7, y + 17, label)
-        c.setFont("Helvetica", 7.4)
-        c.drawString(x + 7, y + 7, str(valor or "Não informado")[:38])
-
-    # Dados resumidos
     sec_pot = extrair_secao_relatorio_docente(conteudo_relatorio, 3) or potencialidades_interesses
     sec_bar = extrair_secao_relatorio_docente(conteudo_relatorio, 4) or barreiras_observadas
     sec_est = extrair_secao_relatorio_docente(conteudo_relatorio, 5) or estrategias_rapidas
@@ -4509,191 +4420,79 @@ def gerar_pdf_infografico_docente(
     sec_aval = extrair_secao_relatorio_docente(conteudo_relatorio, 7)
     sec_aee = extrair_secao_relatorio_docente(conteudo_relatorio, 8)
 
-    pot = lista_itens(sec_pot, [
-        "Valorizar habilidades já observadas e interesses do estudante.",
-        "Aproveitar formas de comunicação já existentes.",
-        "Priorizar atividades práticas, visuais e significativas.",
-        "Registrar pequenas conquistas de participação e autonomia.",
-    ], 6, 72)
-    bar = lista_itens(sec_bar, [
-        "Comandos longos ou simultâneos podem reduzir compreensão.",
-        "Ambientes com muitos estímulos podem dificultar atenção.",
-        "Produção escrita extensa pode limitar participação.",
-        "Mudanças bruscas podem gerar insegurança.",
-    ], 6, 70)
-    est = lista_itens(sec_est, [
-        "Usar comandos curtos e objetivos.",
-        "Organizar a rotina com apoio visual.",
-        "Dividir atividades em etapas pequenas.",
-        "Oferecer tempo ampliado e mediação gradual.",
-        "Valorizar participação e tentativas de resposta.",
-    ], 7, 68)
-    adapt = lista_itens(sec_adapt, [
-        "Reduzir volume sem perder o objetivo pedagógico.",
-        "Permitir respostas orais, visuais, gestuais ou por CAA.",
-        "Usar materiais concretos e exemplos práticos.",
-    ], 5, 65)
-    aval = lista_itens(sec_aval, [
-        "Avaliar participação, engajamento e evolução individual.",
-        "Evitar que escrita seja o único critério avaliativo.",
-        "Registrar estratégias que funcionaram.",
-    ], 5, 75)
-    aee = lista_itens(sec_aee, [
-        "Compartilhar observações com o professor do AEE.",
-        "Solicitar apoio para recursos visuais e materiais adaptados.",
-        "Alinhar estratégias sem transformar AEE em reforço escolar.",
-    ], 5, 75)
+    pot = lista(sec_pot, ["Interesses e habilidades observadas.", "Resposta positiva a recursos visuais.", "Participação em atividades práticas."], 5, 72)
+    bar = lista(sec_bar, ["Comandos longos podem dificultar a compreensão.", "Ambientes com muitos estímulos podem prejudicar atenção."], 5, 72)
+    est = lista(sec_est, ["Comandos curtos e objetivos.", "Apoio visual e divisão da tarefa em etapas.", "Tempo ampliado e mediação gradual."], 5, 72)
+    adapt = lista(sec_adapt, ["Reduzir volume sem perder objetivo.", "Permitir diferentes formas de resposta.", "Usar material concreto."], 5, 90)
+    aval = lista(sec_aval, ["Avaliar participação e evolução individual.", "Evitar escrita como único critério."], 5, 90)
+    aee = lista(sec_aee, ["Compartilhar observações com o AEE.", "Solicitar apoio para recursos visuais."], 5, 90)
 
-    # Cabeçalho
-    c.setFillColor(hexcor("#ffffff"))
-    c.rect(0, 0, W, H, stroke=0, fill=1)
-    c.setFillColor(hexcor("#0b3b75"))
-    c.setFont("Helvetica-Bold", 13)
-    c.drawString(1.2*cm, H - 1.25*cm, "INCLUISRM")
-    c.setFont("Helvetica", 6.6)
-    c.drawString(1.2*cm, H - 1.55*cm, "Sistema de Gestão do Atendimento Educacional Especializado")
-    c.setFont("Helvetica-Bold", 16)
-    c.drawCentredString(W/2, H - 1.18*cm, "RELATÓRIO PEDAGÓGICO VISUAL")
-    c.drawCentredString(W/2, H - 1.75*cm, "APOIO AO DOCENTE")
-    c.setFont("Helvetica-Oblique", 7.2)
-    c.drawCentredString(W/2, H - 2.12*cm, "Instrumento de apoio para práticas pedagógicas inclusivas")
+    # Página 1
+    c.setFillColor(col("#ffffff")); c.rect(0,0,W,H,stroke=0,fill=1)
+    c.setFillColor(col("#0b3b75")); c.setFont("Helvetica-Bold", 13)
+    c.drawString(1.1*cm, H-1.1*cm, "INCLUISRM")
+    c.setFont("Helvetica", 6.5); c.drawString(1.1*cm, H-1.4*cm, "Sistema de Gestão do Atendimento Educacional Especializado")
+    c.setFont("Helvetica-Bold", 15); c.drawCentredString(W/2, H-1.1*cm, "PAINEL INFOGRÁFICO DE APOIO AO DOCENTE")
+    c.setFont("Helvetica-Oblique", 7); c.drawCentredString(W/2, H-1.55*cm, "Leitura rápida para planejamento inclusivo")
 
-    c.setFillColor(hexcor("#0b3b75"))
-    c.roundRect(W - 5.2*cm, H - 2.15*cm, 4.5*cm, 1.25*cm, 7, stroke=0, fill=1)
-    c.setFillColor(hexcor("#ffffff"))
-    c.setFont("Helvetica-Bold", 7)
-    c.drawString(W - 4.95*cm, H - 1.32*cm, "Data de geração: " + agora_local().strftime("%d/%m/%Y"))
-    c.drawString(W - 4.95*cm, H - 1.78*cm, "Ano letivo: " + str(ano_letivo))
+    # Meta cards
+    meta = [("Código", codigo), ("Série", ano_serie), ("Turma", turma), ("Área", componente_destino), ("Data", agora_local().strftime("%d/%m/%Y"))]
+    x=1.1*cm; y=H-2.65*cm; gap=0.15*cm; mw=(W-2.2*cm-4*gap)/5
+    for lab,val in meta:
+        c.setFillColor(col("#f8fafc")); c.setStrokeColor(col("#bfdbfe")); c.roundRect(x,y,mw,0.75*cm,5,stroke=1,fill=1)
+        c.setFillColor(col("#334155")); c.setFont("Helvetica-Bold",6.2); c.drawString(x+0.12*cm,y+0.47*cm,lab)
+        draw_text(val,x+0.12*cm,y+0.22*cm,mw-0.24*cm,tamanho=6.3,entre=7,max_linhas=1)
+        x += mw+gap
 
-    y_meta = H - 3.55*cm
-    x0 = 1.2*cm
-    gap = 0.18*cm
-    wcard = (W - 2.4*cm - 4*gap)/5
-    draw_meta_card(x0, y_meta, wcard, "Código interno", codigo)
-    draw_meta_card(x0 + (wcard+gap), y_meta, wcard, "Ano/Série", ano_serie)
-    draw_meta_card(x0 + 2*(wcard+gap), y_meta, wcard, "Turma", turma)
-    draw_meta_card(x0 + 3*(wcard+gap), y_meta, wcard, "Componente/área", componente_destino)
-    draw_meta_card(x0 + 4*(wcard+gap), y_meta, wcard, "Destinatário", "________________")
+    c.setFillColor(col("#eff6ff")); c.setStrokeColor(col("#93c5fd")); c.roundRect(1.1*cm,H-3.55*cm,W-2.2*cm,0.48*cm,7,stroke=1,fill=1)
+    c.setFont("Helvetica-Bold",7.2); c.setFillColor(col("#1e3a8a")); c.drawCentredString(W/2,H-3.38*cm,"Antes de adaptar: observe como o estudante compreende, responde, comunica e participa.")
 
-    # Linha guia
-    c.setFillColor(hexcor("#eff6ff"))
-    c.setStrokeColor(hexcor("#93c5fd"))
-    c.roundRect(1.2*cm, y_meta - 0.65*cm, W - 2.4*cm, 0.42*cm, 5, stroke=1, fill=1)
-    c.setFillColor(hexcor("#0b3b75"))
-    c.setFont("Helvetica-Bold", 7.2)
-    c.drawCentredString(W/2, y_meta - 0.49*cm, "Antes de adaptar a atividade, observe como o estudante compreende, responde, comunica e participa.")
+    left=1.1*cm; gap=0.25*cm; bw=(W-2.2*cm-gap)/2; bh=3.05*cm
+    y1=H-6.95*cm
+    box(left,y1,bw,bh,"Quem é o estudante", "#0b74b8", "#f0f9ff")
+    draw_text(quem_estudante,left+0.22*cm,y1+bh-0.85*cm,bw-0.44*cm,tamanho=6.7,entre=7.7,max_linhas=8)
+    box(left+bw+gap,y1,bw,bh,"Potencialidades", "#16a34a", "#f0fdf4")
+    bullets(pot,left+bw+gap+0.22*cm,y1+bh-0.85*cm,bw-0.44*cm,"#16a34a",6.2,2,y1+0.25*cm)
 
-    # Blocos principais
-    left = 1.2*cm
-    right = W/2 + 0.25*cm
-    bw = (W - 2.7*cm)/2
-    top = y_meta - 3.25*cm
-    bh = 4.0*cm
+    y2=y1-bh-0.28*cm
+    box(left,y2,bw,bh,"Barreiras pedagógicas", "#dc2626", "#fff1f2")
+    bullets(bar,left+0.22*cm,y2+bh-0.85*cm,bw-0.44*cm,"#dc2626",6.2,2,y2+0.25*cm)
+    box(left+bw+gap,y2,bw,bh,"O que funciona melhor", "#059669", "#ecfdf5")
+    bullets(est,left+bw+gap+0.22*cm,y2+bh-0.85*cm,bw-0.44*cm,"#059669",6.2,2,y2+0.25*cm)
 
-    box(left, top, bw, bh, "Perfil pedagógico funcional", "#0b74b8", "#f0f9ff")
-    yy = top + bh - 0.65*cm
-    draw_wrapped("Quem é este estudante", left+0.25*cm, yy, bw-0.5*cm, font="Helvetica-Bold", size=7.8, color="#0f172a")
-    yy -= 0.35*cm
-    yy = draw_wrapped(quem_estudante, left+0.25*cm, yy, bw-0.5*cm, size=6.8, leading=8.2, max_lines=5)
-    yy -= 0.12*cm
-    draw_wrapped("Condição informada: " + str(perfil), left+0.25*cm, yy, bw-0.5*cm, font="Helvetica-Bold", size=6.8, color="#1e3a8a", max_lines=2)
+    y3=y2-1.45*cm
+    box(left,y3,W-2.2*cm,1.15*cm,"Mapa pedagógico rápido", "#0b3b75", "#f8fafc")
+    c.setFont("Helvetica-Bold",7); c.setFillColor(col("#0b3b75"))
+    c.drawString(left+0.4*cm,y3+0.43*cm,"COMPREENSÃO: comandos curtos + apoio visual")
+    c.drawCentredString(W/2,y3+0.43*cm,"PARTICIPAÇÃO: atividade prática + resposta possível")
+    c.drawRightString(W-1.5*cm,y3+0.43*cm,"AUTONOMIA: rotina + checklist")
 
-    box(right, top, bw, bh, "Potencialidades observadas", "#55a630", "#f0fdf4")
-    draw_bullets(pot[:5], right+0.25*cm, top+bh-0.75*cm, bw-0.55*cm, color="#55a630", size=6.8, leading=8.6, max_lines_item=2)
-
-    top2 = top - bh - 0.35*cm
-    box(left, top2, bw, bh, "Barreiras pedagógicas", "#dc2626", "#fff1f2")
-    draw_bullets(bar[:5], left+0.25*cm, top2+bh-0.75*cm, bw-0.55*cm, color="#dc2626", size=6.8, leading=8.6, max_lines_item=2)
-
-    box(right, top2, bw, bh, "O que funciona melhor", "#059669", "#ecfdf5")
-    draw_bullets(est[:6], right+0.25*cm, top2+bh-0.75*cm, bw-0.55*cm, color="#16a34a", size=6.8, leading=8.2, max_lines_item=2)
-
-    # Mapa pedagógico rápido
-    ymap = top2 - 1.75*cm
-    box(1.2*cm, ymap, W-2.4*cm, 1.35*cm, "Mapa pedagógico rápido", "#0b3b75", "#f8fafc")
-    c.setFillColor(hexcor("#0b3b75"))
-    c.setFont("Helvetica-Bold", 8)
-    c.drawString(1.55*cm, ymap+0.55*cm, "COMPREENSÃO")
-    c.drawCentredString(W/2, ymap+0.55*cm, "PARTICIPAÇÃO")
-    c.drawRightString(W-1.55*cm, ymap+0.55*cm, "AUTONOMIA")
-    c.setFont("Helvetica", 6.8)
-    c.setFillColor(hexcor("#334155"))
-    c.drawString(1.55*cm, ymap+0.23*cm, "Comandos curtos -> mediação visual -> explicação passo a passo")
-    c.drawCentredString(W/2, ymap+0.23*cm, "Atividades práticas -> pequenos grupos -> respostas possíveis")
-    c.drawRightString(W-1.55*cm, ymap+0.23*cm, "Rotina previsível -> checklist -> organização gradual")
-
-    # Três colunas inferiores
-    y3 = ymap - 4.05*cm
-    colw = (W - 2.8*cm)/3
-    box(1.2*cm, y3, colw, 3.65*cm, "Recursos pedagógicos sugeridos", "#f59e0b", "#fffbeb")
-    recursos = ["CAA / comunicação alternativa", "Recursos visuais estruturados", "Materiais concretos", "Atividades impressas organizadas", "Tecnologia: tablet ou computador", "Mediação com checklist"]
-    draw_bullets(recursos, 1.45*cm, y3+3.0*cm, colw-0.45*cm, color="#f59e0b", size=6.4, leading=8.0, max_lines_item=1)
-
-    box(1.2*cm+colw+0.2*cm, y3, colw, 3.65*cm, "Necessidade de apoio pedagógico", "#2563eb", "#eff6ff")
-    apoio_items = [
-        "Comunicação: apoio médio/alto",
-        "Organização: apoio frequente",
-        "Atenção: apoio visual e previsibilidade",
-        "Avaliação: múltiplas formas de resposta",
-        "Participação: mediação gradual",
-    ]
-    draw_bullets(apoio_items, 1.45*cm+colw+0.2*cm, y3+3.0*cm, colw-0.45*cm, color="#2563eb", size=6.4, leading=8.0, max_lines_item=1)
-
-    box(1.2*cm+2*(colw+0.2*cm), y3, colw, 3.65*cm, "Orientações rápidas ao docente", "#65a30d", "#f7fee7")
-    orient = lista_itens(pontos_atencao, [
-        "Valorizar participação, não apenas produção escrita.",
-        "Evitar excesso de informações simultâneas.",
-        "Organizar atividades em etapas menores.",
-        "Usar linguagem objetiva e previsível.",
-        "Reforçar positivamente avanços e tentativas.",
-    ], 5, 55)
-    draw_bullets(orient, 1.45*cm+2*(colw+0.2*cm), y3+3.0*cm, colw-0.45*cm, color="#65a30d", size=6.4, leading=8.0, max_lines_item=2)
-
-    # Rodapé com articulação e foco
-    y4 = 1.15*cm
-    box(1.2*cm, y4, (W-2.7*cm)/2, 2.0*cm, "Articulação com o AEE", "#7c3aed", "#faf5ff")
-    draw_bullets(aee[:4], 1.45*cm, y4+1.35*cm, (W-2.7*cm)/2-0.5*cm, color="#7c3aed", size=6.2, leading=7.2, max_lines_item=1)
-
-    box(W/2+0.25*cm, y4, (W-2.7*cm)/2, 2.0*cm, "Foco pedagógico principal", "#f59e0b", "#fffbeb")
-    foco = "Promover participação, comunicação, autonomia e permanência, valorizando potencialidades e reduzindo barreiras no processo de aprendizagem."
-    draw_wrapped(foco, W/2+0.5*cm, y4+1.28*cm, (W-2.7*cm)/2-0.5*cm, font="Helvetica-Bold", size=7.2, leading=9.0, color="#111827", max_lines=5)
-
-    c.setFillColor(hexcor("#eff6ff"))
-    c.setStrokeColor(hexcor("#bfdbfe"))
-    c.roundRect(1.2*cm, 0.35*cm, W-2.4*cm, 0.45*cm, 8, stroke=1, fill=1)
-    c.setFillColor(hexcor("#0b3b75"))
-    c.setFont("Helvetica-Bold", 7.2)
-    c.drawCentredString(W/2, 0.50*cm, "Lembre-se: cada estudante é único. Adapte, observe, registre e celebre cada conquista.")
-
+    y4=1.2*cm; colw=(W-2.5*cm)/3
+    box(left,y4,colw,3.0*cm,"Recursos sugeridos", "#f59e0b", "#fffbeb")
+    recursos=["CAA ou comunicação alternativa","Recursos visuais estruturados","Materiais concretos","Atividades por etapas","Tecnologia quando significativa"]
+    bullets(recursos,left+0.22*cm,y4+2.35*cm,colw-0.44*cm,"#f59e0b",6.0,1,y4+0.25*cm)
+    box(left+colw+0.15*cm,y4,colw,3.0*cm,"Apoio pedagógico", "#2563eb", "#eff6ff")
+    apoio=["Comunicação: apoio visual","Organização: apoio frequente","Atenção: previsibilidade","Avaliação: múltiplas respostas"]
+    bullets(apoio,left+colw+0.37*cm,y4+2.35*cm,colw-0.44*cm,"#2563eb",6.0,1,y4+0.25*cm)
+    box(left+2*(colw+0.15*cm),y4,colw,3.0*cm,"Foco principal", "#65a30d", "#f7fee7")
+    draw_text("Promover participação, comunicação, autonomia e aprendizagem possível, valorizando potencialidades e reduzindo barreiras.",left+2*(colw+0.15*cm)+0.22*cm,y4+2.28*cm,colw-0.44*cm,fonte="Helvetica-Bold",tamanho=6.4,entre=7.5,max_linhas=7)
     c.showPage()
 
-    # Página 2: recomendações e avaliação, caso precise de versão consultável
-    c.setFillColor(hexcor("#ffffff"))
-    c.rect(0, 0, W, H, stroke=0, fill=1)
-    c.setFont("Helvetica-Bold", 15)
-    c.setFillColor(hexcor("#0b3b75"))
-    c.drawString(1.2*cm, H-1.4*cm, "COMPLEMENTO PEDAGÓGICO DO INFOGRÁFICO")
-    c.setFont("Helvetica", 8)
-    c.setFillColor(hexcor("#475569"))
-    c.drawString(1.2*cm, H-1.8*cm, "Avaliação, adaptação e acompanhamento docente em articulação com o AEE.")
-
-    y = H-2.7*cm
-    hbox = 4.0*cm
-    box(1.2*cm, y-hbox, W-2.4*cm, hbox, "Adaptação das atividades", "#64748b", "#f8fafc")
-    draw_bullets(adapt, 1.5*cm, y-0.8*cm, W-3.0*cm, color="#64748b", size=7.2, leading=10, max_lines_item=2)
-
-    y -= hbox + 0.45*cm
-    box(1.2*cm, y-hbox, W-2.4*cm, hbox, "Recomendações avaliativas", "#7c3aed", "#f5f3ff")
-    draw_bullets(aval, 1.5*cm, y-0.8*cm, W-3.0*cm, color="#7c3aed", size=7.2, leading=10, max_lines_item=2)
-
-    y -= hbox + 0.45*cm
-    box(1.2*cm, y-hbox, W-2.4*cm, hbox, "Articulação com o AEE", "#0891b2", "#ecfeff")
-    draw_bullets(aee, 1.5*cm, y-0.8*cm, W-3.0*cm, color="#0891b2", size=7.2, leading=10, max_lines_item=2)
-
-    c.setFont("Helvetica", 6.5)
-    c.setFillColor(hexcor("#64748b"))
-    c.drawString(1.2*cm, 0.85*cm, "Fontes utilizadas pelo sistema: " + limpar_txt(fontes_geradas)[:155])
-    c.drawString(1.2*cm, 0.55*cm, "Finalidade exclusivamente pedagógica. Não substitui avaliação docente, estudo de caso ou planejamento do AEE.")
+    # Página 2
+    c.setFillColor(col("#ffffff")); c.rect(0,0,W,H,stroke=0,fill=1)
+    c.setFont("Helvetica-Bold",15); c.setFillColor(col("#0b3b75")); c.drawString(1.2*cm,H-1.25*cm,"COMPLEMENTO PEDAGÓGICO DO INFOGRÁFICO")
+    c.setFont("Helvetica",8); c.setFillColor(col("#475569")); c.drawString(1.2*cm,H-1.65*cm,"Avaliação, adaptação e acompanhamento docente em articulação com o AEE.")
+    y=H-6.2*cm
+    box(1.2*cm,y,W-2.4*cm,3.9*cm,"Adaptação das atividades", "#64748b", "#f8fafc")
+    bullets(adapt,1.5*cm,y+3.15*cm,W-3.0*cm,"#64748b",7.0,2,y+0.35*cm)
+    y-=4.3*cm
+    box(1.2*cm,y,W-2.4*cm,3.9*cm,"Recomendações avaliativas", "#7c3aed", "#f5f3ff")
+    bullets(aval,1.5*cm,y+3.15*cm,W-3.0*cm,"#7c3aed",7.0,2,y+0.35*cm)
+    y-=4.3*cm
+    box(1.2*cm,y,W-2.4*cm,3.9*cm,"Articulação com o AEE", "#0891b2", "#ecfeff")
+    bullets(aee,1.5*cm,y+3.15*cm,W-3.0*cm,"#0891b2",7.0,2,y+0.35*cm)
+    draw_text("Fontes utilizadas pelo sistema: " + str(fontes_geradas or "Avaliação pedagógica, estudo de caso e entrevista familiar usados apenas como contexto pedagógico."),1.2*cm,1.1*cm,W-2.4*cm,tamanho=6.4,entre=7,max_linhas=2,cor="#64748b")
+    draw_text("Finalidade exclusivamente pedagógica. Não substitui avaliação docente, estudo de caso ou planejamento do AEE.",1.2*cm,0.55*cm,W-2.4*cm,tamanho=6.4,entre=7,max_linhas=1,cor="#64748b")
     c.save()
     return str(caminho_pdf)
 
