@@ -97,8 +97,8 @@ RELATORIOS_VISUAIS_DOCENTE_DIR.mkdir(parents=True, exist_ok=True)
 
 APP_NAME = "INCLUISRM"
 APP_SUBTITLE = "Sistema Inteligente de Articulação Pedagógica Inclusiva"
-APP_VERSION = "V48"
-APP_VERSION_LABEL = "Relatórios Visuais Docente • PDF Limpo + Infográfico • Histórico"
+APP_VERSION = "V50"
+APP_VERSION_LABEL = "Estudo de Caso Visual GRE • Relatórios Visuais • Histórico"
 # Fuso fixo UTC-3 usado por Recife/Pernambuco.
 # Usar timezone/timedelta evita erro em ambientes Render sem base tzdata completa.
 FUSO_LOCAL = timezone(timedelta(hours=-3), name="America/Recife")
@@ -5950,6 +5950,375 @@ def texto_agenda(df):
     return "AGENDA DE ATENDIMENTOS - INCLUISRM\n\n" + df.to_string(index=False)
 
 
+
+# ======================================================
+# PDF VISUAL - ESTUDO DE CASO GRE
+# ======================================================
+def gerar_pdf_estudo_caso_visual(conteudo, codigo):
+    """Gera PDF visual específico para Estudo de Caso GRE.
+
+    Objetivo do layout:
+    - substituir o bloco textual corrido por seções pedagógicas mais legíveis;
+    - remover marcadores técnicos como [POTENCIALIDADES] do visual final;
+    - destacar potencialidades, barreiras, estratégias e intervenções;
+    - manter a finalidade institucional e pedagógica do estudo de caso.
+    """
+    from reportlab.lib import colors
+    from reportlab.lib.enums import TA_CENTER, TA_LEFT
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+    from reportlab.lib.units import cm
+    from reportlab.platypus import (
+        Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle,
+        PageBreak, KeepTogether
+    )
+
+    texto = str(conteudo or "")
+    texto = limpar_marcadores_relatorio(texto) if 'limpar_marcadores_relatorio' in globals() else texto
+
+    nome_arquivo = f"Estudo_Caso_GRE_Visual_{codigo}.pdf".replace("/", "-").replace("\\", "-")
+
+    doc = SimpleDocTemplate(
+        nome_arquivo,
+        pagesize=A4,
+        rightMargin=1.25 * cm,
+        leftMargin=1.25 * cm,
+        topMargin=1.05 * cm,
+        bottomMargin=1.05 * cm,
+    )
+
+    styles = getSampleStyleSheet()
+
+    azul = colors.HexColor("#0b3a70")
+    azul2 = colors.HexColor("#0f5fa8")
+    azul_claro = colors.HexColor("#eaf4ff")
+    verde = colors.HexColor("#2e7d32")
+    verde_claro = colors.HexColor("#edf8ed")
+    laranja = colors.HexColor("#ef8a00")
+    laranja_claro = colors.HexColor("#fff4e2")
+    vermelho = colors.HexColor("#c62828")
+    vermelho_claro = colors.HexColor("#fdeaea")
+    roxo = colors.HexColor("#6a3eb5")
+    roxo_claro = colors.HexColor("#f2ecff")
+    cinza = colors.HexColor("#334155")
+    cinza_claro = colors.HexColor("#f8fafc")
+    borda = colors.HexColor("#cbd5e1")
+
+    title = ParagraphStyle(
+        "TituloEstudoVisual",
+        parent=styles["Title"],
+        fontSize=18,
+        leading=22,
+        alignment=TA_CENTER,
+        textColor=azul,
+        spaceAfter=4,
+    )
+    subtitle = ParagraphStyle(
+        "SubtituloEstudoVisual",
+        parent=styles["Normal"],
+        fontSize=9.5,
+        leading=12,
+        alignment=TA_CENTER,
+        textColor=colors.HexColor("#475569"),
+        spaceAfter=8,
+    )
+    normal = ParagraphStyle(
+        "NormalEstudoVisual",
+        parent=styles["Normal"],
+        fontSize=9.2,
+        leading=12.4,
+        textColor=colors.HexColor("#111827"),
+        alignment=TA_LEFT,
+        spaceAfter=4,
+    )
+    small = ParagraphStyle(
+        "SmallEstudoVisual",
+        parent=normal,
+        fontSize=8.1,
+        leading=10.3,
+        textColor=colors.HexColor("#475569"),
+    )
+    bullet = ParagraphStyle(
+        "BulletEstudoVisual",
+        parent=normal,
+        leftIndent=10,
+        firstLineIndent=-7,
+        spaceAfter=3,
+    )
+    hsec = ParagraphStyle(
+        "HeadingEstudoVisual",
+        parent=styles["Heading2"],
+        fontSize=11.5,
+        leading=14,
+        textColor=colors.white,
+        alignment=TA_LEFT,
+        spaceAfter=0,
+    )
+    card_title = ParagraphStyle(
+        "CardTitleEstudoVisual",
+        parent=styles["Heading3"],
+        fontSize=10.5,
+        leading=13,
+        textColor=colors.white,
+        alignment=TA_CENTER,
+        spaceAfter=0,
+    )
+
+    def limpar(txt):
+        txt = str(txt or "").strip()
+        txt = txt.replace("**", "")
+        txt = re.sub(r"^#{1,6}\s*", "", txt)
+        txt = re.sub(r"\[[A-Z0-9_]+\]", "", txt)
+        txt = txt.replace("• --", "•")
+        return txt.strip()
+
+    def esc(txt):
+        return escape(limpar(txt)).replace("\n", "<br/>")
+
+    def meta(chaves, padrao="Não informado"):
+        for chave in chaves:
+            m = re.search(rf"{re.escape(chave)}\s*:\s*(.+)", texto, flags=re.I)
+            if m:
+                valor = limpar(m.group(1)).strip()
+                if valor:
+                    return valor
+        return padrao
+
+    def secao(marcador, padrao=""):
+        # Busca primeiro por marcador [SECAO]
+        m = re.search(rf"\[{re.escape(marcador)}\](.*?)(?=\n\[[A-Z0-9_]+\]|\Z)", texto, flags=re.DOTALL)
+        if m:
+            return limpar(m.group(1))
+        return padrao
+
+    def itens(txt, max_itens=None):
+        txt = limpar(txt)
+        if not txt:
+            return []
+        linhas = []
+        for parte in re.split(r"\n|(?<=\.)\s+-\s+", txt):
+            parte = limpar(parte).lstrip("-• ").strip()
+            if parte:
+                linhas.append(parte)
+        # Se a IA devolveu tudo em um parágrafo com bullets, tenta separar
+        if len(linhas) <= 1 and "•" in txt:
+            linhas = [limpar(x).strip() for x in txt.split("•") if limpar(x).strip()]
+        if max_itens:
+            return linhas[:max_itens]
+        return linhas
+
+    def bullets_flow(txt, max_itens=None):
+        lista = itens(txt, max_itens=max_itens)
+        if not lista and txt:
+            lista = [txt]
+        return [Paragraph("• " + esc(i), bullet) for i in lista]
+
+    def bloco_secao(titulo, txt, cor, cor_bg, max_itens=None):
+        bloco = []
+        cab = Table([[Paragraph(f"<b>{escape(titulo)}</b>", hsec)]], colWidths=[17.0 * cm])
+        cab.setStyle(TableStyle([
+            ("BACKGROUND", (0,0), (-1,-1), cor),
+            ("BOX", (0,0), (-1,-1), 0.4, cor),
+            ("LEFTPADDING", (0,0), (-1,-1), 8),
+            ("RIGHTPADDING", (0,0), (-1,-1), 8),
+            ("TOPPADDING", (0,0), (-1,-1), 6),
+            ("BOTTOMPADDING", (0,0), (-1,-1), 6),
+        ]))
+        bloco.append(cab)
+        conteudo_flow = bullets_flow(txt, max_itens=max_itens)
+        if not conteudo_flow:
+            conteudo_flow = [Paragraph("Não informado.", normal)]
+        corpo = Table([[conteudo_flow]], colWidths=[17.0 * cm])
+        corpo.setStyle(TableStyle([
+            ("BACKGROUND", (0,0), (-1,-1), cor_bg),
+            ("BOX", (0,0), (-1,-1), 0.35, borda),
+            ("LEFTPADDING", (0,0), (-1,-1), 8),
+            ("RIGHTPADDING", (0,0), (-1,-1), 8),
+            ("TOPPADDING", (0,0), (-1,-1), 7),
+            ("BOTTOMPADDING", (0,0), (-1,-1), 7),
+        ]))
+        bloco.append(corpo)
+        bloco.append(Spacer(1, 8))
+        return bloco
+
+    def mini_card(titulo, txt, cor, cor_bg, largura=8.25*cm, max_itens=4):
+        flow = bullets_flow(txt, max_itens=max_itens)
+        if not flow:
+            flow = [Paragraph("Não informado.", normal)]
+        t = Table([
+            [Paragraph(f"<b>{escape(titulo)}</b>", card_title)],
+            [flow]
+        ], colWidths=[largura])
+        t.setStyle(TableStyle([
+            ("BACKGROUND", (0,0), (-1,0), cor),
+            ("TEXTCOLOR", (0,0), (-1,0), colors.white),
+            ("BACKGROUND", (0,1), (-1,1), cor_bg),
+            ("BOX", (0,0), (-1,-1), 0.5, cor),
+            ("VALIGN", (0,0), (-1,-1), "TOP"),
+            ("LEFTPADDING", (0,0), (-1,-1), 7),
+            ("RIGHTPADDING", (0,0), (-1,-1), 7),
+            ("TOPPADDING", (0,0), (-1,-1), 6),
+            ("BOTTOMPADDING", (0,0), (-1,-1), 6),
+        ]))
+        return t
+
+    codigo_est = meta(["Código interno do estudante", "Código interno"], str(codigo))
+    ano_serie = meta(["Ano/Série", "Ano/Série cadastrado no sistema"], "Não informado")
+    turma = meta(["Turma"], "Não informado")
+    ano_letivo = meta(["Ano letivo", "Ano letivo do estudo de caso"], "Não informado")
+    perfil = meta(["Perfil educacional", "Perfil educacional cadastrado"], "Não informado")
+
+    analise = secao("ANALISE_COMPARATIVA")
+    percurso = secao("PERCURSO_EDUCACIONAL")
+    motivo = secao("MOTIVO_ENCAMINHAMENTO")
+    habilidades = secao("HABILIDADES_OBSERVADAS")
+    desenvolver = secao("HABILIDADES_A_DESENVOLVER")
+    potencialidades = secao("POTENCIALIDADES")
+    dificuldades = secao("DIFICULDADES")
+    estrategias = secao("ESTRATEGIAS")
+    intervencoes = secao("INTERVENCOES")
+    avaliacao = secao("AVALIACAO")
+    consideracoes = secao("CONSIDERACOES")
+    obs = secao("OBSERVACOES_COMPLEMENTARES")
+
+    # Fallback para estudo salvo sem marcadores
+    if not any([percurso, habilidades, potencialidades, dificuldades, estrategias]):
+        percurso = texto[:1200]
+
+    elementos = []
+
+    # Cabeçalho
+    header = Table([
+        [
+            Paragraph("<b>INCLUISRM</b><br/>Sistema de Gestão do Atendimento Educacional Especializado", normal),
+            Paragraph("<b>ESTUDO DE CASO GRE</b><br/>Painel pedagógico visual para tomada de decisão no AEE", title),
+        ]
+    ], colWidths=[5.4*cm, 11.6*cm])
+    header.setStyle(TableStyle([
+        ("BACKGROUND", (0,0), (0,0), azul_claro),
+        ("BACKGROUND", (1,0), (1,0), colors.white),
+        ("BOX", (0,0), (-1,-1), 0.4, borda),
+        ("VALIGN", (0,0), (-1,-1), "MIDDLE"),
+        ("LEFTPADDING", (0,0), (-1,-1), 8),
+        ("RIGHTPADDING", (0,0), (-1,-1), 8),
+        ("TOPPADDING", (0,0), (-1,-1), 8),
+        ("BOTTOMPADDING", (0,0), (-1,-1), 8),
+    ]))
+    elementos.append(header)
+    elementos.append(Spacer(1, 8))
+    elementos.append(Paragraph("Instrumento pedagógico para organizar percurso educacional, barreiras, potencialidades, estratégias e intervenções do Atendimento Educacional Especializado.", subtitle))
+
+    info = Table([
+        [
+            Paragraph(f"<b>Código</b><br/>{escape(codigo_est)}", normal),
+            Paragraph(f"<b>Ano/Série</b><br/>{escape(ano_serie)}", normal),
+            Paragraph(f"<b>Turma</b><br/>{escape(turma)}", normal),
+            Paragraph(f"<b>Ano letivo</b><br/>{escape(ano_letivo)}", normal),
+        ],
+        [Paragraph(f"<b>Perfil educacional informado</b><br/>{escape(perfil)}", normal), "", "", ""]
+    ], colWidths=[4.25*cm, 4.25*cm, 4.25*cm, 4.25*cm])
+    info.setStyle(TableStyle([
+        ("SPAN", (0,1), (-1,1)),
+        ("BACKGROUND", (0,0), (-1,-1), cinza_claro),
+        ("BOX", (0,0), (-1,-1), 0.45, borda),
+        ("INNERGRID", (0,0), (-1,0), 0.3, borda),
+        ("VALIGN", (0,0), (-1,-1), "TOP"),
+        ("LEFTPADDING", (0,0), (-1,-1), 7),
+        ("RIGHTPADDING", (0,0), (-1,-1), 7),
+        ("TOPPADDING", (0,0), (-1,-1), 6),
+        ("BOTTOMPADDING", (0,0), (-1,-1), 6),
+    ]))
+    elementos.append(info)
+    elementos.append(Spacer(1, 10))
+
+    # Frase guia
+    guia = Table([[Paragraph("<b>Leitura pedagógica:</b> antes de definir apoios, observe como o estudante participa, compreende, comunica, organiza-se e responde às mediações.", normal)]], colWidths=[17*cm])
+    guia.setStyle(TableStyle([
+        ("BACKGROUND", (0,0), (-1,-1), azul_claro),
+        ("BOX", (0,0), (-1,-1), 0.5, azul2),
+        ("LEFTPADDING", (0,0), (-1,-1), 8),
+        ("RIGHTPADDING", (0,0), (-1,-1), 8),
+        ("TOPPADDING", (0,0), (-1,-1), 7),
+        ("BOTTOMPADDING", (0,0), (-1,-1), 7),
+    ]))
+    elementos.append(guia)
+    elementos.append(Spacer(1, 10))
+
+    # Resumo visual em cards
+    linha1 = Table([[
+        mini_card("Potencialidades observadas", potencialidades or habilidades, verde, verde_claro),
+        mini_card("Barreiras pedagógicas", dificuldades, vermelho, vermelho_claro),
+    ]], colWidths=[8.45*cm, 8.45*cm])
+    linha1.setStyle(TableStyle([("VALIGN", (0,0), (-1,-1), "TOP"), ("LEFTPADDING", (0,0), (-1,-1), 0), ("RIGHTPADDING", (0,0), (-1,-1), 0)]))
+    elementos.append(linha1)
+    elementos.append(Spacer(1, 8))
+
+    linha2 = Table([[
+        mini_card("Estratégias que funcionam", estrategias, azul2, azul_claro),
+        mini_card("Habilidades a desenvolver", desenvolver, laranja, laranja_claro),
+    ]], colWidths=[8.45*cm, 8.45*cm])
+    linha2.setStyle(TableStyle([("VALIGN", (0,0), (-1,-1), "TOP"), ("LEFTPADDING", (0,0), (-1,-1), 0), ("RIGHTPADDING", (0,0), (-1,-1), 0)]))
+    elementos.append(linha2)
+    elementos.append(Spacer(1, 8))
+
+    foco = Table([[Paragraph("<b>Foco pedagógico principal:</b> fortalecer autonomia, organização, participação curricular e formas acessíveis de expressão, sem reduzir o estudante à condição informada.", normal)]], colWidths=[17*cm])
+    foco.setStyle(TableStyle([
+        ("BACKGROUND", (0,0), (-1,-1), laranja_claro),
+        ("BOX", (0,0), (-1,-1), 0.45, laranja),
+        ("LEFTPADDING", (0,0), (-1,-1), 8),
+        ("RIGHTPADDING", (0,0), (-1,-1), 8),
+        ("TOPPADDING", (0,0), (-1,-1), 7),
+        ("BOTTOMPADDING", (0,0), (-1,-1), 7),
+    ]))
+    elementos.append(foco)
+    elementos.append(PageBreak())
+
+    # Seções detalhadas
+    elementos.extend(bloco_secao("1. Análise pedagógica / comparação", analise or "Não há estudo anterior disponível para comparação direta.", roxo, roxo_claro))
+    elementos.extend(bloco_secao("2. Percurso educacional", percurso, azul2, azul_claro))
+    elementos.extend(bloco_secao("3. Motivo do encaminhamento ao AEE", motivo, cinza, cinza_claro))
+    elementos.extend(bloco_secao("4. Habilidades observadas", habilidades, verde, verde_claro))
+    elementos.extend(bloco_secao("5. Habilidades a desenvolver", desenvolver, laranja, laranja_claro))
+    elementos.extend(bloco_secao("6. Potencialidades", potencialidades, verde, verde_claro))
+    elementos.extend(bloco_secao("7. Barreiras / dificuldades", dificuldades, vermelho, vermelho_claro))
+    elementos.extend(bloco_secao("8. Estratégias pedagógicas", estrategias, azul2, azul_claro))
+    elementos.extend(bloco_secao("9. Intervenções e encaminhamentos", intervencoes, roxo, roxo_claro))
+    elementos.extend(bloco_secao("10. Avaliação e acompanhamento", avaliacao, cinza, cinza_claro))
+    elementos.extend(bloco_secao("11. Considerações finais", consideracoes, azul, azul_claro))
+    if obs:
+        elementos.extend(bloco_secao("12. Observações complementares", obs, laranja, laranja_claro))
+
+    assinaturas = Table([
+        [Paragraph("<b>Professor(a) AEE:</b> _______________________________________", normal)],
+        [Paragraph("<b>Coordenação/Gestão:</b> _____________________________________", normal)],
+        [Paragraph("<b>Responsável:</b> ____________________________________________", normal)],
+    ], colWidths=[17*cm])
+    assinaturas.setStyle(TableStyle([
+        ("BACKGROUND", (0,0), (-1,-1), colors.white),
+        ("BOX", (0,0), (-1,-1), 0.35, borda),
+        ("LEFTPADDING", (0,0), (-1,-1), 8),
+        ("TOPPADDING", (0,0), (-1,-1), 7),
+        ("BOTTOMPADDING", (0,0), (-1,-1), 7),
+    ]))
+    elementos.append(Spacer(1, 8))
+    elementos.append(assinaturas)
+    elementos.append(Spacer(1, 8))
+
+    rodape = Table([[Paragraph(f"Gerado em {agora_local().strftime('%d/%m/%Y %H:%M')} pelo INCLUISRM • Documento pedagógico de apoio ao AEE • Finalidade exclusivamente pedagógica", small)]], colWidths=[17*cm])
+    rodape.setStyle(TableStyle([
+        ("BACKGROUND", (0,0), (-1,-1), cinza_claro),
+        ("BOX", (0,0), (-1,-1), 0.3, borda),
+        ("LEFTPADDING", (0,0), (-1,-1), 7),
+        ("RIGHTPADDING", (0,0), (-1,-1), 7),
+        ("TOPPADDING", (0,0), (-1,-1), 5),
+        ("BOTTOMPADDING", (0,0), (-1,-1), 5),
+    ]))
+    elementos.append(rodape)
+
+    doc.build(elementos)
+    return nome_arquivo
+
+
 # ======================================================
 # PDF
 # ======================================================
@@ -5969,6 +6338,9 @@ def gerar_pdf_documento(conteudo, codigo, tipo="documento"):
     from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
     from reportlab.lib.units import cm
     from reportlab.platypus import HRFlowable, Paragraph, SimpleDocTemplate, Spacer, Image, Table, TableStyle
+
+    if tipo == "estudo":
+        return gerar_pdf_estudo_caso_visual(conteudo, codigo)
 
     nomes = {
         "cadastro": ("Cadastro_Estudante", "CADASTRO DO ESTUDANTE"),
