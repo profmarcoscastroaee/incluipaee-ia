@@ -97,8 +97,8 @@ RELATORIOS_VISUAIS_DOCENTE_DIR.mkdir(parents=True, exist_ok=True)
 
 APP_NAME = "INCLUISRM"
 APP_SUBTITLE = "Sistema Inteligente de Articulação Pedagógica Inclusiva"
-APP_VERSION = "V51"
-APP_VERSION_LABEL = "Infográfico Docente IA • Fonte 11 • Histórico"
+APP_VERSION = "V55"
+APP_VERSION_LABEL = "Versão interna"
 # Fuso fixo UTC-3 usado por Recife/Pernambuco.
 # Usar timezone/timedelta evita erro em ambientes Render sem base tzdata completa.
 FUSO_LOCAL = timezone(timedelta(hours=-3), name="America/Recife")
@@ -1783,12 +1783,17 @@ def opcoes_estudantes_por_id(estudantes):
 
 
 def render_app_header():
+    """Cabeçalho institucional do sistema.
+
+    Observação:
+    A versão interna do sistema permanece em APP_VERSION, mas não é exibida
+    na interface pública para manter uma apresentação mais institucional.
+    """
     st.markdown(
         f"""
         <div class="app-hero">
-            <span class="app-badge">AEE • Memória Pedagógica • Articulação Docente • IA • {APP_VERSION} {APP_VERSION_LABEL}</span>
-            <h1 class="app-title">INCLUISRM</h1>
-            <p class="app-subtitle">Sistema Inteligente de Articulação Pedagógica Inclusiva</p>
+            <h1 class="app-title">{APP_NAME}</h1>
+            <p class="app-subtitle">{APP_SUBTITLE}</p>
         </div>
         """,
         unsafe_allow_html=True,
