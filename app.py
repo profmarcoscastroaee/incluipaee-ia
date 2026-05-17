@@ -1,5 +1,5 @@
 
-# INCLUISRM V58 - Perfil docente, modo maker inclusivo e projetos norteadores no AEE
+# INCLUISRM V59 - Perfil docente, modo maker inclusivo e projetos norteadores no AEE
 # Atualização: integra perfil pedagógico/tecnológico do professor AEE e docente regular, modo maker inclusivo e projetos interdisciplinares sem caracterizar reforço escolar.
 
 import os
@@ -98,8 +98,8 @@ RELATORIOS_VISUAIS_DOCENTE_DIR.mkdir(parents=True, exist_ok=True)
 
 APP_NAME = "INCLUISRM"
 APP_SUBTITLE = "Sistema Inteligente de Articulação Pedagógica Inclusiva"
-APP_VERSION = "V56"
-APP_VERSION_LABEL = "Relatório Docente • Evidências documentadas • Sem inferências"
+APP_VERSION = "V57"
+APP_VERSION_LABEL = "Relatório Docente • Isolamento por estudante • Sem mistura de dados"
 # Fuso fixo UTC-3 usado por Recife/Pernambuco.
 # Usar timezone/timedelta evita erro em ambientes Render sem base tzdata completa.
 FUSO_LOCAL = timezone(timedelta(hours=-3), name="America/Recife")
@@ -1761,6 +1761,38 @@ def normalizar_data_historico(data_texto):
     Novos registros usam hoje_str() em America/Recife.
     """
     return data_texto or "Data não informada"
+
+
+def chave_segura_streamlit(*partes):
+    """Cria chaves únicas por estudante/ano/componente para evitar mistura de dados na sessão."""
+    bruto = "_".join([str(p or "") for p in partes])
+    bruto = re.sub(r"[^A-Za-z0-9_]+", "_", bruto)
+    return re.sub(r"_+", "_", bruto).strip("_")[:120]
+
+
+def limpar_estado_relatorio_docente(prefixo_atual=None):
+    """Remove prévias antigas de relatório docente que podem pertencer a outro estudante.
+
+    O Streamlit preserva st.session_state entre trocas de estudante. Se as chaves forem globais,
+    a prévia de um estudante pode aparecer na tela de outro. Esta limpeza preserva apenas as
+    chaves do prefixo atualmente selecionado.
+    """
+    prefixo_atual = str(prefixo_atual or "")
+    prefixos_controlados = (
+        "relatorio_docente_conteudo_",
+        "relatorio_docente_fontes_",
+        "relatorio_docente_editavel_",
+        "painel_quem_estudante_",
+        "painel_significado_condicao_",
+        "painel_barreiras_observadas_",
+        "painel_pontos_atencao_",
+        "painel_como_aprende_",
+        "painel_potencialidades_interesses_",
+        "painel_estrategias_rapidas_",
+    )
+    for chave in list(st.session_state.keys()):
+        if chave.startswith(prefixos_controlados) and prefixo_atual not in chave:
+            st.session_state.pop(chave, None)
 
 
 def formatar_data(data_obj):
@@ -3754,6 +3786,15 @@ EXEMPLOS DE ERRO QUE DEVEM SER EVITADOS:
 - Se o registro NÃO disser que o estudante não escreve, não escrever "não utiliza linguagem escrita" ou "não realiza produção escrita".
 - Se o registro indicar comunicação por gestos, imagens ou apontamentos, preservar essa informação sem converter para escrita ou fala.
 - Se houver apenas sugestão de usar CAA, não afirmar que o estudante usa CAA.
+
+ESTUDANTE-ALVO ÚNICO DO RELATÓRIO:
+- Código interno: {estudante[1]}
+- Ano/Série: {estudante[2] or 'Não informado'}
+- Turma: {estudante[3] or 'Não informado'}
+
+ATENÇÃO: gere o relatório apenas para o estudante-alvo acima.
+Se aparecer no contexto qualquer informação conflitante com o código, ano/série ou turma do estudante-alvo, ignore a informação conflitante e registre: "Informação conflitante nos registros; revisar fonte antes do uso."
+Não misture dados de estudantes diferentes.
 
 DADOS DISPONÍVEIS NO SISTEMA:
 {contexto}
@@ -10996,6 +11037,19 @@ elif menu == "Articulação Pedagógica Inclusiva":
                     key="relatorio_docente_foco",
                 )
 
+                prefixo_relatorio_docente = chave_segura_streamlit(
+                    "relatorio_docente",
+                    estudante_id,
+                    estudante[1],
+                    ano_relatorio,
+                    componente_destino,
+                )
+                limpar_estado_relatorio_docente(prefixo_relatorio_docente)
+
+                chave_conteudo_relatorio = f"relatorio_docente_conteudo_{prefixo_relatorio_docente}"
+                chave_fontes_relatorio = f"relatorio_docente_fontes_{prefixo_relatorio_docente}"
+                chave_editavel_relatorio = f"relatorio_docente_editavel_{prefixo_relatorio_docente}"
+
                 contexto_previo, fontes_previas = montar_contexto_relatorio_docente(estudante_id)
                 with st.expander("Ver fontes que serão cruzadas pelo sistema"):
                     st.write(fontes_previas)
@@ -11006,7 +11060,7 @@ elif menu == "Articulação Pedagógica Inclusiva":
                         disabled=True,
                     )
 
-                if st.button("🤖 Gerar Relatório Pedagógico de Apoio ao Docente", key="btn_gerar_relatorio_docente_ia"):
+                if st.button("🤖 Gerar Relatório Pedagógico de Apoio ao Docente", key=f"btn_gerar_relatorio_docente_ia_{prefixo_relatorio_docente}"):
                     conteudo, fontes = gerar_relatorio_apoio_docente_ia(
                         estudante_id=estudante_id,
                         ano_letivo=ano_relatorio,
@@ -11014,12 +11068,12 @@ elif menu == "Articulação Pedagógica Inclusiva":
                         professor_destino=professor_destino,
                         foco_docente=foco_docente,
                     )
-                    st.session_state["relatorio_docente_conteudo"] = conteudo
-                    st.session_state["relatorio_docente_fontes"] = fontes
+                    st.session_state[chave_conteudo_relatorio] = conteudo
+                    st.session_state[chave_fontes_relatorio] = fontes
                     st.success("Relatório gerado. Revise antes de salvar ou entregar ao docente.")
 
-                conteudo_gerado = st.session_state.get("relatorio_docente_conteudo", "")
-                fontes_geradas = st.session_state.get("relatorio_docente_fontes", fontes_previas)
+                conteudo_gerado = st.session_state.get(chave_conteudo_relatorio, "")
+                fontes_geradas = st.session_state.get(chave_fontes_relatorio, fontes_previas)
 
                 if conteudo_gerado:
                     st.markdown("### Prévia editável do relatório")
@@ -11027,7 +11081,7 @@ elif menu == "Articulação Pedagógica Inclusiva":
                         "Revise o relatório antes de salvar",
                         value=conteudo_gerado,
                         height=520,
-                        key="relatorio_docente_editavel",
+                        key=chave_editavel_relatorio,
                     )
 
                     titulo_relatorio = "RELATÓRIO PEDAGÓGICO DE APOIO AO DOCENTE"
@@ -11074,44 +11128,44 @@ Este relatório possui finalidade exclusivamente pedagógica e objetiva apoiar p
                                 "Quem é este estudante no contexto escolar",
                                 value=dados_painel["quem_estudante"],
                                 height=140,
-                                key="painel_quem_estudante",
+                                key=f"painel_quem_estudante_{prefixo_relatorio_docente}",
                             )
                             painel_condicao = st.text_area(
                                 "O que a condição informada pode significar",
                                 value=dados_painel["significado_condicao"],
                                 height=140,
-                                key="painel_significado_condicao",
+                                key=f"painel_significado_condicao_{prefixo_relatorio_docente}",
                             )
                             painel_barreiras = st.text_area(
                                 "Barreiras que podem aparecer",
                                 value=dados_painel["barreiras_observadas"],
                                 height=140,
-                                key="painel_barreiras_observadas",
+                                key=f"painel_barreiras_observadas_{prefixo_relatorio_docente}",
                             )
                             painel_pontos = st.text_area(
                                 "O que merece atenção",
                                 value=dados_painel["pontos_atencao"],
                                 height=140,
-                                key="painel_pontos_atencao",
+                                key=f"painel_pontos_atencao_{prefixo_relatorio_docente}",
                             )
                         with col_card_2:
                             painel_aprende = st.text_area(
                                 "Como aprende melhor",
                                 value=dados_painel["como_aprende"],
                                 height=140,
-                                key="painel_como_aprende",
+                                key=f"painel_como_aprende_{prefixo_relatorio_docente}",
                             )
                             painel_potencialidades = st.text_area(
                                 "Habilidades, potencialidades e interesses",
                                 value=dados_painel["potencialidades_interesses"],
                                 height=140,
-                                key="painel_potencialidades_interesses",
+                                key=f"painel_potencialidades_interesses_{prefixo_relatorio_docente}",
                             )
                             painel_estrategias = st.text_area(
                                 "Estratégias rápidas para a aula",
                                 value=dados_painel["estrategias_rapidas"],
                                 height=140,
-                                key="painel_estrategias_rapidas",
+                                key=f"painel_estrategias_rapidas_{prefixo_relatorio_docente}",
                             )
 
                     st.info(
@@ -11123,13 +11177,13 @@ Este relatório possui finalidade exclusivamente pedagógica e objetiva apoiar p
                         estudante=estudante,
                         ano_letivo=ano_relatorio,
                         componente_destino=componente_destino,
-                        quem_estudante=st.session_state.get("painel_quem_estudante", dados_painel["quem_estudante"]),
-                        significado_condicao=st.session_state.get("painel_significado_condicao", dados_painel["significado_condicao"]),
-                        como_aprende=st.session_state.get("painel_como_aprende", dados_painel["como_aprende"]),
-                        barreiras_observadas=st.session_state.get("painel_barreiras_observadas", dados_painel["barreiras_observadas"]),
-                        potencialidades_interesses=st.session_state.get("painel_potencialidades_interesses", dados_painel["potencialidades_interesses"]),
-                        pontos_atencao=st.session_state.get("painel_pontos_atencao", dados_painel["pontos_atencao"]),
-                        estrategias_rapidas=st.session_state.get("painel_estrategias_rapidas", dados_painel["estrategias_rapidas"]),
+                        quem_estudante=st.session_state.get(f"painel_quem_estudante_{prefixo_relatorio_docente}", dados_painel["quem_estudante"]),
+                        significado_condicao=st.session_state.get(f"painel_significado_condicao_{prefixo_relatorio_docente}", dados_painel["significado_condicao"]),
+                        como_aprende=st.session_state.get(f"painel_como_aprende_{prefixo_relatorio_docente}", dados_painel["como_aprende"]),
+                        barreiras_observadas=st.session_state.get(f"painel_barreiras_observadas_{prefixo_relatorio_docente}", dados_painel["barreiras_observadas"]),
+                        potencialidades_interesses=st.session_state.get(f"painel_potencialidades_interesses_{prefixo_relatorio_docente}", dados_painel["potencialidades_interesses"]),
+                        pontos_atencao=st.session_state.get(f"painel_pontos_atencao_{prefixo_relatorio_docente}", dados_painel["pontos_atencao"]),
+                        estrategias_rapidas=st.session_state.get(f"painel_estrategias_rapidas_{prefixo_relatorio_docente}", dados_painel["estrategias_rapidas"]),
                         conteudo_relatorio=conteudo_editado,
                         fontes_geradas=fontes_geradas,
                     )
@@ -11140,7 +11194,7 @@ Este relatório possui finalidade exclusivamente pedagógica e objetiva apoiar p
                     col_pdf_limpo, col_pdf_info = st.columns(2)
 
                     with col_pdf_limpo:
-                        if st.button("📄 Gerar PDF pedagógico limpo", key="btn_gerar_pdf_visual_docente_limpo"):
+                        if st.button("📄 Gerar PDF pedagógico limpo", key=f"btn_gerar_pdf_visual_docente_limpo_{prefixo_relatorio_docente}"):
                             arquivo_pdf_visual = gerar_pdf_relatorio_visual_docente(
                                 **dados_pdf_visual,
                                 nome_base=f"Relatorio_Visual_Limpo_Apoio_Docente_{estudante[1]}_{ano_relatorio}",
@@ -11165,11 +11219,11 @@ Este relatório possui finalidade exclusivamente pedagógica e objetiva apoiar p
                                     data=f,
                                     file_name=Path(st.session_state[chave_pdf_limpo]).name,
                                     mime="application/pdf",
-                                    key="download_pdf_visual_docente_limpo",
+                                    key=f"download_pdf_visual_docente_limpo_{prefixo_relatorio_docente}",
                                 )
 
                     with col_pdf_info:
-                        if st.button("🧩 Gerar painel infográfico docente", key="btn_gerar_pdf_infografico_docente"):
+                        if st.button("🧩 Gerar painel infográfico docente", key=f"btn_gerar_pdf_infografico_docente_{prefixo_relatorio_docente}"):
                             with st.spinner("A IA está lendo o relatório e estruturando o painel em JSON..."):
                                 dados_infografico = gerar_conteudo_infografico_docente_ia(
                                     relatorio_docente_txt=conteudo_editado,
@@ -11211,10 +11265,10 @@ Este relatório possui finalidade exclusivamente pedagógica e objetiva apoiar p
                                     data=f,
                                     file_name=Path(st.session_state[chave_pdf_info]).name,
                                     mime="application/pdf",
-                                    key="download_pdf_infografico_docente",
+                                    key=f"download_pdf_infografico_docente_{prefixo_relatorio_docente}",
                                 )
 
-                    if st.button("Salvar relatório no histórico", key="btn_salvar_relatorio_docente"):
+                    if st.button("Salvar relatório no histórico", key=f"btn_salvar_relatorio_docente_{prefixo_relatorio_docente}"):
                         salvar_relatorio_docente(
                             estudante_id=estudante_id,
                             ano_letivo=ano_relatorio,
@@ -11225,8 +11279,8 @@ Este relatório possui finalidade exclusivamente pedagógica e objetiva apoiar p
                             fontes_utilizadas=fontes_geradas,
                             observacoes=observacoes_relatorio,
                         )
-                        st.session_state.pop("relatorio_docente_conteudo", None)
-                        st.session_state.pop("relatorio_docente_fontes", None)
+                        st.session_state.pop(chave_conteudo_relatorio, None)
+                        st.session_state.pop(chave_fontes_relatorio, None)
                         st.success("Relatório salvo no histórico.")
                         st.rerun()
 
