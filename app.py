@@ -2318,11 +2318,13 @@ def listar_recursos_escola_texto(escola_nome=None, limite=40):
 
     if not recursos:
         return (
-            "Não há recursos pedagógicos ou tecnologias assistivas cadastradas para esta escola no momento. "
-            "No relatório, registre essa informação de forma explícita quando a seção tratar dos recursos da escola. "
-            "As sugestões devem ser elaboradas com base nas necessidades pedagógicas do estudante e podem indicar, "
-            "quando necessário, recursos a serem providenciados, articulados ou construídos pela unidade escolar. "
-            "Não invente recursos como se já estivessem disponíveis."
+            "Não há recursos pedagógicos ou tecnologias assistivas cadastradas no banco institucional da escola no momento. "
+            "Quando a seção tratar dos recursos da escola, registre essa informação de forma explícita. "
+            "Entretanto, quando informado pelo professor do AEE, considere que podem ser utilizados recursos disponibilizados pelo próprio professor, "
+            "tais como tablet, recursos de Comunicação Aumentativa e Alternativa (CAA), materiais de robótica educacional, "
+            "recursos produzidos em impressão 3D e materiais impressos em papel para atividades pedagógicas estruturadas. "
+            "Esses recursos devem ser apresentados como recursos de apoio do professor do AEE, e não como patrimônio já cadastrado da escola. "
+            "Não invente recursos como se já estivessem disponíveis no banco institucional da unidade escolar."
         )
 
     linhas = []
@@ -7243,6 +7245,86 @@ def texto_lista_gre(texto, padrao="Não informado."):
     return texto
 
 
+def parece_objetivo_geral(texto):
+    """Identifica quando um texto de estratégia veio, na verdade, como objetivo geral.
+
+    No documento GRE, o campo 3.2 deve trazer ações operacionais em lista.
+    Quando a IA ou o preenchimento manual repete frases como "Promover o desenvolvimento...",
+    o sistema deve tratar isso como objetivo, não como estratégia.
+    """
+    t = str(texto or "").strip()
+    if not t:
+        return False
+    tl = t.lower()
+    tem_marcadores = ("•" in t) or (";" in t) or ("\n-" in t) or ("\n•" in t)
+    inicia_objetivo = tl.startswith((
+        "promover ", "favorecer ", "desenvolver ", "estimular ",
+        "ampliar ", "proporcionar ", "garantir "
+    ))
+    cara_de_objetivo = (
+        "por meio de" in tl or
+        "visando" in tl or
+        "favorecendo" in tl or
+        "com foco" in tl or
+        "com o objetivo" in tl
+    )
+    return inicia_objetivo and cara_de_objetivo and not tem_marcadores
+
+
+def formatar_lista_operacional_gre(itens):
+    """Formata estratégias em lista, usando o padrão narrativo aceito no documento GRE."""
+    saida = []
+    for item in itens:
+        item = str(item or "").strip().strip("-• ").rstrip(".;")
+        if item:
+            saida.append(f"• {item}.")
+    return "\n".join(saida)
+
+
+def estrategias_operacionais_padrao_gre(perfil_estudante="", recursos_texto=""):
+    """Estratégias operacionais para o campo 3.2 do documento GRE.
+
+    O texto é global, aplicável ao Plano AEE, e não descreve projeto mensal.
+    """
+    itens = [
+        "Utilização de comandos curtos, claros e objetivos, apresentados de forma gradual",
+        "Uso de recursos visuais estruturados para apoiar a compreensão, a comunicação e a organização da rotina",
+        "Mediação individualizada durante as atividades pedagógicas, com retirada progressiva de apoio quando possível",
+        "Introdução ou fortalecimento de recursos de Comunicação Aumentativa e Alternativa (CAA), quando pertinente ao perfil do estudante",
+        "Organização das atividades em pequenas etapas, com previsibilidade, tempo adequado e possibilidade de pausas planejadas",
+        "Utilização de recursos tecnológicos acessíveis, como tablet, Chromebook ou ferramentas digitais mediadas, quando disponíveis e adequadas",
+        "Uso de materiais concretos, impressos, visuais, manipuláveis ou táteis para favorecer participação e compreensão",
+        "Observação contínua das respostas do estudante às estratégias utilizadas, com registro dos avanços, barreiras e necessidades de ajustes",
+        "Estímulo à interação social e à participação nas atividades escolares de forma progressiva e mediada",
+        "Articulação com professores da sala regular, família, gestão escolar e profissional de apoio, quando houver, para alinhar estratégias de acessibilidade"
+    ]
+    return formatar_lista_operacional_gre(itens)
+
+
+def garantir_estrategias_operacionais_gre(texto, fallback=""):
+    """Garante que o campo 3.2 Estratégia não receba objetivo geral.
+
+    Se o texto estiver em formato operacional, preserva. Se vier como objetivo geral,
+    vazio ou genérico demais, substitui por uma lista pedagógica de estratégias.
+    """
+    texto = texto_lista_gre(texto, "")
+    if not texto or parece_objetivo_geral(texto):
+        texto = texto_lista_gre(fallback, "")
+
+    if not texto or parece_objetivo_geral(texto):
+        return estrategias_operacionais_padrao_gre()
+
+    # Se já tiver marcadores ou várias linhas, preserva a lista, apenas limpando títulos internos.
+    if "•" in texto or "\n" in texto or ";" in texto:
+        return limpar_texto_gre_narrativo(texto)
+
+    # Texto único curto demais costuma ser rótulo/objetivo genérico.
+    if len(texto) < 180:
+        return estrategias_operacionais_padrao_gre()
+
+    return texto
+
+
 def derivar_etapa_ano_do_cadastro(estudante, dados_estudo=None):
     """Evita conflito entre ano/série do cadastro e campos do estudo.
     Quando o cadastro informa Ensino Médio/EF/EJA, ele prevalece sobre valores padrão acidentais.
@@ -7340,7 +7422,7 @@ def texto_estudo_plano_aee_gre(estudante, estudo=None, plano=None):
             return escolher(
                 secao(texto_recursos_ia, ["recursos de acessibilidade", "tecnologia assistiva", "tecnologia educacional", "recursos"]),
                 secao(texto_sugestao, ["recursos de acessibilidade", "recursos sugeridos", "tecnologia assistiva"]),
-                padrao="Recursos visuais estruturados; materiais concretos/manipuláveis; recursos digitais acessíveis; pranchas de Comunicação Aumentativa e Alternativa (CAA), quando pertinente; estratégias de apoio à escrita e organização da rotina."
+                padrao="Recursos visuais estruturados; materiais concretos/manipuláveis; recursos digitais acessíveis; tablet ou Chromebook quando disponíveis; pranchas ou recursos de Comunicação Aumentativa e Alternativa (CAA), quando pertinente; materiais impressos em papel; recursos de robótica educacional e impressão 3D quando disponibilizados pelo professor do AEE e adequados ao perfil pedagógico; estratégias de apoio à escrita e organização da rotina."
             )
 
         if campo == "objetivos_gerais":
@@ -7365,11 +7447,13 @@ def texto_estudo_plano_aee_gre(estudante, estudo=None, plano=None):
             )
 
         if campo == "estrategias":
-            return escolher(
+            manual_estrategias = valor_manual("estrategias")
+            ia_estrategias = escolher(
                 secao(texto_estrategias_ia, ["estratégias", "estrategias", "mediação", "mediacao", "recursos visuais"]),
                 secao(texto_sugestao, ["estratégias", "estrategias", "comandos curtos", "apoio visual"]),
-                padrao="Utilização de comandos curtos, claros e objetivos; uso de recursos visuais estruturados; mediação individualizada; introdução gradual de recursos de acessibilidade; atividades práticas e acessíveis; observação contínua das respostas do estudante; articulação com professores da sala regular e família."
+                padrao=""
             )
+            return garantir_estrategias_operacionais_gre(manual_estrategias, fallback=ia_estrategias)
 
         if campo == "prazo":
             return "Durante o período letivo vigente, com acompanhamento contínuo e reavaliação das estratégias conforme a evolução pedagógica do estudante e os registros do AEE."
@@ -7470,7 +7554,7 @@ Justifique: {e('justificativa_apoio')}
 Nome do apoio: {e('nome_profissional_apoio')}
 
 2.4 O(a) estudante utiliza qual(is) recurso(s) de tecnologia educacional e/ou assistiva?
-{e('recursos_tecnologia_assistiva')}
+{escolher(e('recursos_tecnologia_assistiva', ''), p('recursos_acessibilidade'), padrao='Embora ainda não constem recursos cadastrados no banco institucional da escola, serão utilizados recursos pedagógicos e tecnologias assistivas disponibilizados pelo professor do AEE, tais como tablet, recursos de Comunicação Aumentativa e Alternativa (CAA), materiais de robótica educacional, recursos em impressão 3D e materiais impressos em papel para atividades pedagógicas estruturadas.')}
 
 2.5 Registrar observações relevantes para o ambiente educacional do estudante, como acompanhamento médico ou terapêutico, caso seja necessário:
 {e('observacoes_ambiente_educacional')}
