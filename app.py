@@ -1,5 +1,5 @@
 
-# INCLUISRM V45 - Perfil docente, modo maker inclusivo e projetos norteadores no AEE
+# INCLUISRM V47 - Perfil docente, modo maker inclusivo e projetos norteadores no AEE
 # Atualização: integra perfil pedagógico/tecnológico do professor AEE e docente regular, modo maker inclusivo e projetos interdisciplinares sem caracterizar reforço escolar.
 
 import os
@@ -95,8 +95,8 @@ DOCUMENTOS_AVALIACOES_DIR.mkdir(parents=True, exist_ok=True)
 
 APP_NAME = "INCLUISRM"
 APP_SUBTITLE = "Sistema Inteligente de Articulação Pedagógica Inclusiva"
-APP_VERSION = "V46"
-APP_VERSION_LABEL = "Painel Visual de Apoio ao Docente • Cards ampliados • IA contextualizada"
+APP_VERSION = "V47"
+APP_VERSION_LABEL = "Relatório Visual Docente em PDF • Potencialidades • IA contextualizada"
 # Fuso fixo UTC-3 usado por Recife/Pernambuco.
 # Usar timezone/timedelta evita erro em ambientes Render sem base tzdata completa.
 FUSO_LOCAL = timezone(timedelta(hours=-3), name="America/Recife")
@@ -3652,25 +3652,34 @@ def texto_padrao_painel_docente(valor, padrao):
     return valor if valor else padrao
 
 
+
 def gerar_dados_painel_visual_docente(estudante, conteudo_relatorio):
-    """Monta os seis cards do painel visual usando o relatório textual e o cadastro do estudante.
-    O foco é pedagógico: apoio rápido ao professor, sem linguagem clínica.
+    """Monta os cards do relatório visual docente usando o relatório textual e o cadastro do estudante.
+
+    O foco é pedagógico: ajudar o professor a perceber quem é o estudante,
+    o que a condição informada pode significar no contexto escolar e, principalmente,
+    quais habilidades, interesses e potencialidades podem orientar a aprendizagem.
     """
     perfil_cadastrado = estudante[4] if estudante and len(estudante) > 4 else "Não informado"
 
-    perfil_pedagogico = texto_padrao_painel_docente(
-        f"Perfil educacional cadastrado: {perfil_cadastrado}. Use esta informação apenas como referência pedagógica, articulada às observações do AEE e da sala regular.",
-        "Perfil pedagógico ainda não descrito nos registros. Usar o painel como apoio inicial e complementar com observações do professor."
+    quem_estudante = texto_padrao_painel_docente(
+        extrair_secao_relatorio_docente(conteudo_relatorio, 2),
+        "Estudante com trajetória singular, formas próprias de comunicação, participação e aprendizagem. Observe seus sinais, interesses, respostas e formas de demonstrar compreensão."
+    )
+
+    significado_condicao = texto_padrao_painel_docente(
+        f"Condição informada: {perfil_cadastrado}. Esta informação deve ser compreendida pedagogicamente, sem reduzir o estudante ao laudo ou ao CID. No contexto escolar, ela ajuda a planejar apoios, acessibilidade, comunicação, organização da rotina e formas de participação.",
+        "Condição não informada. Registrar apenas informações educacionais necessárias para favorecer participação, acessibilidade e aprendizagem."
     )
 
     como_aprende = texto_padrao_painel_docente(
-        extrair_secao_relatorio_docente(conteudo_relatorio, 2),
-        "Observar como o estudante compreende instruções, participa das atividades, responde à mediação e quais recursos favorecem sua aprendizagem."
+        extrair_secao_relatorio_docente(conteudo_relatorio, 5) or extrair_secao_relatorio_docente(conteudo_relatorio, 6),
+        "Aprende melhor quando a atividade respeita seu ritmo, sua forma de comunicação, seus interesses e seu alcance, com instruções claras, apoio visual, mediação gradual e recursos concretos."
     )
 
     potencialidades = texto_padrao_painel_docente(
         extrair_secao_relatorio_docente(conteudo_relatorio, 3),
-        "Registrar interesses, habilidades, formas de participação e recursos que favorecem engajamento, autonomia e aprendizagem."
+        "Registrar habilidades, interesses, preferências, formas de participação, autonomia possível, comunicação já existente e recursos que favorecem engajamento."
     )
 
     barreiras = texto_padrao_painel_docente(
@@ -3680,21 +3689,24 @@ def gerar_dados_painel_visual_docente(estudante, conteudo_relatorio):
 
     estrategias = texto_padrao_painel_docente(
         extrair_secao_relatorio_docente(conteudo_relatorio, 5) or extrair_secao_relatorio_docente(conteudo_relatorio, 6),
-        "Utilizar instruções objetivas, apoio visual, divisão das tarefas em etapas, mediação gradual e flexibilização das formas de participação."
+        "Utilizar apoio visual, CAA quando necessário, instruções curtas, divisão da tarefa em etapas, tempo ampliado, demonstração prática e valorização das tentativas."
     )
 
     pontos_atencao = texto_padrao_painel_docente(
         extrair_secao_relatorio_docente(conteudo_relatorio, 8),
-        "Manter diálogo com o AEE, registrar respostas às estratégias utilizadas e evitar exposição de informações sensíveis ou familiares."
+        "Evitar pressa, excesso de informações simultâneas e avaliação baseada em uma única forma de resposta. Registrar avanços e estratégias que funcionaram."
     )
 
     return {
-        "perfil_pedagogico": perfil_pedagogico,
+        "quem_estudante": quem_estudante,
+        "significado_condicao": significado_condicao,
         "como_aprende": como_aprende,
         "barreiras_observadas": barreiras,
         "potencialidades_interesses": potencialidades,
         "pontos_atencao": pontos_atencao,
         "estrategias_rapidas": estrategias,
+        # Compatibilidade com versões anteriores do código
+        "perfil_pedagogico": quem_estudante,
     }
 
 
@@ -3923,6 +3935,332 @@ def gerar_relatorio_visual_docente_html(
 </div>
 """
     return html_relatorio
+
+
+def gerar_pdf_relatorio_visual_docente(
+    estudante,
+    ano_letivo,
+    componente_destino,
+    quem_estudante,
+    significado_condicao,
+    como_aprende,
+    barreiras_observadas,
+    potencialidades_interesses,
+    pontos_atencao,
+    estrategias_rapidas,
+    conteudo_relatorio,
+    fontes_geradas="",
+    nome_base=None,
+):
+    """Gera o Relatório Visual de Apoio ao Docente diretamente em PDF.
+
+    Este modelo substitui o fluxo HTML quando o objetivo é entregar um arquivo
+    pronto para professores. O PDF valoriza a percepção pedagógica do estudante,
+    explica a condição informada sem medicalizar e destaca habilidades,
+    potencialidades e estratégias práticas para sala regular.
+    """
+    from reportlab.lib import colors
+    from reportlab.lib.enums import TA_CENTER, TA_LEFT
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+    from reportlab.lib.units import cm
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak, KeepTogether
+
+    codigo = estudante[1] if estudante and len(estudante) > 1 else "Não informado"
+    ano_serie = estudante[2] if estudante and len(estudante) > 2 else "Não informado"
+    turma = estudante[3] if estudante and len(estudante) > 3 else "Não informado"
+
+    if not nome_base:
+        nome_base = f"Relatorio_Visual_Apoio_Docente_{codigo}_{ano_letivo}"
+
+    nome_arquivo = f"{nome_base}.pdf".replace("/", "-").replace("\\", "-")
+
+    doc = SimpleDocTemplate(
+        nome_arquivo,
+        pagesize=A4,
+        rightMargin=1.25 * cm,
+        leftMargin=1.25 * cm,
+        topMargin=1.05 * cm,
+        bottomMargin=1.05 * cm,
+    )
+
+    styles = getSampleStyleSheet()
+
+    titulo = ParagraphStyle(
+        "TituloVisualDocente",
+        parent=styles["Title"],
+        alignment=TA_LEFT,
+        fontSize=22,
+        leading=26,
+        textColor=colors.HexColor("#0f172a"),
+        spaceAfter=8,
+    )
+
+    subtitulo = ParagraphStyle(
+        "SubtituloVisualDocente",
+        parent=styles["Normal"],
+        alignment=TA_LEFT,
+        fontSize=10.5,
+        leading=14,
+        textColor=colors.HexColor("#475569"),
+        spaceAfter=8,
+    )
+
+    secao = ParagraphStyle(
+        "SecaoVisualDocente",
+        parent=styles["Heading2"],
+        alignment=TA_LEFT,
+        fontSize=14,
+        leading=17,
+        textColor=colors.HexColor("#0f172a"),
+        spaceBefore=8,
+        spaceAfter=6,
+    )
+
+    normal = ParagraphStyle(
+        "NormalVisualDocente",
+        parent=styles["Normal"],
+        fontSize=9.6,
+        leading=13,
+        textColor=colors.HexColor("#334155"),
+        spaceAfter=4,
+    )
+
+    pequeno = ParagraphStyle(
+        "PequenoVisualDocente",
+        parent=styles["Normal"],
+        fontSize=8,
+        leading=10,
+        textColor=colors.HexColor("#64748b"),
+    )
+
+    chip = ParagraphStyle(
+        "ChipVisualDocente",
+        parent=styles["Normal"],
+        alignment=TA_CENTER,
+        fontSize=8.2,
+        leading=10,
+        textColor=colors.HexColor("#0f172a"),
+    )
+
+    card_titulo = ParagraphStyle(
+        "CardTituloVisualDocente",
+        parent=styles["Normal"],
+        fontSize=10.5,
+        leading=13,
+        textColor=colors.HexColor("#0f172a"),
+        spaceAfter=4,
+    )
+
+    card_texto = ParagraphStyle(
+        "CardTextoVisualDocente",
+        parent=styles["Normal"],
+        fontSize=8.7,
+        leading=11.2,
+        textColor=colors.HexColor("#334155"),
+    )
+
+    frase = ParagraphStyle(
+        "FraseVisualDocente",
+        parent=styles["Normal"],
+        alignment=TA_CENTER,
+        fontSize=10,
+        leading=14,
+        textColor=colors.HexColor("#1e3a8a"),
+        spaceAfter=6,
+    )
+
+    def ptxt(texto, estilo=normal):
+        return Paragraph(escape(str(texto or "Não informado.")).replace("\n", "<br/>"), estilo)
+
+    def card(titulo_card, texto_card, cor_fundo, cor_borda):
+        t = Table(
+            [[
+                Paragraph(f"<b>{escape(titulo_card)}</b>", card_titulo),
+                ptxt(texto_card, card_texto)
+            ]],
+            colWidths=[5.0 * cm, 12.2 * cm],
+        )
+        t.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor(cor_fundo)),
+            ("BOX", (0, 0), (-1, -1), 0.8, colors.HexColor(cor_borda)),
+            ("LINEBEFORE", (0, 0), (0, -1), 5, colors.HexColor(cor_borda)),
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ("LEFTPADDING", (0, 0), (-1, -1), 9),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 9),
+            ("TOPPADDING", (0, 0), (-1, -1), 8),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+        ]))
+        return t
+
+    def bloco_lista(titulo_bloco, texto_secao, cor_fundo="#f8fafc", cor_borda="#cbd5e1"):
+        linhas = []
+        texto_limpo = limpar_marcadores_relatorio(texto_secao)
+        for raw in texto_limpo.splitlines():
+            item = raw.strip().lstrip("•- ").strip()
+            if item:
+                linhas.append(item)
+        if not linhas:
+            linhas = ["Registrar observações pedagógicas conforme a resposta do estudante às atividades propostas."]
+
+        conteudo = [Paragraph(f"<b>{escape(titulo_bloco)}</b>", card_titulo)]
+        for item in linhas[:8]:
+            conteudo.append(Paragraph("• " + escape(item), card_texto))
+
+        t = Table([[conteudo]], colWidths=[17.2 * cm])
+        t.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor(cor_fundo)),
+            ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor(cor_borda)),
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ("LEFTPADDING", (0, 0), (-1, -1), 10),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 10),
+            ("TOPPADDING", (0, 0), (-1, -1), 8),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+        ]))
+        return t
+
+    def header_footer(canvas, doc_obj):
+        canvas.saveState()
+        canvas.setFont("Helvetica", 7)
+        canvas.setFillColor(colors.HexColor("#64748b"))
+        canvas.drawString(1.25 * cm, 28.7 * cm, "INCLUISRM - Relatório visual de apoio ao docente - finalidade pedagógica")
+        canvas.drawRightString(19.7 * cm, 28.7 * cm, f"Página {doc_obj.page}")
+        canvas.restoreState()
+
+    elementos = []
+
+    # Página 1 - percepção pedagógica do estudante
+    elementos.append(Paragraph("RELATÓRIO VISUAL DE APOIO AO DOCENTE", titulo))
+    elementos.append(Paragraph(
+        "Apoio rápido para que o professor reconheça quem é o estudante, compreenda o significado pedagógico da condição informada e valorize habilidades, potencialidades e formas próprias de aprender.",
+        subtitulo,
+    ))
+
+    meta = [
+        [Paragraph("<b>Código interno</b><br/>" + escape(str(codigo)), chip),
+         Paragraph("<b>Ano/Série</b><br/>" + escape(str(ano_serie)), chip),
+         Paragraph("<b>Turma</b><br/>" + escape(str(turma)), chip)],
+        [Paragraph("<b>Ano letivo</b><br/>" + escape(str(ano_letivo)), chip),
+         Paragraph("<b>Área</b><br/>" + escape(str(componente_destino)), chip),
+         Paragraph("<b>Data</b><br/>" + agora_local().strftime("%d/%m/%Y"), chip)]
+    ]
+    meta_table = Table(meta, colWidths=[5.73 * cm, 5.73 * cm, 5.73 * cm])
+    meta_table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#f1f5f9")),
+        ("BOX", (0, 0), (-1, -1), 0.45, colors.HexColor("#cbd5e1")),
+        ("GRID", (0, 0), (-1, -1), 0.35, colors.HexColor("#e2e8f0")),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("TOPPADDING", (0, 0), (-1, -1), 6),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+    ]))
+    elementos.append(meta_table)
+    elementos.append(Spacer(1, 10))
+
+    frase_box = Table([[Paragraph(
+        "<b>Ideia central:</b> cada estudante aprende dentro do seu alcance, no seu tempo e de sua própria forma. "
+        "O papel do professor é reconhecer caminhos possíveis de participação, comunicação e aprendizagem antes de olhar apenas para as limitações.",
+        frase
+    )]], colWidths=[17.2 * cm])
+    frase_box.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#eff6ff")),
+        ("BOX", (0, 0), (-1, -1), 0.65, colors.HexColor("#2563eb")),
+        ("LEFTPADDING", (0, 0), (-1, -1), 10),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 10),
+        ("TOPPADDING", (0, 0), (-1, -1), 8),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+    ]))
+    elementos.append(frase_box)
+    elementos.append(Spacer(1, 10))
+
+    elementos.append(Paragraph("Painel de percepção docente", secao))
+    elementos.append(card("👤 Quem é este estudante no contexto escolar", quem_estudante, "#dbeafe", "#2563eb"))
+    elementos.append(Spacer(1, 6))
+    elementos.append(card("📘 O que a condição informada pode significar", significado_condicao, "#ede9fe", "#7c3aed"))
+    elementos.append(Spacer(1, 6))
+    elementos.append(card("🧠 Como aprende melhor", como_aprende, "#cffafe", "#0891b2"))
+    elementos.append(Spacer(1, 6))
+    elementos.append(card("🌱 Habilidades, potencialidades e interesses", potencialidades_interesses, "#dcfce7", "#16a34a"))
+    elementos.append(Spacer(1, 6))
+    elementos.append(card("⚠️ Barreiras que podem aparecer", barreiras_observadas, "#ffedd5", "#ea580c"))
+    elementos.append(Spacer(1, 6))
+    elementos.append(card("🎯 Estratégias rápidas para a aula", estrategias_rapidas, "#fef9c3", "#ca8a04"))
+    elementos.append(Spacer(1, 6))
+    elementos.append(card("❤️ O que merece atenção", pontos_atencao, "#fee2e2", "#dc2626"))
+    elementos.append(PageBreak())
+
+    # Página 2 - orientações práticas
+    elementos.append(Paragraph("ORIENTAÇÕES PRÁTICAS PARA SALA REGULAR", titulo))
+    elementos.append(Paragraph(
+        "Síntese para transformar a percepção do estudante em decisões pedagógicas: participação, comunicação, acessibilidade, atividade e avaliação.",
+        subtitulo,
+    ))
+
+    sec_pot = extrair_secao_relatorio_docente(conteudo_relatorio, 3) or potencialidades_interesses
+    sec_bar = extrair_secao_relatorio_docente(conteudo_relatorio, 4) or barreiras_observadas
+    sec_est = extrair_secao_relatorio_docente(conteudo_relatorio, 5) or estrategias_rapidas
+    sec_adapt = extrair_secao_relatorio_docente(conteudo_relatorio, 6)
+
+    elementos.append(bloco_lista("🌱 Potencialidades a valorizar", sec_pot, "#f0fdf4", "#16a34a"))
+    elementos.append(Spacer(1, 8))
+    elementos.append(bloco_lista("⚠️ Barreiras que podem dificultar a participação", sec_bar, "#fff7ed", "#ea580c"))
+    elementos.append(Spacer(1, 8))
+    elementos.append(bloco_lista("🎯 Estratégias que favorecem participação", sec_est, "#eff6ff", "#2563eb"))
+    elementos.append(Spacer(1, 8))
+    elementos.append(bloco_lista("🛠️ Adaptação das atividades", sec_adapt, "#f8fafc", "#64748b"))
+    elementos.append(PageBreak())
+
+    # Página 3 - avaliação, articulação e fechamento
+    elementos.append(Paragraph("AVALIAÇÃO, ACOMPANHAMENTO E ARTICULAÇÃO COM O AEE", titulo))
+    elementos.append(Paragraph(
+        "Pontos para registro docente, acompanhamento da evolução e alinhamento com o professor do AEE.",
+        subtitulo,
+    ))
+
+    sec_aval = extrair_secao_relatorio_docente(conteudo_relatorio, 7)
+    sec_aee = extrair_secao_relatorio_docente(conteudo_relatorio, 8)
+    sec_fechamento = extrair_secao_relatorio_docente(conteudo_relatorio, 9)
+
+    elementos.append(bloco_lista("📊 Recomendações avaliativas", sec_aval, "#f5f3ff", "#7c3aed"))
+    elementos.append(Spacer(1, 8))
+    elementos.append(bloco_lista("🤝 Articulação com o AEE", sec_aee, "#ecfeff", "#0891b2"))
+    elementos.append(Spacer(1, 10))
+
+    fechamento_box = Table([[Paragraph(
+        "<b>Fechamento pedagógico</b><br/>" + escape(sec_fechamento or "A cooperação entre docentes, AEE e comunidade escolar é essencial para garantir participação e aprendizagem. Valorizar potencialidades, respeitar formas próprias de comunicação e promover adaptações pedagógicas são caminhos para uma inclusão efetiva."),
+        normal
+    )]], colWidths=[17.2 * cm])
+    fechamento_box.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#f8fafc")),
+        ("BOX", (0, 0), (-1, -1), 0.45, colors.HexColor("#cbd5e1")),
+        ("LEFTPADDING", (0, 0), (-1, -1), 10),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 10),
+        ("TOPPADDING", (0, 0), (-1, -1), 8),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+    ]))
+    elementos.append(fechamento_box)
+    elementos.append(Spacer(1, 14))
+
+    assinaturas = Table([
+        [Paragraph("Professor(a) AEE:<br/>___________________________________________", normal)],
+        [Paragraph("Coordenação/Gestão:<br/>_______________________________________", normal)],
+        [Paragraph("Responsável:<br/>______________________________________________", normal)],
+    ], colWidths=[17.2 * cm])
+    assinaturas.setStyle(TableStyle([
+        ("TOPPADDING", (0, 0), (-1, -1), 6),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+    ]))
+    elementos.append(assinaturas)
+    elementos.append(Spacer(1, 8))
+
+    fontes_txt = fontes_geradas or "Avaliação pedagógica, estudo de caso e entrevista familiar usados apenas como contexto pedagógico."
+    elementos.append(Paragraph(
+        "<b>Fontes utilizadas pelo sistema:</b> " + escape(str(fontes_txt)) +
+        "<br/><br/><b>Observação institucional:</b> este relatório visual possui finalidade exclusivamente pedagógica e objetiva apoiar práticas educacionais inclusivas, sem expor dados familiares ou informações sensíveis desnecessárias.",
+        pequeno,
+    ))
+
+    doc.build(elementos, onFirstPage=header_footer, onLaterPages=header_footer)
+    return nome_arquivo
 
 
 # ======================================================
@@ -9853,10 +10191,11 @@ Este relatório possui finalidade exclusivamente pedagógica e objetiva apoiar p
                         tipo_pdf="relatorio_docente",
                     )
 
-                    st.markdown("### 🧩 Painel Visual de Apoio ao Docente")
+                    st.markdown("### 🧩 Relatório Visual de Apoio ao Docente - PDF")
                     st.caption(
-                        "Versão visual de consulta rápida para o professor. "
-                        "Ela resume o relatório em cards pedagógicos com fonte ampliada."
+                        "Versão visual para professores. O foco é perceber quem é o estudante, "
+                        "o que a condição informada representa pedagogicamente e quais habilidades, "
+                        "potencialidades e estratégias podem favorecer sua aprendizagem."
                     )
 
                     dados_painel = gerar_dados_painel_visual_docente(estudante, conteudo_editado)
@@ -9864,67 +10203,86 @@ Este relatório possui finalidade exclusivamente pedagógica e objetiva apoiar p
                     with st.expander("Editar cards do painel visual antes de gerar", expanded=False):
                         col_card_1, col_card_2 = st.columns(2)
                         with col_card_1:
-                            painel_perfil = st.text_area(
-                                "📘 Perfil pedagógico",
-                                value=dados_painel["perfil_pedagogico"],
-                                height=130,
-                                key="painel_perfil_pedagogico",
+                            painel_quem = st.text_area(
+                                "👤 Quem é este estudante no contexto escolar",
+                                value=dados_painel["quem_estudante"],
+                                height=140,
+                                key="painel_quem_estudante",
+                            )
+                            painel_condicao = st.text_area(
+                                "📘 O que a condição informada pode significar",
+                                value=dados_painel["significado_condicao"],
+                                height=140,
+                                key="painel_significado_condicao",
                             )
                             painel_barreiras = st.text_area(
-                                "⚠️ Barreiras observadas",
+                                "⚠️ Barreiras que podem aparecer",
                                 value=dados_painel["barreiras_observadas"],
-                                height=130,
+                                height=140,
                                 key="painel_barreiras_observadas",
                             )
                             painel_pontos = st.text_area(
                                 "❤️ O que merece atenção",
                                 value=dados_painel["pontos_atencao"],
-                                height=130,
+                                height=140,
                                 key="painel_pontos_atencao",
                             )
                         with col_card_2:
                             painel_aprende = st.text_area(
-                                "🧠 Como o estudante aprende",
+                                "🧠 Como aprende melhor",
                                 value=dados_painel["como_aprende"],
-                                height=130,
+                                height=140,
                                 key="painel_como_aprende",
                             )
                             painel_potencialidades = st.text_area(
-                                "🌱 Potencialidades e interesses",
+                                "🌱 Habilidades, potencialidades e interesses",
                                 value=dados_painel["potencialidades_interesses"],
-                                height=130,
+                                height=140,
                                 key="painel_potencialidades_interesses",
                             )
                             painel_estrategias = st.text_area(
-                                "🎯 Estratégias rápidas",
+                                "🎯 Estratégias rápidas para a aula",
                                 value=dados_painel["estrategias_rapidas"],
-                                height=130,
+                                height=140,
                                 key="painel_estrategias_rapidas",
                             )
 
-                    html_visual = gerar_relatorio_visual_docente_html(
-                        estudante=estudante,
-                        ano_letivo=ano_relatorio,
-                        componente_destino=componente_destino,
-                        perfil_pedagogico=st.session_state.get("painel_perfil_pedagogico", dados_painel["perfil_pedagogico"]),
-                        como_aprende=st.session_state.get("painel_como_aprende", dados_painel["como_aprende"]),
-                        barreiras_observadas=st.session_state.get("painel_barreiras_observadas", dados_painel["barreiras_observadas"]),
-                        potencialidades_interesses=st.session_state.get("painel_potencialidades_interesses", dados_painel["potencialidades_interesses"]),
-                        pontos_atencao=st.session_state.get("painel_pontos_atencao", dados_painel["pontos_atencao"]),
-                        estrategias_rapidas=st.session_state.get("painel_estrategias_rapidas", dados_painel["estrategias_rapidas"]),
-                        conteudo_relatorio=conteudo_editado,
-                        fontes_geradas=fontes_geradas,
+                    st.info(
+                        "Este modelo gera o relatório visual diretamente em PDF para professores, "
+                        "com foco em quem é o estudante, o significado pedagógico da condição informada, "
+                        "habilidades, potencialidades e estratégias práticas."
                     )
 
-                    st.markdown(html_visual, unsafe_allow_html=True)
+                    chave_pdf_visual_docente = f"pdf_visual_docente_{estudante[1]}_{ano_relatorio}"
 
-                    st.download_button(
-                        "⬇️ Baixar Painel Visual em HTML",
-                        data=html_visual.encode("utf-8"),
-                        file_name=f"Painel_Visual_Apoio_Docente_{estudante[1]}_{ano_relatorio}.html",
-                        mime="text/html",
-                        key="download_painel_visual_docente_html",
-                    )
+                    if st.button("📕 Gerar Relatório Visual Docente em PDF", key="btn_gerar_pdf_visual_docente"):
+                        arquivo_pdf_visual = gerar_pdf_relatorio_visual_docente(
+                            estudante=estudante,
+                            ano_letivo=ano_relatorio,
+                            componente_destino=componente_destino,
+                            quem_estudante=st.session_state.get("painel_quem_estudante", dados_painel["quem_estudante"]),
+                            significado_condicao=st.session_state.get("painel_significado_condicao", dados_painel["significado_condicao"]),
+                            como_aprende=st.session_state.get("painel_como_aprende", dados_painel["como_aprende"]),
+                            barreiras_observadas=st.session_state.get("painel_barreiras_observadas", dados_painel["barreiras_observadas"]),
+                            potencialidades_interesses=st.session_state.get("painel_potencialidades_interesses", dados_painel["potencialidades_interesses"]),
+                            pontos_atencao=st.session_state.get("painel_pontos_atencao", dados_painel["pontos_atencao"]),
+                            estrategias_rapidas=st.session_state.get("painel_estrategias_rapidas", dados_painel["estrategias_rapidas"]),
+                            conteudo_relatorio=conteudo_editado,
+                            fontes_geradas=fontes_geradas,
+                            nome_base=f"Relatorio_Visual_Apoio_Docente_{estudante[1]}_{ano_relatorio}",
+                        )
+                        st.session_state[chave_pdf_visual_docente] = arquivo_pdf_visual
+                        st.success("Relatório visual em PDF gerado. Agora você pode baixar o arquivo para entregar ao professor.")
+
+                    if chave_pdf_visual_docente in st.session_state:
+                        with open(st.session_state[chave_pdf_visual_docente], "rb") as f:
+                            st.download_button(
+                                "⬇️ Baixar Relatório Visual Docente em PDF",
+                                data=f,
+                                file_name=f"Relatorio_Visual_Apoio_Docente_{estudante[1]}_{ano_relatorio}.pdf",
+                                mime="application/pdf",
+                                key="download_pdf_visual_docente",
+                            )
 
                     if st.button("Salvar relatório no histórico", key="btn_salvar_relatorio_docente"):
                         salvar_relatorio_docente(
