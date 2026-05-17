@@ -1,5 +1,5 @@
 
-# INCLUISRM V39 - Perfil docente, modo maker inclusivo e projetos norteadores no AEE
+# INCLUISRM V41 - Perfil docente, modo maker inclusivo e projetos norteadores no AEE
 # Atualização: integra perfil pedagógico/tecnológico do professor AEE e docente regular, modo maker inclusivo e projetos interdisciplinares sem caracterizar reforço escolar.
 
 import os
@@ -1507,8 +1507,6 @@ OPCOES_RECURSOS_ACESSIBILIDADE = [
 
 OPCOES_ACOES_ESCOLA = [
     "Implemento de tecnologia assistiva para uso do(a) estudante",
-    "Solicitação de Profissional de Apoio",
-    "Solicitação de Professor do AEE",
     "Formação continuada de professores, profissionais de apoio, equipe gestora, demais funcionários da escola e famílias com a temática da educação inclusiva",
     "Parcerias com profissionais de saúde, UBS, USF, Conselho Tutelar, CREAS e CRAS",
     "Articulação sobre o PDDE Equidade",
@@ -7191,357 +7189,325 @@ def consolidar_textos_plano_aee_ia(estudante_id):
     }
 
 
-
-
-def tipo_ia_permitido_para_gre_global(tipo):
-    """Retorna True apenas para registros de IA globais, não operacionais/mensais.
-
-    O documento GRE Estudo de Caso + Plano AEE é global e institucional.
-    Por isso, não deve aproveitar plano mensal, roteiro por atendimento, projeto
-    norteador ou sugestões semanais como fonte direta para preencher o PAEE.
+def limpar_texto_gre_narrativo(texto):
+    """Limpa títulos internos da IA e deixa o texto adequado ao modelo narrativo GRE.
+    Não altera o sentido pedagógico; apenas remove rótulos de seções que causavam duplicidade
+    dentro dos campos do formulário (ex.: "2. Objetivos específicos" dentro de 2.2). 
     """
-    tipo = str(tipo or "").lower()
-    proibidos = [
-        "plano mensal", "mensal", "semana", "semanal", "atendimento",
-        "projeto", "maker", "carrinho", "robótica", "robotica", "impressão 3d", "impressao 3d"
-    ]
-    if any(p in tipo for p in proibidos):
-        return False
-    permitidos = [
-        "perfil pedagógico", "perfil pedagogico", "sugestão geral", "sugestao geral",
-        "sugestão", "sugestao", "plano aee", "paee", "estudo de caso", "global"
-    ]
-    return any(p in tipo for p in permitidos) or not tipo
-
-
-def limpar_conteudo_operacional_para_gre(texto):
-    """Remove trechos com cara de plano mensal/projeto do mês para o documento GRE global."""
-    texto = str(texto or "")
-    if not texto.strip():
+    texto = str(texto or "").strip()
+    if not texto:
         return ""
 
-    linhas = texto.splitlines()
-    saida = []
-    pulando = False
-    padroes_inicio_bloqueio = [
-        r"projeto norteador", r"projeto do mês", r"projeto do mes", r"plano mensal",
-        r"roteiro por data", r"atendimento\s+\d+", r"semana\s+\d+",
-        r"carrinho", r"robótica", r"robotica", r"impressão 3d", r"impressao 3d",
-        r"maker", r"arduino", r"sensor", r"energia solar"
+    # remove markdown simples e separadores
+    texto = texto.replace("**", "")
+    texto = re.sub(r"^#{1,6}\s*", "", texto, flags=re.MULTILINE)
+    texto = texto.replace("---", "")
+
+    # títulos internos comuns dos relatórios IA que NÃO devem aparecer no formulário GRE
+    titulos_remover = [
+        r"^\s*1\.?\s*Objetivo geral de atendimento\s*$",
+        r"^\s*1\.?\s*Objetivo geral\s*$",
+        r"^\s*2\.?\s*Objetivos específicos\s*$",
+        r"^\s*2\.?\s*Objetivos especificos\s*$",
+        r"^\s*3\.?\s*Eixos prioritários\s*$",
+        r"^\s*3\.?\s*Eixos prioritarios\s*$",
+        r"^\s*4\.?\s*Organização sugerida dos atendimentos\s*$",
+        r"^\s*4\.?\s*Organizacao sugerida dos atendimentos\s*$",
+        r"^\s*5\.?\s*Recursos de acessibilidade e tecnologia educacional\s*$",
+        r"^\s*5\.?\s*Recursos de acessibilidade\s*$",
+        r"^\s*Fico à disposição.*$",
+        r"^\s*Fico a disposição.*$",
     ]
 
-    for linha in linhas:
-        limpa = linha.strip()
-        baixa = limpa.lower()
-        if any(re.search(p, baixa) for p in padroes_inicio_bloqueio):
-            pulando = True
+    linhas = []
+    for linha in texto.splitlines():
+        l = linha.strip()
+        if not l:
             continue
+        if any(re.match(p, l, flags=re.IGNORECASE) for p in titulos_remover):
+            continue
+        linhas.append(l)
 
-        # Ao encontrar uma nova seção geral, volta a capturar.
-        if pulando and re.match(r"^(\d+\.|[A-ZÁÉÍÓÚÂÊÔÃÕÇ ]{8,})", limpa):
-            if not any(re.search(p, baixa) for p in padroes_inicio_bloqueio):
-                pulando = False
+    texto = "\n".join(linhas).strip()
 
-        if not pulando:
-            saida.append(linha)
-
-    return "\n".join(saida).strip()
+    # remove repetição de espaços e linhas em excesso
+    texto = re.sub(r"\n{3,}", "\n\n", texto)
+    return texto.strip()
 
 
-def consolidar_textos_plano_aee_ia_global_gre(estudante_id):
-    """Consolida apenas registros globais da IA para o documento GRE/PAEE.
+def texto_lista_gre(texto, padrao="Não informado."):
+    """Normaliza respostas em lista ou texto, mantendo linguagem do modelo preenchido GRE."""
+    texto = limpar_texto_gre_narrativo(texto)
+    if not texto or texto.lower() in ["não informado", "não informado.", "none", "null"]:
+        return padrao
+    return texto
 
-    Não usa plano_mensal, sugestoes_semanais, projeto norteador ou roteiros por atendimento.
-    Esses conteúdos pertencem ao Plano Mensal IA e ao Relatório Pedagógico de Apoio ao Docente.
+
+def derivar_etapa_ano_do_cadastro(estudante, dados_estudo=None):
+    """Evita conflito entre ano/série do cadastro e campos do estudo.
+    Quando o cadastro informa Ensino Médio/EF/EJA, ele prevalece sobre valores padrão acidentais.
     """
-    registros_raw = buscar_ultimos_planos_aee_ia(estudante_id, limite=30)
-    todos = [plano_aee_ia_para_dict(r) for r in registros_raw]
-    registros = [d for d in todos if tipo_ia_permitido_para_gre_global(d.get("tipo_geracao"))]
+    dados_estudo = dados_estudo or {}
+    serie = str(estudante[2] or "").strip()
+    etapa_estudo = texto_valido(dados_estudo.get("etapa_modalidade"))
+    ano_estudo = texto_valido(dados_estudo.get("ano_etapa"))
 
-    def juntar(campo, tipos_preferidos=None, limite=4500):
-        partes = []
-        tipos_preferidos = [str(t).lower() for t in (tipos_preferidos or [])]
+    serie_baixa = serie.lower()
+    if serie:
+        if "médio" in serie_baixa or "medio" in serie_baixa or " em" in f" {serie_baixa}" or "ensino médio" in serie_baixa:
+            return "Ensino Médio", serie
+        if "fundamental" in serie_baixa or " ef" in f" {serie_baixa}":
+            return "Ensino Fundamental", serie
+        if "eja" in serie_baixa:
+            return "EJA", serie
 
-        for d in registros:
-            tipo = str(d.get("tipo_geracao", "")).lower()
-            if tipos_preferidos and not any(tp in tipo for tp in tipos_preferidos):
-                continue
-            valor = limpar_conteudo_operacional_para_gre(texto_valido(d.get(campo)))
-            if valor and valor not in partes:
-                partes.append(valor)
+    return etapa_estudo or "Não informado.", ano_estudo or serie or "Não informado."
 
-        for d in registros:
-            valor = limpar_conteudo_operacional_para_gre(texto_valido(d.get(campo)))
-            if valor and valor not in partes:
-                partes.append(valor)
 
-        texto = "\n\n".join(partes).strip()
-        if len(texto) > limite:
-            texto = texto[:limite].rstrip() + "..."
-        return texto
+def sim_nao_gre(valor, padrao="Não informado."):
+    valor = str(valor or "").strip()
+    if not valor:
+        return padrao
+    v = valor.lower()
+    if v in ["sim", "s", "yes", "true", "1"]:
+        return "Sim"
+    if v in ["não", "nao", "n", "no", "false", "0"]:
+        return "Não"
+    return valor
 
-    perfil = juntar("diagnostico_ia", ["perfil pedagógico", "perfil pedagogico"])
-    sugestao = juntar("sugestao_geral", ["sugestão", "sugestao", "plano aee", "paee"])
-    objetivos = juntar("objetivos_prioritarios", ["perfil pedagógico", "perfil pedagogico", "plano aee", "paee"])
-    recursos = juntar("recursos_sugeridos", ["perfil pedagógico", "perfil pedagogico", "plano aee", "paee"])
-    estrategias = juntar("estrategias_recomendadas", ["perfil pedagógico", "perfil pedagogico", "plano aee", "paee"])
-    observacoes = juntar("observacoes")
-
-    geral = "\n\n".join([x for x in [perfil, sugestao, objetivos, recursos, estrategias, observacoes] if texto_valido(x)])
-
-    return {
-        "registros": registros,
-        "perfil": perfil,
-        "sugestao": sugestao,
-        "objetivos": objetivos,
-        "recursos": recursos,
-        "estrategias": estrategias,
-        "plano_mensal": "",
-        "semanas": "",
-        "observacoes": observacoes,
-        "geral": geral,
-        "fontes": montar_fontes_plano_aee_consolidado(registros[:8]),
-    }
 
 def texto_estudo_plano_aee_gre(estudante, estudo=None, plano=None):
-    """Gera o documento Estudo de Caso + Plano AEE.
+    """Gera o documento 'Estudo de Caso e Plano AEE – GRE' em formato narrativo institucional.
 
-    V38:
-    - A Parte 3 usa primeiro os dados do Plano AEE Manual.
-    - Quando o manual estiver vazio, busca automaticamente dados estruturados do
-      Perfil Pedagógico Inteligente, Plano Mensal IA e registros antigos de
-      Sugestão Geral AEE.
-    - Evita que campos como habilidades, recursos e objetivos fiquem como
-      "Não informado" quando já existem relatórios IA salvos no histórico.
-    - Mantém o termo diagnóstico apenas quando vier de laudo/documento clínico.
+    Regras desta versão:
+    - responde todos os campos do modelo GRE;
+    - trata o documento como PLANO GLOBAL, não mensal;
+    - não usa projeto norteador, plano mensal, sugestões semanais ou roteiro por atendimento;
+    - usa primeiro os campos manuais do Estudo de Caso e do Plano AEE;
+    - usa IA apenas como apoio global quando houver lacunas, com limpeza de títulos internos;
+    - segue o estilo do modelo GRE preenchido: campos estruturados com narrativas pedagógicas.
     """
     if estudo is None:
         estudo = ultima_linha("estudos_caso", CAMPOS_ESTUDO_CASO, estudante[0])
     if plano is None:
         plano = ultima_linha("planos_aee", CAMPOS_PLANO_AEE, estudante[0])
 
-    # Documento GRE/PAEE é global. Usa apenas dados manuais e registros IA globais,
-    # excluindo Plano Mensal, projeto norteador, sugestões semanais e roteiros por atendimento.
-    dados_ia = consolidar_textos_plano_aee_ia_global_gre(estudante[0])
+    dados_ia = consolidar_textos_plano_aee_ia(estudante[0])
+
+    # Somente registros globais. O documento GRE não deve puxar plano mensal, semanas ou projeto do mês.
     texto_perfil = dados_ia.get("perfil", "")
     texto_sugestao = dados_ia.get("sugestao", "")
     texto_objetivos_ia = dados_ia.get("objetivos", "")
     texto_recursos_ia = dados_ia.get("recursos", "")
     texto_estrategias_ia = dados_ia.get("estrategias", "")
-    texto_plano_mensal = ""  # Não utilizado no documento GRE global.
-    texto_geral_ia = dados_ia.get("geral", "")
+    texto_geral_ia = "\n\n".join([texto_perfil, texto_sugestao, texto_objetivos_ia, texto_recursos_ia, texto_estrategias_ia]).strip()
     fontes_ia_txt = dados_ia.get("fontes", "Nenhum relatório de IA localizado.")
 
     dados_estudo = dict(zip(CAMPOS_ESTUDO_CASO, estudo or []))
-
-    def e(campo):
-        valor = texto_valido(dados_estudo.get(campo))
-        return valor if valor else "Não informado."
-
     dados_plano = dict(zip(CAMPOS_PLANO_AEE, plano or [])) if plano else {}
+
+    def e(campo, padrao="Não informado."):
+        valor = texto_valido(dados_estudo.get(campo))
+        return texto_lista_gre(valor, padrao) if valor else padrao
 
     def valor_manual(campo):
         return texto_valido(dados_plano.get(campo))
 
     def escolher(*opcoes, padrao="Não informado."):
         for opcao in opcoes:
-            valor = texto_valido(opcao)
-            if valor:
+            valor = texto_lista_gre(opcao, "")
+            if texto_valido(valor):
                 return valor
         return padrao
 
     def secao(texto, chaves, max_chars=1800):
-        return texto_valido(extrair_secao_textual(texto, chaves, max_chars=max_chars))
+        return texto_lista_gre(extrair_secao_textual(texto, chaves, max_chars=max_chars), "")
 
     def p(campo):
-        """Busca primeiro no Plano AEE Manual; se vazio, usa apenas IA global, sem plano mensal/projetos."""
-        manual = valor_manual(campo)
+        """Busca primeiro no Plano AEE Manual; se vazio, usa IA global, nunca o Plano Mensal."""
+        manual = texto_lista_gre(valor_manual(campo), "")
         if manual:
             return manual
 
         if campo == "habilidades_prioritarias":
             return escolher(
-                secao(texto_objetivos_ia, ["habilidades prioritárias", "habilidades", "objetivos prioritários", "objetivos prioritarios", "eixos prioritários", "eixos prioritarios"]),
-                secao(texto_sugestao, ["eixos prioritários", "objetivos específicos", "objetivos especificos", "habilidades"]),
-                secao(texto_perfil, ["potencialidades observadas", "necessidades prioritárias", "necessidades prioritarias", "indicadores a observar"]),
-                secao(texto_geral_ia, ["habilidades prioritárias", "habilidades", "necessidades prioritárias"], max_chars=1600),
-                padrao="Definir e trabalhar habilidades prioritárias a partir do Perfil Pedagógico Inteligente, considerando potencialidades, barreiras, necessidades educacionais e respostas observadas nos atendimentos."
+                secao(texto_objetivos_ia, ["habilidades prioritárias", "habilidades prioritarias", "objetivos prioritários", "objetivos prioritarios"]),
+                secao(texto_sugestao, ["habilidades prioritárias", "habilidades prioritarias", "ensino do uso", "desenvolvimento de vida autônoma"]),
+                padrao="Desenvolvimento de vida autônoma; ensino da informática acessível; ensino do uso da comunicação aumentativa e alternativa, quando pertinente ao perfil pedagógico do estudante."
             )
 
         if campo == "recursos_acessibilidade":
             return escolher(
-                secao(texto_recursos_ia, ["recursos", "acessibilidade", "tecnologia assistiva", "tecnologia educacional"]),
+                secao(texto_recursos_ia, ["recursos de acessibilidade", "tecnologia assistiva", "tecnologia educacional", "recursos"]),
                 secao(texto_sugestao, ["recursos de acessibilidade", "recursos sugeridos", "tecnologia assistiva"]),
-                secao(texto_perfil, ["recursos com maior chance de resposta", "recursos"]),
-                secao(texto_geral_ia, ["recursos", "acessibilidade", "tecnologia assistiva"], max_chars=1600),
-                padrao="Disponibilizar recursos de acessibilidade conforme necessidade pedagógica do estudante, incluindo materiais concretos, recursos visuais/táteis, tecnologias assistivas, comunicação alternativa/aumentativa e recursos digitais quando pertinentes."
+                padrao="Recursos visuais estruturados; materiais concretos/manipuláveis; recursos digitais acessíveis; pranchas de Comunicação Aumentativa e Alternativa (CAA), quando pertinente; estratégias de apoio à escrita e organização da rotina."
             )
 
         if campo == "objetivos_gerais":
             return escolher(
                 secao(texto_objetivos_ia, ["objetivo geral", "objetivos prioritários", "objetivos prioritarios"]),
                 secao(texto_sugestao, ["objetivo geral de atendimento", "objetivo geral"]),
-                padrao="Promover a participação, autonomia, comunicação funcional, acessibilidade curricular e desenvolvimento pedagógico do estudante no Atendimento Educacional Especializado."
+                padrao="Promover o desenvolvimento da autonomia, participação, comunicação funcional, organização pedagógica e acesso às atividades escolares por meio de recursos de acessibilidade, mediação pedagógica e estratégias inclusivas no Atendimento Educacional Especializado."
             )
 
         if campo == "objetivos_especificos":
             return escolher(
                 secao(texto_objetivos_ia, ["objetivos específicos", "objetivos especificos", "objetivos prioritários", "objetivos prioritarios"]),
                 secao(texto_sugestao, ["objetivos específicos", "objetivos especificos"]),
-                secao(texto_perfil, ["necessidades prioritárias", "necessidades prioritarias", "indicadores a observar"]),
-                padrao="Ampliar gradualmente autonomia, participação, comunicação, organização das tarefas, uso de recursos acessíveis e resposta às mediações pedagógicas propostas no AEE."
+                padrao="Desenvolver formas de comunicação funcional; ampliar participação nas atividades escolares; favorecer compreensão de comandos; estimular autonomia na organização das atividades; utilizar recursos acessíveis; fortalecer interação entre estudante, AEE, sala regular, família e equipe escolar."
             )
 
         if campo == "metodologia":
             return escolher(
-                secao(texto_estrategias_ia, ["metodologia", "mediação", "mediacao", "organização", "organizacao"]),
-                secao(texto_sugestao, ["organização sugerida dos atendimentos", "organizacao sugerida dos atendimentos", "metodologia"]),
-                padrao="Realizar atendimentos organizados em etapas curtas, com rotina previsível, mediação pedagógica, recursos acessíveis, atividades práticas, registro sistemático e acompanhamento das respostas do estudante."
+                secao(texto_estrategias_ia, ["metodologia", "mediação pedagógica", "mediacao pedagogica", "rotina estruturada"]),
+                secao(texto_sugestao, ["metodologia", "acompanhamento", "observação", "observacao"]),
+                padrao="O acompanhamento será realizado por meio de observação pedagógica contínua, mediação individualizada, uso de recursos visuais, organização de rotina, atividades estruturadas, recursos tecnológicos acessíveis e registros sistemáticos da resposta do estudante às estratégias propostas."
             )
 
         if campo == "estrategias":
             return escolher(
-                secao(texto_estrategias_ia, ["estratégias", "estrategias", "atividades", "mediação", "mediacao"]),
-                secao(texto_sugestao, ["sugestões de atividades", "sugestoes de atividades", "atividades plugadas", "atividades desplugadas", "estratégias", "estrategias"]),
-                secao(texto_perfil, ["cuidados pedagógicos", "cuidados pedagogicos", "estratégias adaptadas", "estrategias adaptadas"]),
-                padrao="Utilizar estratégias individualizadas, instruções claras, recursos visuais/táteis, atividades práticas, mediação gradual, tempo ampliado e acompanhamento progressivo da autonomia."
+                secao(texto_estrategias_ia, ["estratégias", "estrategias", "mediação", "mediacao", "recursos visuais"]),
+                secao(texto_sugestao, ["estratégias", "estrategias", "comandos curtos", "apoio visual"]),
+                padrao="Utilização de comandos curtos, claros e objetivos; uso de recursos visuais estruturados; mediação individualizada; introdução gradual de recursos de acessibilidade; atividades práticas e acessíveis; observação contínua das respostas do estudante; articulação com professores da sala regular e família."
             )
 
         if campo == "prazo":
-            return "Período de acompanhamento global do Plano AEE, com revisão periódica conforme calendário escolar, registros de atendimento, avaliação pedagógica e necessidade de atualização do estudo de caso."
+            return "Durante o período letivo vigente, com acompanhamento contínuo e reavaliação das estratégias conforme a evolução pedagógica do estudante e os registros do AEE."
 
         if campo == "acoes_escola":
             return escolher(
-                secao(texto_sugestao, ["cuidados para revisão do plano", "cuidados para revisao do plano", "organização sugerida", "organizacao sugerida"]),
-                padrao="Articular professor do AEE, sala comum, gestão, família e demais profissionais, garantindo acessibilidade, registro das intervenções e acompanhamento contínuo."
+                manual,
+                padrao="Implemento de tecnologia assistiva para uso do(a) estudante; formação continuada de professores, profissionais de apoio, equipe gestora e famílias com a temática da educação inclusiva; articulação de horários para diálogo entre professor do AEE, professor da sala comum e profissional de apoio; articulação sobre PDDE Equidade, quando pertinente; solicitação de profissional de apoio ou transporte escolar inclusivo, quando identificado como necessário."
             )
 
         if campo == "barreiras_identificadas":
             return escolher(
+                manual,
+                e("dificuldades", ""),
                 secao(texto_perfil, ["barreiras identificadas", "barreiras"]),
-                secao(texto_sugestao, ["barreiras", "eixos prioritários", "eixos prioritarios"]),
-                e("dificuldades"),
-                padrao="Barreiras a serem acompanhadas continuamente pelo AEE, considerando participação, comunicação, acesso ao currículo, autonomia, ambiente e recursos disponíveis."
+                secao(texto_sugestao, ["barreiras"]),
+                padrao="Barreiras comunicacionais, curriculares e/ou atitudinais a serem acompanhadas pelo AEE, considerando participação, acesso às atividades escolares, organização da rotina, comunicação funcional e uso de recursos de acessibilidade."
             )
 
         if campo == "parcerias":
             return escolher(
+                manual,
                 texto_valido(dados_estudo.get("parcerias")),
-                padrao="Articulação com família, equipe escolar, professor da sala comum, profissionais de apoio e rede intersetorial quando necessário."
+                padrao="Articulação com família, equipe escolar, professor da sala comum, profissional de apoio, gestão escolar e rede intersetorial quando necessário, visando fortalecer as estratégias de inclusão, acessibilidade e participação do estudante."
             )
 
         if campo == "avaliacao_acompanhamento":
             return escolher(
-                secao(texto_sugestao, ["indicadores de acompanhamento", "como registrar evidências", "como registrar evidencias"]),
-                secao(texto_perfil, ["indicadores a observar"]),
-                padrao="Acompanhar participação, autonomia, comunicação, engajamento, resposta às mediações, uso dos recursos acessíveis e evolução pedagógica nos atendimentos."
+                manual,
+                e("avaliacao", ""),
+                secao(texto_perfil, ["indicadores a observar", "avaliação", "avaliacao"]),
+                padrao="O processo avaliativo será contínuo, considerando participação, autonomia, comunicação, interação social, uso dos recursos acessíveis, resposta às mediações e evolução pedagógica observada nos atendimentos e no contexto escolar."
             )
 
         if campo == "observacoes":
             return escolher(
                 manual,
-                f"Documento GRE/PAEE preenchido em perspectiva global, considerando dados manuais, estudo de caso, avaliação pedagógica e registros globais de IA. Não foram utilizados projeto norteador, plano mensal, sugestões semanais ou roteiros por atendimento. Fontes IA consideradas: {fontes_ia_txt}.",
+                padrao=f"Documento GRE/PAEE preenchido em perspectiva global, considerando estudo de caso, avaliação pedagógica, entrevista familiar e Plano AEE. Não foram utilizados projeto norteador mensal, sugestões semanais ou roteiros por atendimento. Fontes de apoio IA consideradas, quando disponíveis: {fontes_ia_txt}."
             )
 
         return manual or "Não informado."
 
+    etapa_oficial, ano_oficial = derivar_etapa_ano_do_cadastro(estudante, dados_estudo)
+    turno = estudante[6] if len(estudante) > 6 and estudante[6] else "Não informado."
+    dias_cadastro = estudante[7] if len(estudante) > 7 and estudante[7] else ""
+
+    # Campos de estudo: prioriza campo específico; se vazio, usa síntese antiga.
+    percurso = escolher(e("percurso_educacional", ""), e("contextualizacao", ""), padrao="Não informado.")
+    motivo = escolher(e("motivo_encaminhamento_aee", ""), e("queixa_principal", ""), padrao="Não informado.")
+    habilidades_obs = escolher(e("habilidades_observadas", ""), e("potencialidades", ""), padrao="Não informado.")
+    habilidades_dev = escolher(e("habilidades_a_desenvolver", ""), e("dificuldades", ""), padrao="Não informado.")
+    indicadores_ahsd = escolher(e("indicadores_altas_habilidades", ""), padrao="Não há elementos suficientes observados até o momento para caracterizar indicadores de altas habilidades/superdotação, sendo necessário acompanhamento contínuo.")
+
     return f"""
 {texto_cabecalho_gre("ESTUDO DE CASO E PLANO DE ATENDIMENTO EDUCACIONAL ESPECIALIZADO")}
 
-O Plano de Atendimento Educacional Especializado deverá garantir os registros avaliativos do estudante público-alvo da educação especial, considerando as observações do professor do AEE, a eliminação de barreiras e a busca por recursos de acessibilidade necessários à promoção da autonomia e da aprendizagem.
+O Plano de Atendimento Educacional Especializado deverá garantir os registros avaliativos do estudante público-alvo da educação especial, considerando o que o professor do Atendimento Educacional Especializado (AEE) observará no estudo de caso. O estudo de caso orienta a eliminação de barreiras e a busca por recursos de acessibilidade necessários à promoção da autonomia e da aprendizagem.
 
 PARTE 1 - IDENTIFICAÇÃO DO(A) ESTUDANTE
-Código interno: {estudante[1] or 'Não informado.'}
-Matrícula/código seguro do(a) estudante no sistema: {estudante[1] or 'Não informado.'}
-Ano/Série cadastrado: {estudante[2] or 'Não informado.'}
-Turma: {estudante[3] or 'Não informado.'}   Turno: {estudante[6] or 'Não informado.'}
-Perfil educacional: {estudante[4] or 'Não informado.'}
 
-{texto_campos_sensiveis_gre_estudante()}
+1.1 Nome do(a) estudante atendido no AEE: ___________________________________________
+1.2 Data de nascimento do(a) estudante: ____/____/________
+1.3 Matrícula do(a) estudante: _______________________________________
+1.4 Nome e contato telefônico do(a) responsável pelo(a) estudante: _______________________________________
 
-1.5 Etapa/modalidade: {e('etapa_modalidade')}
-Ano/etapa: {e('ano_etapa')}
-1.6 Turma e turno: {estudante[3] or 'Não informado.'} / {estudante[6] or 'Não informado.'}
-1.7 Apresenta laudo? {e('laudo')}
-1.8 Apresenta deficiência? {e('deficiencia')}   CID: {e('cid')}
-1.9 Altas habilidades/superdotação: {e('altas_habilidades')}
-1.10 Usuário de BPC? {e('bpc')}
-1.11 Escola do ensino comum: {e('escola_nome')}
-1.12 Unidade educacional onde é atendido pelo AEE: {e('unidade_aee')}
-1.13 Gestor(a) e contato: {e('gestor_nome')} - {e('gestor_contato')}
-1.14 Professor(a) AEE e contato: {e('professor_nome')} - {e('professor_contato')}
-1.15 Matrícula do(a) professor(a) AEE: {e('matricula_professor')}
-1.16 Especialidade do(a) professor(a) AEE: {e('especialidade_professor')}
-1.17 Período de elaboração do plano - início: {e('periodo_inicio')}
+1.5 Etapa/modalidade da educação em que o(a) estudante está: {etapa_oficial}
+Ano/etapa: {ano_oficial}
+1.6 Turma e turno: {estudante[3] or 'Não informado.'} / {turno}
+1.7 O(a) estudante apresenta laudo? {sim_nao_gre(e('laudo'))}
+1.8 O(a) estudante apresenta deficiência (com CID): {e('deficiencia')}  CID: {e('cid')}
+1.9 Altas Habilidades e Superdotação: {e('altas_habilidades')}
+1.10 Usuário de BPC? {sim_nao_gre(e('bpc'))}
+1.11 Nome da escola em que o(a) estudante está matriculado no ensino comum: {e('escola_nome')}
+1.12 Nome da unidade educacional onde o(a) estudante é atendido pelo AEE: {e('unidade_aee')}
+1.13 Nome e contato telefônico do(a) gestor(a) da escola do ensino comum: {e('gestor_nome')} - {e('gestor_contato')}
+1.14 Nome do(a) professor(a) do AEE que atende o(a) estudante e contato telefônico: {e('professor_nome')} - {e('professor_contato')}
+1.15 Matrícula do(a) professor(a) do AEE que atende o(a) estudante: {e('matricula_professor')}
+1.16 Especialidade do(a) professor(a) do AEE: {e('especialidade_professor')}
+1.17 Período de elaboração deste Plano de Atendimento Educacional Especializado: {e('periodo_inicio')}
 1.18 Data final: {e('periodo_fim')}
-1.19 Frequência de atendimento na SRM: {e('frequencia_atendimento') or estudante[7] or 'Não informado.'}
+1.19 Frequência de atendimento na Sala de Recursos Multifuncionais – SRM: {e('frequencia_atendimento', dias_cadastro or 'Não informado.')}
 1.20 Tempo de atendimento por semana: {e('tempo_atendimento_semana')}
 1.21 Formato do atendimento: {e('formato_atendimento')}
 
-PARTE 2 - ESTUDO DE CASO / PERCURSO EDUCACIONAL
-Relato sobre o trajeto educacional em turmas comuns e no AEE anterior:
-{e('percurso_educacional')}
+2. ESTUDO DE CASO / Percurso educacional do(a) estudante
+{percurso}
 
-2.1 Motivo de encaminhamento ao AEE:
-{e('motivo_encaminhamento_aee') or e('queixa_principal')}
+2.1 Motivo pelo qual o(a) estudante foi encaminhado para o Atendimento Educacional Especializado:
+{motivo}
 
-2.2 Precisa de transporte escolar inclusivo? {e('precisa_transporte_inclusivo')}
-2.2.1 Recebe transporte escolar inclusivo? {e('recebe_transporte_inclusivo')}
-2.3 Precisa de profissional de apoio? {e('precisa_profissional_apoio')}
-Justificativa: {e('justificativa_apoio')}
-2.3.1 É acompanhado por profissional de apoio? {e('acompanhado_profissional_apoio')}
+2.2 Precisa de transporte Escolar Inclusivo? {sim_nao_gre(e('precisa_transporte_inclusivo'))}
+2.2.1 Recebe o Serviço de Transporte escolar Inclusivo? {sim_nao_gre(e('recebe_transporte_inclusivo'))}
+
+2.3 O(a) estudante precisa de profissional de apoio? {sim_nao_gre(e('precisa_profissional_apoio'))}
+Justifique: {e('justificativa_apoio')}
+
+2.3.1 O(a) estudante é acompanhado por profissional de apoio na escola? {sim_nao_gre(e('acompanhado_profissional_apoio'))}
 Nome do apoio: {e('nome_profissional_apoio')}
-2.4 Recursos de tecnologia educacional e/ou assistiva utilizados:
+
+2.4 O(a) estudante utiliza qual(is) recurso(s) de tecnologia educacional e/ou assistiva?
 {e('recursos_tecnologia_assistiva')}
 
-2.5 Observações relevantes para o ambiente educacional do estudante:
+2.5 Registrar observações relevantes para o ambiente educacional do estudante, como acompanhamento médico ou terapêutico, caso seja necessário:
 {e('observacoes_ambiente_educacional')}
 
 2.6 Habilidades observadas e desenvolvidas pelo estudante:
-{e('habilidades_observadas')}
+{habilidades_obs}
 
 2.7 Habilidades que precisam ser desenvolvidas pelo estudante:
-{e('habilidades_a_desenvolver')}
+{habilidades_dev}
 
-2.8 Indicadores em altas habilidades/superdotação:
-{e('indicadores_altas_habilidades')}
+2.8 Marque características que podem ser indicadores em altas habilidades e superdotação:
+{indicadores_ahsd}
 
-2.9 Recursos relacionados à surdez, se aplicável:
+2.9 Caso o estudante seja pessoa surda, marque se faz uso de:
 {e('recursos_surdez')}
-Observações sobre surdez/aparelho/implante, se aplicável:
-{e('observacoes_surdez')}
-
-Dificuldades/barreiras observadas:
-{e('dificuldades')}
-
-Estratégias pedagógicas já utilizadas:
-{e('estrategias')}
-
-Intervenções/encaminhamentos sugeridos:
-{e('intervencoes')}
-
-Avaliação:
-{e('avaliacao')}
-
-Considerações finais:
-{e('consideracoes')}
+Obs.: {e('observacoes_surdez')}
 
 PARTE 2 - PLANO DE ATENDIMENTO EDUCACIONAL ESPECIALIZADO
-1. HABILIDADES ESPECÍFICAS
-1.1 Habilidades prioritárias que serão trabalhadas com o estudante na SRM:
+Após a coleta dos dados para a construção do Estudo de Caso, o Plano de Atendimento Educacional Especializado deve ser consolidado com as informações que seguem:
+
+1. Habilidades Específicas
+1.1 Habilidades Prioritárias que serão trabalhadas com o estudante na SRM:
 {p('habilidades_prioritarias')}
 
 1.2 Recursos de acessibilidade que serão disponibilizados ao estudante:
 {p('recursos_acessibilidade')}
 
-2. OBJETIVOS DO ATENDIMENTO EDUCACIONAL ESPECIALIZADO
-2.1 Objetivo geral:
+2. Objetivos do Atendimento Educacional Especializado
+2.1 Geral:
 {p('objetivos_gerais')}
 
-2.2 Objetivos específicos:
+2.2 Específicos:
 {p('objetivos_especificos')}
 
-3. METODOLOGIAS E ESTRATÉGIAS
+3. Metodologias e estratégias
+(Registre a metodologia e estratégias desenvolvidas ao longo do período para alcançar os objetivos propostos para o(a) estudante, especificando as estratégias necessárias para desenvolvê-las):
+
 3.1 Metodologia:
 {p('metodologia')}
 
@@ -7551,16 +7517,17 @@ PARTE 2 - PLANO DE ATENDIMENTO EDUCACIONAL ESPECIALIZADO
 3.3 Prazo:
 {p('prazo')}
 
-4. Ações desenvolvidas no âmbito da escola junto à Gestão e Educador de Apoio para garantir a acessibilidade do estudante:
+4. Registre as ações desenvolvidas no âmbito da escola junto à Gestão e Educador de Apoio para garantir a acessibilidade do estudante.
 {p('acoes_escola')}
 
-5. Barreiras identificadas na comunidade escolar que são impedimentos para a inclusão do estudante:
+5. Marque as barreiras que foram identificadas na comunidade escolar que são impedimentos para a inclusão do estudante.
 {p('barreiras_identificadas')}
 
-6. Parcerias realizadas pelo AEE ao longo do período:
+6. Registre possíveis parcerias realizadas pelo AEE ao longo do período, especificando as ações realizadas:
 {p('parcerias')}
 
-7. AVALIAÇÃO:
+7. AVALIAÇÃO
+(Registre os avanços e as habilidades que necessitam ser reforçadas, além das ações realizadas para eliminar as barreiras encontradas no percurso escolar do estudante e se foram efetivas para garantir a inclusão.)
 {p('avaliacao_acompanhamento')}
 
 Observações complementares:
@@ -10504,7 +10471,7 @@ elif menu == "Relatórios GRE":
                     "Matrícula SRM / Termo de Ciência",
                     "Relatório Comparativo das Entrevistas Familiares",
                     "Registro da Entrevista Familiar (última registrada)",
-                    "Estudo de Caso e Plano AEE",
+                    "Estudo de Caso e Plano AEE – GRE",
                     "Relatório Consolidado GRE",
                     "Quadro Semanal - Ações/Práticas do Professor AEE",
                     "Pacote GRE Completo",
@@ -10693,7 +10660,7 @@ elif menu == "Relatórios GRE":
                     tipo_pdf = "relatorio"
                     nome = f"Relatorio_Comparativo_Entrevistas_Familiares_{estudante[1]}"
 
-                elif tipo == "Estudo de Caso e Plano AEE":
+                elif tipo in ["Estudo de Caso e Plano AEE – GRE", "Estudo de Caso e Plano AEE – GRE"]:
                     estudo = ultima_linha("estudos_caso", CAMPOS_ESTUDO_CASO, estudante_id)
                     plano = ultima_linha(
                         "planos_aee",
