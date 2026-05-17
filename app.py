@@ -1,5 +1,5 @@
 
-# INCLUISRM V39 - Perfil docente, modo maker inclusivo e projetos norteadores no AEE
+# INCLUISRM V45 - Perfil docente, modo maker inclusivo e projetos norteadores no AEE
 # Atualização: integra perfil pedagógico/tecnológico do professor AEE e docente regular, modo maker inclusivo e projetos interdisciplinares sem caracterizar reforço escolar.
 
 import os
@@ -59,9 +59,37 @@ PASTA_PEDAGOGICA = BASE_CONHECIMENTO_DIR / "pedagogica"
 CHROMA_DIR = Path("chroma_db_incluisrm")
 DOCUMENTOS_AVALIACOES_DIR = Path("documentos_avaliacoes")
 
+PASTA_BNCC = BASE_CONHECIMENTO_DIR / "bncc"
+PASTA_BNCC_COMPUTACAO = BASE_CONHECIMENTO_DIR / "bncc_computacao"
+PASTA_ESTRATEGIAS = BASE_CONHECIMENTO_DIR / "estrategias"
+PASTA_TECNOLOGIA_ASSISTIVA = BASE_CONHECIMENTO_DIR / "tecnologia_assistiva"
+# Pastas criadas manualmente pelo usuário no servidor/projeto.
+# O sistema passa a reconhecer estes nomes exatamente como aparecem na estrutura de arquivos.
+PASTA_TECNOLOGIA_USUARIO = BASE_CONHECIMENTO_DIR / "Tecnologia"
+PASTA_LEI_USUARIO = BASE_CONHECIMENTO_DIR / "Lei"
+PASTA_MAKER_INCLUSIVO = BASE_CONHECIMENTO_DIR / "maker_inclusivo"
+PASTA_LEGISLACAO = BASE_CONHECIMENTO_DIR / "legislacao"
+PASTA_PROJETOS_INTERDISCIPLINARES = BASE_CONHECIMENTO_DIR / "projetos_interdisciplinares"
+PASTA_PERFIS_PEDAGOGICOS = BASE_CONHECIMENTO_DIR / "perfis_pedagogicos"
+
+PASTAS_BASE_IA = {
+    "cientifica": PASTA_CIENTIFICA,
+    "pedagogica": PASTA_PEDAGOGICA,
+    "bncc": PASTA_BNCC,
+    "bncc_computacao": PASTA_BNCC_COMPUTACAO,
+    "estrategias": PASTA_ESTRATEGIAS,
+    "tecnologia_assistiva": PASTA_TECNOLOGIA_ASSISTIVA,
+    "tecnologia": PASTA_TECNOLOGIA_USUARIO,
+    "maker_inclusivo": PASTA_MAKER_INCLUSIVO,
+    "legislacao": PASTA_LEGISLACAO,
+    "lei": PASTA_LEI_USUARIO,
+    "projetos_interdisciplinares": PASTA_PROJETOS_INTERDISCIPLINARES,
+    "perfis_pedagogicos": PASTA_PERFIS_PEDAGOGICOS,
+}
+
 BASE_CONHECIMENTO_DIR.mkdir(parents=True, exist_ok=True)
-PASTA_CIENTIFICA.mkdir(parents=True, exist_ok=True)
-PASTA_PEDAGOGICA.mkdir(parents=True, exist_ok=True)
+for _pasta_base in PASTAS_BASE_IA.values():
+    _pasta_base.mkdir(parents=True, exist_ok=True)
 CHROMA_DIR.mkdir(parents=True, exist_ok=True)
 DOCUMENTOS_AVALIACOES_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -1207,6 +1235,7 @@ OPCOES_TIPO_AVALIACAO = [
 
 
 OPCOES_AREAS_CONHECIMENTO = [
+    "Geral – todas as áreas",
     "Matemática",
     "Português",
     "História",
@@ -1226,6 +1255,22 @@ OPCOES_AREAS_CONHECIMENTO = [
     "Sala de Leitura",
     "Outras",
 ]
+
+OPCOES_BASES_CONHECIMENTO_IA = {
+    "cientifica": "Base Científica Inclusiva",
+    "pedagogica": "Base Pedagógica AEE",
+    "bncc": "BNCC / Currículo por área",
+    "bncc_computacao": "BNCC Computação",
+    "estrategias": "Estratégias Pedagógicas Inclusivas",
+    "tecnologia_assistiva": "Tecnologia Assistiva",
+    "tecnologia": "Tecnologia",
+    "maker_inclusivo": "Maker Inclusivo / STEAM",
+    "legislacao": "Legislação e Normativas",
+    "lei": "Lei",
+    "projetos_interdisciplinares": "Projetos Interdisciplinares",
+    "perfis_pedagogicos": "Perfis Pedagógicos e Barreiras",
+}
+
 
 OPCOES_ESTRATEGIAS_INCLUSIVAS = [
     "Apoio visual",
@@ -3461,6 +3506,27 @@ def gerar_relatorio_apoio_docente_ia(
     estudante = buscar_estudante(estudante_id)
     contexto, fontes = montar_contexto_relatorio_docente(estudante_id)
 
+    componente_normalizado = str(componente_destino or "")
+    modo_geral = "geral" in componente_normalizado.lower()
+    bases_disciplina = bases_para_componente(componente_normalizado)
+    contexto_base_ia = ""
+    fontes_base_ia = ""
+    if not modo_geral and bases_disciplina:
+        pergunta_base = (
+            f"BNCC, BNCC Computação e estratégias inclusivas para {componente_normalizado} "
+            f"considerando AEE, acessibilidade, adaptações pedagógicas e participação do estudante."
+        )
+        resultados_base = buscar_na_base_conhecimento(pergunta_base, bases=bases_disciplina, limite=4)
+        contexto_base_ia = montar_contexto_base(resultados_base)
+        fontes_base_ia = arquivos_consultados_texto(resultados_base)
+        if fontes_base_ia and "Nenhum" not in fontes_base_ia:
+            fontes = f"{fontes}; Base de Conhecimento IA: {fontes_base_ia}"
+    else:
+        contexto_base_ia = (
+            "Modo geral selecionado: não consultar BNCC por disciplina. "
+            "Gerar orientações amplas para todas as áreas do conhecimento, sem recomendações específicas de um componente curricular."
+        )
+
     client = obter_cliente_openai()
     if client is None:
         conteudo_fallback = f"""
@@ -3510,6 +3576,9 @@ REGRAS OBRIGATÓRIAS:
 - Usar linguagem pedagógica, objetiva, acolhedora e institucional.
 - O documento deve orientar o professor da sala regular, sem rotular o estudante.
 - Focar em participação, aprendizagem, barreiras, potencialidades, estratégias e avaliação inclusiva.
+- Se o componente for "Geral – todas as áreas", gerar orientações amplas, sem adaptações específicas de Matemática, História, Português ou outra disciplina.
+- Se o componente for uma disciplina específica, utilizar a Base de Conhecimento IA consultada para relacionar, quando pertinente, BNCC, BNCC Computação e estratégias inclusivas da área.
+- Não copiar trechos longos da base; sintetizar pedagogicamente em linguagem acessível ao docente.
 - Considerar o perfil pedagógico/tecnológico do docente da sala regular, quando registrado na Escuta Docente.
 - Não sugerir robótica, impressão 3D, programação ou tecnologias complexas quando o docente indicar baixa familiaridade tecnológica ou não ativar modo maker.
 - Quando houver interesse em projetos interdisciplinares, propor caminhos pedagógicos acessíveis e progressivos, deixando claro que o AEE não é reforço escolar.
@@ -3517,6 +3586,9 @@ REGRAS OBRIGATÓRIAS:
 
 DADOS DISPONÍVEIS NO SISTEMA:
 {contexto}
+
+BASE DE CONHECIMENTO IA CONSULTADA:
+{contexto_base_ia}
 
 Produza o relatório com as seções abaixo:
 
@@ -5505,6 +5577,72 @@ def listar_pdfs_base(pasta):
     return sorted(list(pasta.glob("*.pdf")))
 
 
+def listar_pdfs_todas_bases():
+    """Retorna um resumo dos PDFs cadastrados em todas as bases IA."""
+    resumo = []
+    for nome_base, pasta in PASTAS_BASE_IA.items():
+        for pdf in listar_pdfs_base(pasta):
+            resumo.append({"base": nome_base, "categoria": OPCOES_BASES_CONHECIMENTO_IA.get(nome_base, nome_base), "arquivo": pdf.name})
+    return resumo
+
+
+def sincronizar_pastas_base_conhecimento():
+    """Garante que as pastas principais e as pastas criadas manualmente sejam reconhecidas.
+
+    Pastas reconhecidas nesta versão:
+    - cientifica
+    - pedagogica
+    - Lei
+    - Tecnologia
+    - bncc
+    - bncc_computacao
+    - estrategias
+    - tecnologia_assistiva
+    - maker_inclusivo
+    - legislacao
+    - projetos_interdisciplinares
+    - perfis_pedagogicos
+    """
+    BASE_CONHECIMENTO_DIR.mkdir(parents=True, exist_ok=True)
+    for pasta in PASTAS_BASE_IA.values():
+        Path(pasta).mkdir(parents=True, exist_ok=True)
+
+
+def salvar_pdf_base_conhecimento(uploaded_file, nome_base):
+    """Salva PDF enviado pelo usuário na pasta correta da Base de Conhecimento IA."""
+    if nome_base not in PASTAS_BASE_IA:
+        raise ValueError(f"Base inválida: {nome_base}")
+    pasta = PASTAS_BASE_IA[nome_base]
+    pasta.mkdir(parents=True, exist_ok=True)
+    nome_seguro = re.sub(r"[^A-Za-z0-9_.\-À-ÿ ]", "_", uploaded_file.name).strip()
+    caminho = pasta / nome_seguro
+    with open(caminho, "wb") as f:
+        f.write(uploaded_file.getbuffer())
+    return caminho
+
+
+def bases_para_componente(componente_destino):
+    """Define quais bases a IA deve consultar conforme o componente/área selecionado."""
+    componente = str(componente_destino or "").lower()
+    if "geral" in componente:
+        return []
+    bases = ["pedagogica", "estrategias", "bncc"]
+    if "comput" in componente or "tecnologia" in componente:
+        bases.append("bncc_computacao")
+    if any(x in componente for x in ["matem", "física", "fisica", "química", "quimica", "biologia", "ciências", "ciencias"]):
+        bases.extend(["bncc_computacao", "maker_inclusivo", "projetos_interdisciplinares"])
+    if any(x in componente for x in ["português", "portugues", "história", "historia", "geografia", "artes", "inglês", "ingles", "espanhol", "filosofia", "sociologia", "projeto de vida"]):
+        bases.extend(["bncc_computacao", "estrategias"])
+    # Bases complementares criadas manualmente no projeto.
+    # Elas ficam disponíveis para consulta quando houver PDFs cadastrados, sem substituir as bases principais.
+    if "tecnologia" in PASTAS_BASE_IA:
+        bases.append("tecnologia")
+    if "lei" in PASTAS_BASE_IA:
+        bases.append("lei")
+    # Remove duplicadas preservando ordem
+    return list(dict.fromkeys([b for b in bases if b in PASTAS_BASE_IA]))
+
+
 def extrair_texto_pdf(caminho_pdf):
     """Extrai texto de um PDF usando pypdf."""
     from pypdf import PdfReader
@@ -5558,14 +5696,11 @@ def obter_chroma_collection(nome_base):
 
 
 def indexar_base_conhecimento(nome_base):
-    """Indexa os PDFs da base científica ou pedagógica."""
-    if nome_base == "cientifica":
-        pasta = PASTA_CIENTIFICA
-    elif nome_base == "pedagogica":
-        pasta = PASTA_PEDAGOGICA
-    else:
-        raise ValueError("Base inválida. Use 'cientifica' ou 'pedagogica'.")
+    """Indexa os PDFs da base de conhecimento informada."""
+    if nome_base not in PASTAS_BASE_IA:
+        raise ValueError(f"Base inválida: {nome_base}")
 
+    pasta = PASTAS_BASE_IA[nome_base]
     arquivos = listar_pdfs_base(pasta)
     if not arquivos:
         return 0, f"Nenhum PDF encontrado em {pasta}."
@@ -10292,42 +10427,55 @@ Modelo obrigatório para cada atendimento:
 
         elif escolha_plano_ia == "📚 Bases de Conhecimento":
             st.markdown("### 📚 Bases de Conhecimento IA")
-            st.caption("Confira e indexe os PDFs colocados nas pastas base_conhecimento/cientifica e base_conhecimento/pedagogica.")
-            col_base1, col_base2 = st.columns(2)
-            with col_base1:
-                st.markdown("#### Base Científica Inclusiva")
-                pdfs_cientificos = listar_pdfs_base(PASTA_CIENTIFICA)
-                st.metric("PDFs científicos", len(pdfs_cientificos))
-                if pdfs_cientificos:
-                    with st.expander("Ver PDFs científicos"):
-                        for pdf in pdfs_cientificos:
-                            st.write(f"• {pdf.name}")
-                else:
-                    st.info("Nenhum PDF encontrado em base_conhecimento/cientifica")
-                if st.button("Indexar Base Científica", key="indexar_base_cientifica_plano_ia_v19"):
-                    try:
-                        with st.spinner("Indexando base científica..."):
-                            total, msg = indexar_base_conhecimento("cientifica")
-                        st.success(f"{msg} Total de trechos indexados: {total}")
-                    except Exception as e:
-                        st.error(f"Erro ao indexar base científica: {e}")
-            with col_base2:
-                st.markdown("#### Base Pedagógica AEE")
-                pdfs_pedagogicos = listar_pdfs_base(PASTA_PEDAGOGICA)
-                st.metric("PDFs pedagógicos", len(pdfs_pedagogicos))
-                if pdfs_pedagogicos:
-                    with st.expander("Ver PDFs pedagógicos"):
-                        for pdf in pdfs_pedagogicos:
-                            st.write(f"• {pdf.name}")
-                else:
-                    st.info("Nenhum PDF encontrado em base_conhecimento/pedagogica")
-                if st.button("Indexar Base Pedagógica", key="indexar_base_pedagogica_plano_ia_v19"):
-                    try:
-                        with st.spinner("Indexando base pedagógica..."):
-                            total, msg = indexar_base_conhecimento("pedagogica")
-                        st.success(f"{msg} Total de trechos indexados: {total}")
-                    except Exception as e:
-                        st.error(f"Erro ao indexar base pedagógica: {e}")
+            st.caption("Envie PDFs, organize por categoria e indexe para que a IA consulte a base ao gerar relatórios e planos.")
+
+            with st.container(border=True):
+                st.markdown("#### Enviar novo PDF para a base")
+                col_up1, col_up2 = st.columns([2, 1])
+                with col_up1:
+                    arquivo_base = st.file_uploader(
+                        "Selecionar PDF",
+                        type=["pdf"],
+                        key=f"upload_base_conhecimento_pdf_{estudante_id}",
+                    )
+                with col_up2:
+                    base_destino = st.selectbox(
+                        "Categoria da base",
+                        list(OPCOES_BASES_CONHECIMENTO_IA.keys()),
+                        format_func=lambda x: OPCOES_BASES_CONHECIMENTO_IA.get(x, x),
+                        key=f"categoria_upload_base_{estudante_id}",
+                    )
+                if st.button("Salvar PDF na Base de Conhecimento", key=f"salvar_pdf_base_{estudante_id}"):
+                    if arquivo_base is None:
+                        st.warning("Selecione um arquivo PDF primeiro.")
+                    else:
+                        try:
+                            caminho_salvo = salvar_pdf_base_conhecimento(arquivo_base, base_destino)
+                            st.success(f"PDF salvo em: {caminho_salvo}")
+                        except Exception as e:
+                            st.error(f"Erro ao salvar PDF: {e}")
+
+            st.markdown("#### Bases cadastradas")
+            cols_bases = st.columns(2)
+            for idx, (nome_base, rotulo_base) in enumerate(OPCOES_BASES_CONHECIMENTO_IA.items()):
+                with cols_bases[idx % 2]:
+                    with st.container(border=True):
+                        st.markdown(f"**{rotulo_base}**")
+                        pdfs = listar_pdfs_base(PASTAS_BASE_IA[nome_base])
+                        st.metric("PDFs", len(pdfs))
+                        if pdfs:
+                            with st.expander("Ver PDFs"):
+                                for pdf in pdfs:
+                                    st.write(f"• {pdf.name}")
+                        else:
+                            st.caption("Nenhum PDF nesta categoria.")
+                        if st.button("Indexar esta base", key=f"indexar_base_{nome_base}_{estudante_id}"):
+                            try:
+                                with st.spinner(f"Indexando {rotulo_base}..."):
+                                    total, msg = indexar_base_conhecimento(nome_base)
+                                st.success(f"{msg} Total de trechos indexados: {total}")
+                            except Exception as e:
+                                st.error(f"Erro ao indexar {rotulo_base}: {e}")
 
             st.markdown("#### Consultar manualmente as bases")
             pergunta_base = st.text_area(
@@ -10337,8 +10485,9 @@ Modelo obrigatório para cada atendimento:
             )
             bases_escolhidas = st.multiselect(
                 "Bases para consulta",
-                ["cientifica", "pedagogica"],
-                default=["cientifica", "pedagogica"],
+                list(OPCOES_BASES_CONHECIMENTO_IA.keys()),
+                default=["cientifica", "pedagogica", "bncc"],
+                format_func=lambda x: OPCOES_BASES_CONHECIMENTO_IA.get(x, x),
                 key=f"bases_consulta_manual_v19_{estudante_id}",
             )
             if st.button("Consultar bases", key=f"consultar_bases_ia_v19_{estudante_id}"):
