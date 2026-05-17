@@ -1,4 +1,4 @@
-# INCLUISRM V56 - Painel Inteligente de Apoio ao Docente
+# INCLUISRM V56 - Plano Mensal IA com datas futuras corrigidas
 # Atualização: gera infográfico docente com IA a partir do relatório pedagógico,
 # fonte mínima 11, cards maiores, layout dashboard educacional e histórico de relatórios.
 
@@ -97,7 +97,7 @@ RELATORIOS_VISUAIS_DOCENTE_DIR.mkdir(parents=True, exist_ok=True)
 
 APP_NAME = "INCLUISRM"
 APP_SUBTITLE = "Sistema Inteligente de Articulação Pedagógica Inclusiva"
-APP_VERSION = "V55"
+APP_VERSION = "V56"
 APP_VERSION_LABEL = "Versão interna"
 # Fuso fixo UTC-3 usado por Recife/Pernambuco.
 # Usar timezone/timedelta evita erro em ambientes Render sem base tzdata completa.
@@ -1174,12 +1174,15 @@ MAPA_DIAS_SEMANA = {
     "Sexta-feira": 4,
 }
 
-def gerar_datas_atendimentos_mes(ano, mes_nome, dias_atendimento):
+def gerar_datas_atendimentos_mes(ano, mes_nome, dias_atendimento, considerar_data_atual=True):
     """Calcula automaticamente as datas reais de atendimento do mês.
 
-    Usa o mês, ano e os dias de atendimento cadastrados/selecionados para gerar
-    a quantidade correta de encontros. Ex.: segunda e sexta em um mês podem gerar
-    8, 9 ou 10 atendimentos, conforme o calendário.
+    Regra para o Plano Mensal IA:
+    - mês atual: considera apenas hoje e datas futuras;
+    - mês futuro: considera o mês completo;
+    - mês passado: não gera plano novo quando considerar_data_atual=True.
+
+    Isso evita que o sistema crie propostas pedagógicas para dias que já passaram.
     """
     try:
         ano_int = int(ano)
@@ -1192,13 +1195,48 @@ def gerar_datas_atendimentos_mes(ano, mes_nome, dias_atendimento):
     if not dias_codigo:
         return []
 
+    hoje = agora_local().date()
     total_dias = calendar.monthrange(ano_int, mes_num)[1]
+
     datas = []
+
     for dia in range(1, total_dias + 1):
         data_atual = date(ano_int, mes_num, dia)
+
+        if considerar_data_atual:
+            # Se for o mês atual, não incluir datas anteriores à data de geração.
+            if ano_int == hoje.year and mes_num == hoje.month:
+                if data_atual < hoje:
+                    continue
+
+            # Se o mês selecionado já passou, não gerar plano futuro para período anterior.
+            if date(ano_int, mes_num, total_dias) < hoje:
+                continue
+
         if data_atual.weekday() in dias_codigo:
             datas.append(data_atual)
+
     return datas
+
+
+def explicar_regra_datas_plano_mensal(ano, mes_nome):
+    """Mensagem curta para orientar o professor sobre o cálculo das datas do plano mensal."""
+    try:
+        ano_int = int(ano)
+    except Exception:
+        ano_int = agora_local().year
+
+    mes_num = MAPA_MESES.get(str(mes_nome), agora_local().month)
+    hoje = agora_local().date()
+    total_dias = calendar.monthrange(ano_int, mes_num)[1]
+    primeiro_dia_mes = date(ano_int, mes_num, 1)
+    ultimo_dia_mes = date(ano_int, mes_num, total_dias)
+
+    if ultimo_dia_mes < hoje:
+        return "Mês anterior à data atual: não é adequado gerar plano futuro para período que já passou."
+    if primeiro_dia_mes <= hoje <= ultimo_dia_mes:
+        return "Mês atual: o plano será gerado apenas a partir da data atual, sem incluir dias anteriores."
+    return "Mês futuro: o plano será gerado considerando todos os atendimentos previstos do mês."
 
 def datas_atendimentos_para_texto(datas):
     if not datas:
@@ -7721,6 +7759,13 @@ Você é especialista em AEE e deve criar um PLANO MENSAL DE ATENDIMENTO aplicá
 TAREFA:
 Crie um plano mensal considerando as DATAS REAIS de atendimento abaixo, para o mês de {mes_referencia}/{ano_referencia}.
 
+ATENÇÃO À DATA ATUAL:
+O plano mensal deve considerar apenas os atendimentos futuros ou a partir da data atual.
+Não criar propostas pedagógicas para dias anteriores à data de geração do plano.
+Se o mês selecionado for o mês atual, iniciar o planejamento a partir da data atual.
+Se o mês selecionado for futuro, planejar todos os atendimentos previstos do mês.
+Se o mês selecionado já passou, informar que não é adequado gerar plano futuro para período anterior.
+
 DATAS REAIS DE ATENDIMENTO CALCULADAS PELO SISTEMA:
 {datas_txt}
 
@@ -11552,7 +11597,13 @@ elif menu == "Plano AEE - IA":
                     help="O sistema calcula automaticamente quantos atendimentos existirão no mês com base nos dias selecionados.",
                 )
 
-            datas_calculadas = gerar_datas_atendimentos_mes(ano_ref, mes_ref, dias_atendimento_ref)
+            datas_calculadas = gerar_datas_atendimentos_mes(
+                ano_ref,
+                mes_ref,
+                dias_atendimento_ref,
+                considerar_data_atual=True,
+            )
+            regra_datas_txt = explicar_regra_datas_plano_mensal(ano_ref, mes_ref)
             qtd_semana = max(1, len(dias_atendimento_ref))
             total_atendimentos_calculado = len(datas_calculadas)
 
@@ -11564,6 +11615,13 @@ elif menu == "Plano AEE - IA":
 
             with st.expander("📆 Ver datas previstas de atendimento", expanded=True):
                 st.text(datas_atendimentos_para_texto(datas_calculadas))
+
+            st.caption(regra_datas_txt)
+            if not datas_calculadas:
+                st.warning(
+                    "Não há atendimentos futuros para este mês considerando a data atual. "
+                    "Verifique o mês, ano e dias de atendimento."
+                )
 
             st.caption(
                 "O roteiro gerado usa as datas reais do mês. Após cada encontro, registre o atendimento no módulo Atendimentos para alimentar a evolução da IA."
@@ -11611,7 +11669,18 @@ elif menu == "Plano AEE - IA":
                         key=f"obs_projeto_norteador_{estudante_id}",
                     )
 
-            if st.button("📅 Gerar Plano Mensal AEE - IA", key=f"gerar_plano_mensal_v19_{estudante_id}"):
+            if st.button(
+                "📅 Gerar Plano Mensal AEE - IA",
+                key=f"gerar_plano_mensal_v19_{estudante_id}",
+                disabled=not bool(datas_calculadas),
+            ):
+                if not datas_calculadas:
+                    st.warning(
+                        "Não há atendimentos futuros para este mês considerando a data atual. "
+                        "Verifique o mês, ano e dias de atendimento."
+                    )
+                    st.stop()
+
                 with st.spinner("Gerando plano mensal por semanas e atendimentos..."):
                     plano_base = gerar_plano_mensal_aee_ia(
                         estudante,
