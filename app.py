@@ -1,5 +1,5 @@
 
-# INCLUISRM V41 - Perfil docente, modo maker inclusivo e projetos norteadores no AEE
+# INCLUISRM V39 - Perfil docente, modo maker inclusivo e projetos norteadores no AEE
 # Atualização: integra perfil pedagógico/tecnológico do professor AEE e docente regular, modo maker inclusivo e projetos interdisciplinares sem caracterizar reforço escolar.
 
 import os
@@ -68,7 +68,7 @@ DOCUMENTOS_AVALIACOES_DIR.mkdir(parents=True, exist_ok=True)
 APP_NAME = "INCLUISRM"
 APP_SUBTITLE = "Sistema Inteligente de Articulação Pedagógica Inclusiva"
 APP_VERSION = "V39"
-APP_VERSION_LABEL = "Perfil Docente • Modo Maker Inclusivo • Projetos Norteadores • IA contextualizada"
+APP_VERSION_LABEL = "Perfil Docente • Recursos Escola + Professor • GRE Narrativo • IA contextualizada"
 # Fuso fixo UTC-3 usado por Recife/Pernambuco.
 # Usar timezone/timedelta evita erro em ambientes Render sem base tzdata completa.
 FUSO_LOCAL = timezone(timedelta(hours=-3), name="America/Recife")
@@ -482,6 +482,9 @@ def criar_tabelas():
         ("interesse_formacao_maker", "TEXT"),
         ("projetos_interesse", "TEXT"),
         ("preferencias_metodologicas", "TEXT"),
+        ("recursos_professor", "TEXT"),
+        ("recursos_professor_uso", "TEXT"),
+        ("recursos_professor_observacoes", "TEXT"),
     ]:
         adicionar_coluna_se_nao_existe(cursor, "professores", coluna, definicao)
 
@@ -1601,6 +1604,26 @@ OPCOES_PROJETOS_NORTEADORES = [
     "Projeto livre / personalizado",
 ]
 
+OPCOES_RECURSOS_PROFESSOR_AEE = [
+    "Tablet",
+    "Notebook",
+    "Chromebook",
+    "Celular",
+    "Recursos de Comunicação Aumentativa e Alternativa (CAA)",
+    "Pranchas de comunicação",
+    "Pictogramas / cartões visuais",
+    "Materiais impressos em papel",
+    "Jogos pedagógicos",
+    "Materiais concretos/manipuláveis",
+    "Materiais táteis/sensoriais",
+    "Caneta 3D",
+    "Impressora 3D / peças 3D",
+    "Kit de robótica educacional",
+    "Arduino / sensores / motores",
+    "Recursos de música / som",
+    "Outros",
+]
+
 
 def hoje_str():
     """Data/hora local para salvar histórico e documentos."""
@@ -2306,13 +2329,15 @@ def importar_recursos_escola_dataframe(df, escola_padrao=""):
 
 
 def listar_recursos_escola_texto(escola_nome=None, limite=40):
-    """Monta o contexto dos recursos da escola para uso nos prompts da IA.
+    """Monta o contexto dos recursos institucionais da escola para uso nos prompts da IA.
 
     Regras pedagógicas:
-    - Se não houver recursos cadastrados, a IA deve registrar explicitamente a ausência.
+    - Se não houver recursos cadastrados, a IA deve registrar explicitamente a ausência no banco institucional da escola.
     - Se houver recursos cadastrados, a IA deve utilizá-los apenas quando forem coerentes
       com o perfil pedagógico, as barreiras, os objetivos e as necessidades do estudante.
-    - A IA não deve forçar o uso de recurso incompatível apenas porque ele está cadastrado.
+    - Os recursos do professor AEE devem ser considerados em conjunto com os recursos da escola,
+      não apenas quando a escola não possuir recursos cadastrados.
+    - A IA não deve forçar o uso de recurso incompatível apenas porque ele está cadastrado ou porque o professor o possui.
     """
     recursos = listar_recursos_escola(escola_nome=escola_nome, apenas_disponiveis=True)
 
@@ -2320,10 +2345,9 @@ def listar_recursos_escola_texto(escola_nome=None, limite=40):
         return (
             "Não há recursos pedagógicos ou tecnologias assistivas cadastradas no banco institucional da escola no momento. "
             "Quando a seção tratar dos recursos da escola, registre essa informação de forma explícita. "
-            "Entretanto, quando informado pelo professor do AEE, considere que podem ser utilizados recursos disponibilizados pelo próprio professor, "
-            "tais como tablet, recursos de Comunicação Aumentativa e Alternativa (CAA), materiais de robótica educacional, "
-            "recursos produzidos em impressão 3D e materiais impressos em papel para atividades pedagógicas estruturadas. "
-            "Esses recursos devem ser apresentados como recursos de apoio do professor do AEE, e não como patrimônio já cadastrado da escola. "
+            "Ainda assim, considere também os recursos pedagógicos/tecnologias assistivas informados no perfil do professor AEE, "
+            "quando houver, como recursos de apoio disponibilizados pelo professor para uso mediado nos atendimentos. "
+            "Esses recursos do professor não devem ser apresentados como patrimônio institucional da escola. "
             "Não invente recursos como se já estivessem disponíveis no banco institucional da unidade escolar."
         )
 
@@ -2343,10 +2367,11 @@ def listar_recursos_escola_texto(escola_nome=None, limite=40):
 
     linhas.append("")
     linhas.append(
-        "ORIENTAÇÃO PARA A IA: utilize os recursos cadastrados apenas quando forem coerentes com o perfil pedagógico, "
-        "as barreiras, os objetivos e as necessidades do estudante. Não force o uso de recursos incompatíveis. "
-        "Quando nenhum recurso cadastrado se aplicar ao caso, informe que há recursos cadastrados, mas que nenhum foi "
-        "identificado como diretamente compatível para aquela estratégia específica, sugerindo alternativas pedagógicas possíveis."
+        "ORIENTAÇÃO PARA A IA: considere conjuntamente os recursos cadastrados pela escola e os recursos informados no perfil do professor AEE. "
+        "Priorize os recursos institucionais da escola quando estiverem disponíveis e forem compatíveis, mas complemente as sugestões com os recursos do professor quando eles forem coerentes com o perfil do estudante, os objetivos pedagógicos e a estratégia proposta. "
+        "Não force o uso de recursos incompatíveis e não invente recursos não cadastrados. "
+        "Quando utilizar recursos do professor, descreva-os como recursos de apoio disponibilizados pelo professor do AEE, e não como patrimônio institucional da escola. "
+        "Quando houver recursos cadastrados na escola, mas nenhum for compatível com determinada necessidade, registre isso de forma pedagógica e sugira alternativas possíveis, inclusive recursos do professor se estiverem informados e forem adequados."
     )
     return "\n".join(linhas)
 
@@ -2590,6 +2615,9 @@ def salvar_professor(
     interesse_formacao_maker="Não",
     projetos_interesse="",
     preferencias_metodologicas="",
+    recursos_professor="",
+    recursos_professor_uso="",
+    recursos_professor_observacoes="",
 ):
     conn = conectar()
     cursor = conn.cursor()
@@ -2599,14 +2627,16 @@ def salvar_professor(
             nome_referencia, escola, regional, formacao, carga_horaria,
             turno_atuacao, observacoes, criado_em,
             areas_interesse, nivel_tecnologico, modo_maker,
-            interesse_formacao_maker, projetos_interesse, preferencias_metodologicas
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            interesse_formacao_maker, projetos_interesse, preferencias_metodologicas,
+            recursos_professor, recursos_professor_uso, recursos_professor_observacoes
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             nome_referencia, escola, regional, formacao, carga_horaria,
             turno_atuacao, observacoes, hoje_str(),
             areas_interesse, nivel_tecnologico, modo_maker,
             interesse_formacao_maker, projetos_interesse, preferencias_metodologicas,
+            recursos_professor, recursos_professor_uso, recursos_professor_observacoes,
         ),
     )
     conn.commit()
@@ -2621,7 +2651,8 @@ def listar_professores():
     cursor.execute(
         """
         SELECT id, nome_referencia, escola, regional, formacao, carga_horaria, turno_atuacao, observacoes, criado_em,
-               areas_interesse, nivel_tecnologico, modo_maker, interesse_formacao_maker, projetos_interesse, preferencias_metodologicas
+               areas_interesse, nivel_tecnologico, modo_maker, interesse_formacao_maker, projetos_interesse, preferencias_metodologicas,
+               recursos_professor, recursos_professor_uso, recursos_professor_observacoes
         FROM professores
         ORDER BY id DESC
         """
@@ -2646,6 +2677,9 @@ def atualizar_professor(
     interesse_formacao_maker="Não",
     projetos_interesse="",
     preferencias_metodologicas="",
+    recursos_professor="",
+    recursos_professor_uso="",
+    recursos_professor_observacoes="",
 ):
     conn = conectar()
     cursor = conn.cursor()
@@ -2655,14 +2689,16 @@ def atualizar_professor(
         SET nome_referencia=?, escola=?, regional=?, formacao=?,
             carga_horaria=?, turno_atuacao=?, observacoes=?,
             areas_interesse=?, nivel_tecnologico=?, modo_maker=?,
-            interesse_formacao_maker=?, projetos_interesse=?, preferencias_metodologicas=?
+            interesse_formacao_maker=?, projetos_interesse=?, preferencias_metodologicas=?,
+            recursos_professor=?, recursos_professor_uso=?, recursos_professor_observacoes=?
         WHERE id=?
         """,
         (
             nome_referencia, escola, regional, formacao, carga_horaria,
             turno_atuacao, observacoes, areas_interesse, nivel_tecnologico,
             modo_maker, interesse_formacao_maker, projetos_interesse,
-            preferencias_metodologicas, professor_id,
+            preferencias_metodologicas, recursos_professor, recursos_professor_uso,
+            recursos_professor_observacoes, professor_id,
         ),
     )
     conn.commit()
@@ -4212,6 +4248,9 @@ Modo maker inclusivo ativado: {p[11] if len(p) > 11 and p[11] else 'Não informa
 Interesse em formação maker/tecnologias educacionais: {p[12] if len(p) > 12 and p[12] else 'Não informado.'}
 Projetos/temas de interesse: {p[13] if len(p) > 13 and p[13] else 'Não informado.'}
 Preferências metodológicas: {p[14] if len(p) > 14 and p[14] else 'Não informado.'}
+Recursos pedagógicos/TA que o professor possui ou pode levar: {p[15] if len(p) > 15 and p[15] else 'Não informado.'}
+Recursos que pretende utilizar nos atendimentos: {p[16] if len(p) > 16 and p[16] else 'Não informado.'}
+Observações sobre uso dos recursos do professor: {p[17] if len(p) > 17 and p[17] else 'Não informado.'}
 
 Observações:
 {p[7] or 'Não informado.'}
@@ -6004,6 +6043,9 @@ def texto_perfil_professor_aee_para_ia():
     formacao = p[12] if len(p) > 12 and p[12] else "Não informado"
     projetos = p[13] if len(p) > 13 and p[13] else "Não informado"
     preferencias = p[14] if len(p) > 14 and p[14] else "Não informado"
+    recursos_professor = p[15] if len(p) > 15 and p[15] else "Não informado"
+    recursos_professor_uso = p[16] if len(p) > 16 and p[16] else "Não informado"
+    recursos_professor_obs = p[17] if len(p) > 17 and p[17] else "Não informado"
 
     return f"""
 PERFIL DO PROFESSOR AEE RESPONSÁVEL:
@@ -6015,12 +6057,21 @@ Modo maker inclusivo ativado: {maker}
 Interesse em formação maker/tecnologias educacionais: {formacao}
 Projetos/temas de interesse: {projetos}
 Preferências metodológicas: {preferencias}
+Recursos pedagógicos/TA que o professor possui ou pode levar: {recursos_professor}
+Recursos que o professor pretende utilizar nos atendimentos: {recursos_professor_uso}
+Observações sobre uso dos recursos do professor: {recursos_professor_obs}
 
 ORIENTAÇÃO PARA A IA:
 - Respeitar o perfil do professor AEE.
+- Considerar SEMPRE dois contextos de recursos quando existirem: (1) recursos institucionais cadastrados pela escola e (2) recursos pedagógicos/tecnologias assistivas que o professor possui ou pretende utilizar.
+- Priorizar os recursos institucionais da escola quando estiverem disponíveis e forem coerentes com o perfil do estudante.
+- Complementar as sugestões com os recursos do professor quando forem adequados aos objetivos pedagógicos, às barreiras identificadas e às necessidades do estudante.
+- Quando usar recursos do professor, deixar claro que são recursos de apoio disponibilizados pelo professor do AEE, e não patrimônio institucional da escola.
 - Não sugerir robótica, impressão 3D, CNC, programação ou tecnologias complexas se o modo maker estiver desativado ou se o nível tecnológico for básico, salvo se o texto indicar interesse em aprender e a atividade for introdutória.
 - Priorizar atividades desplugadas, recursos visuais, materiais manipuláveis, organização de rotina e estratégias de acessibilidade quando o perfil tecnológico for básico.
 - Quando o modo maker estiver ativado, sugerir projetos e tecnologias de forma progressiva, segura, com etapas simples e sempre vinculadas às necessidades do estudante.
+- Não inventar recursos não cadastrados nem recursos que o professor não informou possuir ou pretender utilizar.
+- Se não houver recursos da escola nem recursos do professor, indicar alternativas pedagógicas simples, desplugadas, de baixo custo e possíveis de confeccionar.
 """.strip()
 
 
@@ -6186,7 +6237,7 @@ PLANO AEE MANUAL:
 PERFIL DO PROFESSOR AEE:
 {ctx['perfil_professor_txt']}
 
-RECURSOS PEDAGÓGICOS E TECNOLOGIAS ASSISTIVAS CADASTRADOS NA ESCOLA:
+RECURSOS PEDAGÓGICOS E TECNOLOGIAS ASSISTIVAS (ESCOLA + PROFESSOR AEE):
 {ctx['recursos_escola_txt']}
 
 ESCUTA DOCENTE / HISTÓRICO DE ESCUTAS:
@@ -6290,7 +6341,7 @@ PLANO AEE MANUAL:
 PERFIL DO PROFESSOR AEE:
 {ctx['perfil_professor_txt']}
 
-RECURSOS PEDAGÓGICOS E TECNOLOGIAS ASSISTIVAS CADASTRADOS NA ESCOLA:
+RECURSOS PEDAGÓGICOS E TECNOLOGIAS ASSISTIVAS (ESCOLA + PROFESSOR AEE):
 {ctx['recursos_escola_txt']}
 
 ESCUTA DOCENTE / HISTÓRICO DE ESCUTAS:
@@ -6460,7 +6511,7 @@ PLANO AEE MANUAL:
 PERFIL DO PROFESSOR AEE:
 {ctx['perfil_professor_txt']}
 
-RECURSOS PEDAGÓGICOS E TECNOLOGIAS ASSISTIVAS CADASTRADOS NA ESCOLA:
+RECURSOS PEDAGÓGICOS E TECNOLOGIAS ASSISTIVAS (ESCOLA + PROFESSOR AEE):
 {ctx['recursos_escola_txt']}
 
 ESCUTA DOCENTE / HISTÓRICO DE ESCUTAS:
@@ -6590,7 +6641,7 @@ AVALIAÇÃO PEDAGÓGICA:
 ESTUDO DE CASO GRE:
 {estudo_txt}
 
-RECURSOS PEDAGÓGICOS E TECNOLOGIAS ASSISTIVAS CADASTRADOS NA ESCOLA:
+RECURSOS PEDAGÓGICOS E TECNOLOGIAS ASSISTIVAS (ESCOLA + PROFESSOR AEE):
 {recursos_escola_txt}
 
 HISTÓRICO DE ATENDIMENTOS:
@@ -7507,6 +7558,61 @@ def texto_estudo_plano_aee_gre(estudante, estudo=None, plano=None):
     habilidades_dev = escolher(e("habilidades_a_desenvolver", ""), e("dificuldades", ""), padrao="Não informado.")
     indicadores_ahsd = escolher(e("indicadores_altas_habilidades", ""), padrao="Não há elementos suficientes observados até o momento para caracterizar indicadores de altas habilidades/superdotação, sendo necessário acompanhamento contínuo.")
 
+    def texto_padrao_recursos_integrados_gre():
+        """Gera observação institucional sobre recursos considerando escola + professor AEE.
+        Usado quando o campo manual/IA não trouxe recursos suficientes para o item 2.4 do modelo GRE.
+        """
+        recursos_escola = listar_recursos_escola(apenas_disponiveis=True)
+        professores = listar_professores()
+        recursos_prof = ""
+        uso_prof = ""
+        obs_prof = ""
+        if professores:
+            prof = professores[0]
+            recursos_prof = prof[15] if len(prof) > 15 and prof[15] else ""
+            uso_prof = prof[16] if len(prof) > 16 and prof[16] else ""
+            obs_prof = prof[17] if len(prof) > 17 and prof[17] else ""
+
+        partes = []
+        if recursos_escola:
+            nomes_escola = []
+            for r in recursos_escola[:12]:
+                try:
+                    nomes_escola.append(str(r[2]))
+                except Exception:
+                    pass
+            if nomes_escola:
+                partes.append(
+                    "Serão considerados os recursos pedagógicos e tecnologias assistivas cadastrados no banco institucional da escola, "
+                    f"tais como: {', '.join(nomes_escola)}."
+                )
+
+        if recursos_prof or uso_prof or obs_prof:
+            texto_prof = "; ".join([x for x in [recursos_prof, uso_prof, obs_prof] if texto_valido(x)])
+            partes.append(
+                "Também serão considerados, quando adequados ao perfil pedagógico do estudante, recursos de apoio disponibilizados pelo professor do AEE "
+                f"para uso mediado nos atendimentos, incluindo: {texto_prof}. Esses recursos não são registrados como patrimônio institucional da escola, "
+                "mas como materiais de apoio pedagógico do professor."
+            )
+
+        if not partes:
+            partes.append(
+                "No momento, não há recursos pedagógicos ou tecnologias assistivas cadastradas no banco institucional da escola nem recursos do professor informados no sistema. "
+                "Recomenda-se utilizar estratégias de baixo custo, recursos visuais, materiais impressos, atividades desplugadas e materiais manipuláveis confeccionados conforme a necessidade pedagógica do estudante."
+            )
+
+        partes.append(
+            "A seleção e o uso dos recursos deverão observar as necessidades funcionais, comunicacionais, sensoriais e pedagógicas do estudante, "
+            "priorizando acessibilidade, participação, autonomia e permanência nas atividades escolares."
+        )
+        return "\n".join(partes)
+
+    recursos_gre = escolher(
+        e('recursos_tecnologia_assistiva', ''),
+        p('recursos_acessibilidade'),
+        padrao=texto_padrao_recursos_integrados_gre(),
+    )
+
     return f"""
 {texto_cabecalho_gre("ESTUDO DE CASO E PLANO DE ATENDIMENTO EDUCACIONAL ESPECIALIZADO")}
 
@@ -7554,7 +7660,7 @@ Justifique: {e('justificativa_apoio')}
 Nome do apoio: {e('nome_profissional_apoio')}
 
 2.4 O(a) estudante utiliza qual(is) recurso(s) de tecnologia educacional e/ou assistiva?
-{escolher(e('recursos_tecnologia_assistiva', ''), p('recursos_acessibilidade'), padrao='Embora ainda não constem recursos cadastrados no banco institucional da escola, serão utilizados recursos pedagógicos e tecnologias assistivas disponibilizados pelo professor do AEE, tais como tablet, recursos de Comunicação Aumentativa e Alternativa (CAA), materiais de robótica educacional, recursos em impressão 3D e materiais impressos em papel para atividades pedagógicas estruturadas.')}
+{recursos_gre}
 
 2.5 Registrar observações relevantes para o ambiente educacional do estudante, como acompanhamento médico ou terapêutico, caso seja necessário:
 {e('observacoes_ambiente_educacional')}
@@ -8222,6 +8328,25 @@ elif menu == "Cadastro do Professor AEE":
                 placeholder="Ex.: atividades desplugadas, materiais de baixo custo, jogos, projetos curtos, tecnologia gradual...",
                 key=f"prof_preferencias_metodologicas_{nonce}",
             )
+
+            st.markdown("#### 🧰 Recursos pedagógicos do professor")
+            st.caption("Registre recursos pessoais, móveis ou produzidos pelo professor que poderão ser utilizados pedagogicamente no AEE. Esses recursos não serão tratados como patrimônio da escola.")
+            recursos_professor_sel = st.multiselect(
+                "Recursos que o professor possui ou pode levar",
+                OPCOES_RECURSOS_PROFESSOR_AEE,
+                key=f"prof_recursos_possui_{nonce}",
+            )
+            recursos_professor_uso = st.text_area(
+                "Recursos que pretende utilizar nos atendimentos",
+                placeholder="Ex.: tablet, CAA, material de robótica, peças em impressão 3D, materiais impressos em papel...",
+                key=f"prof_recursos_uso_{nonce}",
+            )
+            recursos_professor_obs = st.text_area(
+                "Observações sobre uso dos recursos do professor",
+                placeholder="Ex.: recursos próprios usados de forma mediada; materiais levados conforme perfil do estudante; necessidade de agendamento/preparo prévio...",
+                key=f"prof_recursos_obs_{nonce}",
+            )
+
             obs = st.text_area(
                 "Observações",
                 key=f"prof_obs_{nonce}",
@@ -8247,6 +8372,9 @@ elif menu == "Cadastro do Professor AEE":
                     interesse_formacao_maker="Sim" if interesse_formacao_prof else "Não",
                     projetos_interesse=projetos_interesse_prof,
                     preferencias_metodologicas=preferencias_metodologicas_prof,
+                    recursos_professor=", ".join(recursos_professor_sel),
+                    recursos_professor_uso=recursos_professor_uso,
+                    recursos_professor_observacoes=recursos_professor_obs,
                 )
                 st.success("Cadastro do professor salvo com sucesso.")
                 st.session_state["prof_form_nonce"] += 1
@@ -8332,6 +8460,22 @@ elif menu == "Cadastro do Professor AEE":
                             value=p[14] if len(p) > 14 and p[14] else "",
                             key=f"edit_prof_preferencias_{p[0]}",
                         )
+                        recursos_e = st.multiselect(
+                            "Recursos que o professor possui ou pode levar",
+                            OPCOES_RECURSOS_PROFESSOR_AEE,
+                            default=[x.strip() for x in (p[15] if len(p) > 15 and p[15] else "").split(",") if x.strip() in OPCOES_RECURSOS_PROFESSOR_AEE],
+                            key=f"edit_prof_recursos_{p[0]}",
+                        )
+                        recursos_uso_e = st.text_area(
+                            "Recursos que pretende utilizar nos atendimentos",
+                            value=p[16] if len(p) > 16 and p[16] else "",
+                            key=f"edit_prof_recursos_uso_{p[0]}",
+                        )
+                        recursos_obs_e = st.text_area(
+                            "Observações sobre uso dos recursos do professor",
+                            value=p[17] if len(p) > 17 and p[17] else "",
+                            key=f"edit_prof_recursos_obs_{p[0]}",
+                        )
                         obs_e = st.text_area("Observações", value=p[7] or "", key=f"edit_prof_obs_{p[0]}")
 
                         if st.form_submit_button("💾 Atualizar cadastro"):
@@ -8350,6 +8494,9 @@ elif menu == "Cadastro do Professor AEE":
                                 interesse_formacao_maker="Sim" if interesse_formacao_e else "Não",
                                 projetos_interesse=projetos_e,
                                 preferencias_metodologicas=preferencias_e,
+                                recursos_professor=", ".join(recursos_e),
+                                recursos_professor_uso=recursos_uso_e,
+                                recursos_professor_observacoes=recursos_obs_e,
                             )
                             st.success("Cadastro atualizado com sucesso.")
                             st.rerun()
@@ -10843,16 +10990,36 @@ elif menu == "Relatórios GRE":
                 )
                 st.dataframe(df_hist_gre.drop(columns=["ID"]), use_container_width=True)
 
+                opcoes_exclusao_gre = [0] + list(historico_gre)
+
+                def rotulo_excluir_historico_gre(item):
+                    if item == 0:
+                        return "Não excluir"
+                    # item = (id, codigo, tipo_documento, nome_arquivo, data_geracao, observacao)
+                    try:
+                        return f"ID {item[0]} • {item[1] or 'Sem código'} • {item[2] or 'Documento'} • {item[4] or 'sem data'}"
+                    except Exception:
+                        return str(item)
+
                 excluir_hist = st.selectbox(
                     "Excluir item do histórico, se necessário",
-                    [0] + [h[0] for h in historico_gre],
-                    format_func=lambda x: "Não excluir" if x == 0 else f"Registro #{x}",
+                    opcoes_exclusao_gre,
+                    format_func=rotulo_excluir_historico_gre,
                     key="excluir_historico_gre",
                 )
-                if excluir_hist and st.button("Excluir registro do histórico GRE"):
-                    excluir_historico_documento_gre(excluir_hist)
-                    st.success("Registro removido do histórico.")
-                    st.rerun()
+                if excluir_hist != 0:
+                    st.warning(f"Selecionado para exclusão: {rotulo_excluir_historico_gre(excluir_hist)}")
+                    confirmar_excluir_hist = st.checkbox(
+                        "Confirmo que desejo excluir este registro do histórico GRE",
+                        key="confirmar_excluir_historico_gre",
+                    )
+                    if st.button("Excluir registro do histórico GRE"):
+                        if confirmar_excluir_hist:
+                            excluir_historico_documento_gre(excluir_hist[0])
+                            st.success("Registro removido do histórico.")
+                            st.rerun()
+                        else:
+                            st.warning("Marque a confirmação antes de excluir.")
             else:
                 st.info("Nenhum documento GRE gerado para este estudante nesta base de dados.")
 
