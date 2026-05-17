@@ -1,5 +1,5 @@
 
-# INCLUISRM V47 - Perfil docente, modo maker inclusivo e projetos norteadores no AEE
+# INCLUISRM V52 - Perfil docente, modo maker inclusivo e projetos norteadores no AEE
 # Atualização: integra perfil pedagógico/tecnológico do professor AEE e docente regular, modo maker inclusivo e projetos interdisciplinares sem caracterizar reforço escolar.
 
 import os
@@ -98,8 +98,8 @@ RELATORIOS_VISUAIS_DOCENTE_DIR.mkdir(parents=True, exist_ok=True)
 
 APP_NAME = "INCLUISRM"
 APP_SUBTITLE = "Sistema Inteligente de Articulação Pedagógica Inclusiva"
-APP_VERSION = "V50"
-APP_VERSION_LABEL = "Infográfico Docente com IA • JSON estruturado • Histórico"
+APP_VERSION = "V52"
+APP_VERSION_LABEL = "Plano Mensal IA • Datas futuras • Sem dias anteriores"
 # Fuso fixo UTC-3 usado por Recife/Pernambuco.
 # Usar timezone/timedelta evita erro em ambientes Render sem base tzdata completa.
 FUSO_LOCAL = timezone(timedelta(hours=-3), name="America/Recife")
@@ -1175,12 +1175,15 @@ MAPA_DIAS_SEMANA = {
     "Sexta-feira": 4,
 }
 
-def gerar_datas_atendimentos_mes(ano, mes_nome, dias_atendimento):
+def gerar_datas_atendimentos_mes(ano, mes_nome, dias_atendimento, considerar_data_atual=True):
     """Calcula automaticamente as datas reais de atendimento do mês.
 
-    Usa o mês, ano e os dias de atendimento cadastrados/selecionados para gerar
-    a quantidade correta de encontros. Ex.: segunda e sexta em um mês podem gerar
-    8, 9 ou 10 atendimentos, conforme o calendário.
+    Regra V52:
+    - mês atual: considera apenas hoje e datas futuras;
+    - mês futuro: considera o mês completo;
+    - mês passado: retorna lista vazia quando considerar_data_atual=True.
+
+    Isso evita que o Plano Mensal IA crie propostas pedagógicas para dias que já passaram.
     """
     try:
         ano_int = int(ano)
@@ -1193,13 +1196,44 @@ def gerar_datas_atendimentos_mes(ano, mes_nome, dias_atendimento):
     if not dias_codigo:
         return []
 
+    hoje = agora_local().date()
+    primeiro_dia_mes = date(ano_int, mes_num, 1)
     total_dias = calendar.monthrange(ano_int, mes_num)[1]
+    ultimo_dia_mes = date(ano_int, mes_num, total_dias)
+
+    if considerar_data_atual and ultimo_dia_mes < hoje:
+        return []
+
     datas = []
     for dia in range(1, total_dias + 1):
         data_atual = date(ano_int, mes_num, dia)
+
+        if considerar_data_atual and primeiro_dia_mes <= hoje <= ultimo_dia_mes:
+            if data_atual < hoje:
+                continue
+
         if data_atual.weekday() in dias_codigo:
             datas.append(data_atual)
     return datas
+
+
+def explicar_regra_datas_plano_mensal(ano, mes_nome):
+    """Mensagem curta para a interface do Plano Mensal IA."""
+    try:
+        ano_int = int(ano)
+    except Exception:
+        ano_int = agora_local().year
+    mes_num = MAPA_MESES.get(str(mes_nome), agora_local().month)
+    hoje = agora_local().date()
+    total_dias = calendar.monthrange(ano_int, mes_num)[1]
+    primeiro = date(ano_int, mes_num, 1)
+    ultimo = date(ano_int, mes_num, total_dias)
+
+    if ultimo < hoje:
+        return "Mês anterior à data atual: não serão geradas propostas futuras para dias já passados."
+    if primeiro <= hoje <= ultimo:
+        return "Mês atual: o plano será gerado apenas a partir de hoje, sem incluir datas anteriores."
+    return "Mês futuro: o plano será gerado considerando todos os atendimentos previstos do mês."
 
 def datas_atendimentos_para_texto(datas):
     if not datas:
@@ -3808,71 +3842,110 @@ def extrair_json_da_resposta(texto):
 
 
 def normalizar_dados_infografico_docente(dados, relatorio_docente_txt="", estudante=None):
-    """Normaliza o JSON do infográfico e aplica fallback seguro."""
+    """Normaliza o JSON do infográfico com regra ética:
+    - campos observacionais só usam o que está documentado;
+    - campos de ação pedagógica podem trazer sugestões, desde que não pareçam diagnóstico;
+    - quando não houver informação, explicita ausência de registro.
+    """
     dados = dados if isinstance(dados, dict) else {}
     perfil = estudante[4] if estudante and len(estudante) > 4 else "Não informado"
 
-    fallback = {
-        "quem_e_estudante": extrair_itens_secao_docente(relatorio_docente_txt, 2, 6, 90) or [
-            "Estudante com formas próprias de participação e aprendizagem.",
-            "Observe como compreende, responde, comunica e participa.",
-            "Valorize sinais de interesse, tentativa e engajamento."
-        ],
-        "condicao_em_linguagem_pedagogica": [
-            f"Condição informada: {perfil}.",
-            "Use essa informação para planejar apoio, acessibilidade e participação, sem reduzir o estudante ao laudo."
-        ],
-        "como_aprende_melhor": extrair_itens_secao_docente(relatorio_docente_txt, 5, 6, 80) or [
-            "Comandos curtos e objetivos.",
-            "Apoio visual e exemplos concretos.",
-            "Atividades organizadas em etapas.",
-            "Rotina previsível e mediação gradual."
-        ],
-        "o_que_dificulta": extrair_itens_secao_docente(relatorio_docente_txt, 4, 6, 80) or [
-            "Excesso de informações simultâneas.",
-            "Tarefas longas sem divisão em etapas.",
-            "Mudanças bruscas de rotina.",
-            "Ambientes com muitos estímulos."
-        ],
-        "potencialidades": extrair_itens_secao_docente(relatorio_docente_txt, 3, 8, 70) or [
-            "Habilidades e interesses já observados.",
-            "Resposta positiva à mediação.",
-            "Participação quando há apoio adequado."
-        ],
-        "barreiras_pedagogicas": extrair_itens_secao_docente(relatorio_docente_txt, 4, 6, 75),
-        "o_que_funciona_em_sala": extrair_itens_secao_docente(relatorio_docente_txt, 5, 8, 70),
-        "atencao_docente": extrair_itens_secao_docente(relatorio_docente_txt, 8, 6, 80),
-        "avaliacao_flexivel": extrair_itens_secao_docente(relatorio_docente_txt, 7, 6, 80),
-        "articulacao_aee": extrair_itens_secao_docente(relatorio_docente_txt, 8, 5, 85),
-        "recursos_sugeridos": [
-            "Apoio visual estruturado",
-            "Materiais concretos",
-            "Checklist de etapas",
-            "CAA quando necessário",
-            "Tecnologia com finalidade pedagógica"
-        ],
-        "foco_pedagogico": "Promover participação, comunicação, autonomia e aprendizagem possível, valorizando potencialidades e reduzindo barreiras."
+    NAO_INFO = "Não informado nos registros analisados."
+
+    # Campos observacionais: não podem ser inventados nem deduzidos pelo CID/condição.
+    fallback_observado = {
+        "quem_e_estudante": extrair_itens_secao_docente(relatorio_docente_txt, 2, 6, 90) or [NAO_INFO],
+        "como_aprende_melhor": extrair_itens_secao_docente(relatorio_docente_txt, 5, 6, 80) or [NAO_INFO],
+        "o_que_dificulta": extrair_itens_secao_docente(relatorio_docente_txt, 4, 6, 80) or [NAO_INFO],
+        "potencialidades": extrair_itens_secao_docente(relatorio_docente_txt, 3, 8, 70) or [NAO_INFO],
+        "barreiras_pedagogicas": extrair_itens_secao_docente(relatorio_docente_txt, 4, 6, 75) or [NAO_INFO],
     }
 
-    campos_lista = [
-        "quem_e_estudante", "condicao_em_linguagem_pedagogica", "como_aprende_melhor",
-        "o_que_dificulta", "potencialidades", "barreiras_pedagogicas",
+    # Campo contextual: a condição/CID não é evidência individual; é referência para cuidado pedagógico.
+    fallback_condicao = [
+        f"Condição informada: {perfil}.",
+        "A condição é referência contextual, não diagnóstico produzido pelo sistema.",
+        "Cada estudante aprende, comunica e participa de forma própria.",
+    ] if perfil and perfil != "Não informado" else [NAO_INFO]
+
+    # Campos sugestivos: podem orientar o docente, mas sempre como possibilidade pedagógica.
+    fallback_sugestivo = {
+        "o_que_funciona_em_sala": extrair_itens_secao_docente(relatorio_docente_txt, 5, 8, 70) or [
+            "Sugestão: usar instruções curtas e objetivas.",
+            "Sugestão: organizar atividades em etapas.",
+            "Sugestão: oferecer apoio visual quando necessário.",
+        ],
+        "atencao_docente": extrair_itens_secao_docente(relatorio_docente_txt, 8, 6, 80) or [
+            "Sugestão: observar respostas do estudante antes de ampliar a demanda.",
+            "Sugestão: evitar generalizações a partir da condição informada.",
+        ],
+        "avaliacao_flexivel": extrair_itens_secao_docente(relatorio_docente_txt, 7, 6, 80) or [
+            "Sugestão: considerar diferentes formas de demonstrar aprendizagem.",
+            "Sugestão: valorizar processo, participação e evolução registrada.",
+        ],
+        "articulacao_aee": extrair_itens_secao_docente(relatorio_docente_txt, 8, 5, 85) or [
+            "Sugestão: dialogar com o AEE para ajustar estratégias e recursos.",
+            "Sugestão: registrar o que funcionou na sala regular.",
+        ],
+        "recursos_sugeridos": [
+            "Sugestão: apoio visual estruturado.",
+            "Sugestão: materiais concretos, quando fizer sentido pedagógico.",
+            "Sugestão: checklist de etapas.",
+            "Sugestão: tecnologia com finalidade pedagógica.",
+        ],
+        "indicadores_de_avanco": [
+            "Sugestão: observar maior participação nas atividades.",
+            "Sugestão: observar permanência na tarefa com menor apoio.",
+            "Sugestão: observar autonomia gradual e comunicação funcional.",
+        ],
+    }
+
+    campos_observados = [
+        "quem_e_estudante", "como_aprende_melhor", "o_que_dificulta",
+        "potencialidades", "barreiras_pedagogicas"
+    ]
+    campos_sugestivos = [
         "o_que_funciona_em_sala", "atencao_docente", "avaliacao_flexivel",
-        "articulacao_aee", "recursos_sugeridos"
+        "articulacao_aee", "recursos_sugeridos", "indicadores_de_avanco"
     ]
 
     normalizado = {}
-    for campo in campos_lista:
-        limite = 8 if campo in ["potencialidades", "o_que_funciona_em_sala"] else 6
+
+    for campo in campos_observados:
+        limite = 8 if campo == "potencialidades" else 6
         itens = normalizar_lista_infografico(dados.get(campo), limite=limite, tamanho_item=85)
         if not itens:
-            itens = normalizar_lista_infografico(fallback.get(campo), limite=limite, tamanho_item=85)
+            itens = normalizar_lista_infografico(fallback_observado.get(campo), limite=limite, tamanho_item=85)
+        normalizado[campo] = itens or [NAO_INFO]
+
+    normalizado["condicao_em_linguagem_pedagogica"] = normalizar_lista_infografico(
+        dados.get("condicao_em_linguagem_pedagogica") or fallback_condicao,
+        limite=4,
+        tamanho_item=88,
+    ) or [NAO_INFO]
+
+    for campo in campos_sugestivos:
+        limite = 8 if campo in ["o_que_funciona_em_sala", "recursos_sugeridos"] else 6
+        itens = normalizar_lista_infografico(dados.get(campo), limite=limite, tamanho_item=85)
+        if not itens:
+            itens = normalizar_lista_infografico(fallback_sugestivo.get(campo), limite=limite, tamanho_item=85)
+        # Garante que ações geradas por fallback fiquem como sugestões, não como fatos.
+        if campo in campos_sugestivos:
+            itens = [i if i.lower().startswith(("sugestão", "pode", "considerar", "avaliar")) else f"Sugestão: {i}" for i in itens]
         normalizado[campo] = itens
 
     foco = str(dados.get("foco_pedagogico") or "").strip()
     if not foco:
-        foco = fallback["foco_pedagogico"]
+        foco = "Favorecer participação, aprendizagem e acessibilidade, valorizando evidências registradas e usando estratégias pedagógicas como possibilidades flexíveis."
     normalizado["foco_pedagogico"] = re.sub(r"\s+", " ", foco).strip()[:220]
+
+    observacao = str(dados.get("observacao_etica") or "").strip()
+    if not observacao:
+        observacao = (
+            "As informações observadas derivam dos registros educacionais analisados. "
+            "As estratégias são sugestões pedagógicas e não representam diagnóstico, laudo ou definição fixa sobre o estudante."
+        )
+    normalizado["observacao_etica"] = re.sub(r"\s+", " ", observacao).strip()[:280]
     return normalizado
 
 
@@ -3894,16 +3967,52 @@ Você é especialista em AEE, educação inclusiva, DUA e design de informação
 TAREFA:
 Leia o RELATÓRIO PEDAGÓGICO DE APOIO AO DOCENTE e transforme o conteúdo em JSON curto para um PAINEL INFOGRÁFICO DOCENTE.
 
-REGRAS:
-- Responda SOMENTE com JSON válido.
-- Não use markdown.
+REGRA CENTRAL:
+O sistema NÃO produz diagnóstico, NÃO confirma laudo e NÃO define o estudante pela condição informada.
+O painel deve apoiar o professor da sala regular com informações pedagógicas e sugestões flexíveis.
+
+FONTES PERMITIDAS:
+Use EXCLUSIVAMENTE as informações presentes nos registros enviados ao prompt:
+- relatório pedagógico docente;
+- avaliação pedagógica, se citada no relatório;
+- estudo de caso, se citado no relatório;
+- registros do AEE, se citados no relatório;
+- escuta docente, se citada no relatório.
+
+REGRAS DE EVIDÊNCIA:
 - Não invente informações.
+- Não crie habilidades, interesses, comportamentos ou dificuldades sem registro.
+- Não deduza características individuais apenas pela condição, CID ou laudo.
+- Se uma informação não estiver nos registros, escreva: "Não informado nos registros analisados."
+- Dados observados do estudante devem vir dos documentos, não da hipótese da IA.
+
+USO DA CONDIÇÃO/CID:
+A condição informada no cadastro pode ser usada APENAS como referência contextual.
+Ela pode orientar POSSIBILIDADES pedagógicas, mas nunca deve ser tratada como evidência individual.
+Quando usar a condição para orientar o professor, escreva com linguagem sugestiva e não determinista:
+- "pode necessitar..."
+- "pode se beneficiar..."
+- "em determinados contextos, pode..."
+- "alguns estudantes com perfil semelhante podem..."
+Sempre deixe claro que cada estudante aprende, comunica e participa de forma própria.
+
+LINGUAGEM:
 - Não use linguagem clínica ou medicalizante.
 - Não exponha dados familiares ou sensíveis.
-- Use frases curtas, objetivas e práticas para professor da sala regular.
-- O foco deve ser: quem é o estudante, como aprende, potencialidades, barreiras, estratégias e avaliação.
+- Use frases curtas, objetivas e úteis para o professor da sala regular.
 - Cada item deve ter no máximo 90 caracteres.
 - Priorize potencialidades e formas de participação antes das barreiras.
+- Estratégias, recursos, avaliação e atenção docente devem aparecer como SUGESTÕES.
+
+NUNCA escreva:
+- "O estudante tem dificuldade de..." se isso não estiver documentado.
+- "O estudante não consegue..." sem evidência nos registros.
+- "Por ser TEA/CID..., ele apresenta...".
+
+PODE escrever:
+- "Nos registros, observa-se..." quando houver evidência.
+- "Sugestão: ..." para ação pedagógica.
+- "Pode se beneficiar de..." quando for orientação pedagógica não determinista.
 
 IDENTIFICAÇÃO PEDAGÓGICA:
 Código: {codigo}
@@ -3915,18 +4024,20 @@ Condição informada no cadastro: {perfil}
 
 JSON obrigatório, exatamente com estas chaves:
 {{
-  "quem_e_estudante": ["item 1", "item 2", "item 3", "item 4", "item 5"],
-  "condicao_em_linguagem_pedagogica": ["item 1", "item 2"],
-  "como_aprende_melhor": ["item 1", "item 2", "item 3", "item 4", "item 5", "item 6"],
-  "o_que_dificulta": ["item 1", "item 2", "item 3", "item 4", "item 5", "item 6"],
-  "potencialidades": ["item 1", "item 2", "item 3", "item 4", "item 5", "item 6"],
-  "barreiras_pedagogicas": ["item 1", "item 2", "item 3", "item 4", "item 5"],
-  "o_que_funciona_em_sala": ["item 1", "item 2", "item 3", "item 4", "item 5", "item 6"],
-  "atencao_docente": ["item 1", "item 2", "item 3", "item 4", "item 5"],
-  "avaliacao_flexivel": ["item 1", "item 2", "item 3", "item 4", "item 5"],
-  "articulacao_aee": ["item 1", "item 2", "item 3", "item 4"],
-  "recursos_sugeridos": ["item 1", "item 2", "item 3", "item 4", "item 5", "item 6"],
-  "foco_pedagogico": "frase central curta"
+  "quem_e_estudante": ["somente fatos observados nos registros"],
+  "condicao_em_linguagem_pedagogica": ["condição como referência contextual, sem diagnóstico"],
+  "como_aprende_melhor": ["somente formas de aprendizagem documentadas"],
+  "o_que_dificulta": ["somente dificuldades registradas"],
+  "potencialidades": ["habilidades e interesses observados nos registros"],
+  "barreiras_pedagogicas": ["barreiras documentadas"],
+  "o_que_funciona_em_sala": ["sugestões pedagógicas ou estratégias registradas"],
+  "atencao_docente": ["sugestões de atenção pedagógica"],
+  "avaliacao_flexivel": ["sugestões avaliativas flexíveis"],
+  "articulacao_aee": ["ações de articulação AEE-sala regular"],
+  "recursos_sugeridos": ["recursos possíveis, em linguagem sugestiva"],
+  "indicadores_de_avanco": ["indicadores observáveis, não diagnósticos"],
+  "foco_pedagogico": "frase central curta",
+  "observacao_etica": "observação dizendo que não é diagnóstico e que sugestões são pedagógicas"
 }}
 
 RELATÓRIO PEDAGÓGICO:
@@ -7861,6 +7972,8 @@ Dias/datas previstas de atendimento:
 {datas_txt}
 
 Total previsto de atendimentos no mês: {total_atendimentos}
+Data atual do sistema: {agora_local().strftime('%d/%m/%Y')}
+Observação: este plano não inclui propostas para datas anteriores à data atual.
 
 Objetivo do mês:
 Organizar uma rotina inicial/progressiva de atendimento voltada à comunicação funcional, autonomia, atenção compartilhada, interação e participação nas atividades da SRM.
@@ -7922,6 +8035,14 @@ DATAS REAIS DE ATENDIMENTO CALCULADAS PELO SISTEMA:
 {datas_txt}
 
 TOTAL REAL DE ATENDIMENTOS NO MÊS: {total_atendimentos}
+
+REGRA DE DATA ATUAL:
+- A data atual do sistema é {agora_local().strftime('%d/%m/%Y')}.
+- As datas listadas já foram filtradas pelo sistema.
+- NÃO crie propostas pedagógicas para datas anteriores à data atual.
+- Se o mês de referência for o mês atual, planeje somente os atendimentos a partir da data atual.
+- Se o mês de referência for futuro, planeje todos os atendimentos listados.
+- Use somente as datas listadas em "DATAS REAIS DE ATENDIMENTO CALCULADAS PELO SISTEMA".
 
 PROJETO NORTEADOR DO ATENDIMENTO:
 {projeto_norteador_txt}
@@ -11762,7 +11883,7 @@ elif menu == "Plano AEE - IA":
                     help="O sistema calcula automaticamente quantos atendimentos existirão no mês com base nos dias selecionados.",
                 )
 
-            datas_calculadas = gerar_datas_atendimentos_mes(ano_ref, mes_ref, dias_atendimento_ref)
+            datas_calculadas = gerar_datas_atendimentos_mes(ano_ref, mes_ref, dias_atendimento_ref, considerar_data_atual=True)
             qtd_semana = max(1, len(dias_atendimento_ref))
             total_atendimentos_calculado = len(datas_calculadas)
 
@@ -11775,8 +11896,9 @@ elif menu == "Plano AEE - IA":
             with st.expander("📆 Ver datas previstas de atendimento", expanded=True):
                 st.text(datas_atendimentos_para_texto(datas_calculadas))
 
+            st.caption(explicar_regra_datas_plano_mensal(ano_ref, mes_ref))
             st.caption(
-                "O roteiro gerado usa as datas reais do mês. Após cada encontro, registre o atendimento no módulo Atendimentos para alimentar a evolução da IA."
+                "O roteiro gerado usa as datas reais disponíveis a partir da data atual. Após cada encontro, registre o atendimento no módulo Atendimentos para alimentar a evolução da IA."
             )
 
             with st.container(border=True):
@@ -11822,7 +11944,13 @@ elif menu == "Plano AEE - IA":
                     )
 
             if st.button("📅 Gerar Plano Mensal AEE - IA", key=f"gerar_plano_mensal_v19_{estudante_id}"):
-                with st.spinner("Gerando plano mensal por semanas e atendimentos..."):
+                if not datas_calculadas:
+                    st.warning(
+                        "Não há atendimentos futuros para este mês considerando a data atual. "
+                        "Verifique o mês, o ano e os dias de atendimento selecionados."
+                    )
+                    st.stop()
+                with st.spinner("Gerando plano mensal por semanas e atendimentos futuros..."):
                     plano_base = gerar_plano_mensal_aee_ia(
                         estudante,
                         mes_ref,
